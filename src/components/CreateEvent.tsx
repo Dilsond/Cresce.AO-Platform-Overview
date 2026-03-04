@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Upload, CheckCircle2, LayoutDashboard } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, CheckCircle2, LayoutDashboard, Image as ImageIcon, Video, X, RefreshCw } from 'lucide-react';
 import type { User, Event } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -15,16 +15,20 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
     const [showAddForm, setShowAddForm] = useState(shouldOpenCreateForm);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'profile'>('dashboard');
     const [eventLicenseFile, setEventLicenseFile] = useState<File | null>(null);
+    const [imagePreview, setImagePreview] = useState<string | null>(null);
+    const [videoPreview, setVideoPreview] = useState<string | null>(null);
+  const [nif, setNif] = useState('');
     const [formData, setFormData] = useState({
         name: '',
         date: '',
         time: '',
         location: '',
+        price: '',
         eventType: 'presencial' as 'presencial' | 'online' | 'híbrido',
         description: '',
         category: 'Palestras' as 'Palestras' | 'Workshops' | 'Feiras' | 'Masterclasses',
-        image: '',
-        video: '',
+        image: null as File | null,
+        video: null as File | null,
         status: 'A decorrer' as 'A decorrer' | 'Cancelada'
     });
 
@@ -40,15 +44,64 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
         }
     };
 
+    const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setFormData({ ...formData, image: file });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setImagePreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            setFormData({ ...formData, video: file });
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setVideoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
+    };
+
+    const clearImage = () => {
+        setFormData({ ...formData, image: null });
+        setImagePreview(null);
+        // Reset do input file
+        const input = document.getElementById('image-upload') as HTMLInputElement;
+        if (input) input.value = '';
+    };
+
+    const clearVideo = () => {
+        setFormData({ ...formData, video: null });
+        setVideoPreview(null);
+        // Reset do input file
+        const input = document.getElementById('video-upload') as HTMLInputElement;
+        if (input) input.value = '';
+    };
+
+    const clearLicense = () => {
+        setEventLicenseFile(null);
+        // Reset do input file
+        const input = document.getElementById('license-upload') as HTMLInputElement;
+        if (input) input.value = '';
+    };
+
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         onAddEvent({ ...formData, eventLicense: eventLicenseFile?.name });
         setFormData({
-            name: '', date: '', time: '', location: '',
+            name: '', date: '', time: '', location: '', price: '',
             eventType: 'presencial', description: '', category: 'Palestras',
-            image: '', video: '', status: 'A decorrer'
+            image: null, video: null, status: 'A decorrer'
         });
         setEventLicenseFile(null);
+        setImagePreview(null);
+        setVideoPreview(null);
         setShowAddForm(false);
         if (onCloseCreateForm) onCloseCreateForm();
     };
@@ -94,13 +147,13 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
                         <form onSubmit={handleSubmit} className="space-y-6">
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Evento *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Nome do Evento</label>
                                     <input type="text" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                         placeholder="Workshop de Empreendedorismo" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Categoria *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Categoria</label>
                                     <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value as any })}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none">
                                         <option value="Palestras">Palestras</option>
@@ -110,17 +163,17 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Data *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Data</label>
                                     <input type="date" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} required
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Hora *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Hora</label>
                                     <input type="time" value={formData.time} onChange={e => setFormData({ ...formData, time: e.target.value })} required
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Evento *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Tipo de Evento</label>
                                     <select value={formData.eventType} onChange={e => setFormData({ ...formData, eventType: e.target.value as any })}
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none">
                                         <option value="presencial">Presencial</option>
@@ -129,35 +182,146 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
                                     </select>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">Local ou Link *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Local ou Link</label>
                                     <input type="text" value={formData.location} onChange={e => setFormData({ ...formData, location: e.target.value })} required
                                         className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                         placeholder="Endereço ou URL" />
                                 </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Preço (Kz)</label>
+                                    <input type="number" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                                        placeholder="Deixe em branco se for gratuito"
+                                        min="0"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">Nº de Contacto (WhatsApp)</label>
+                                    <input type="text" value={formData.price} onChange={(e) => setFormData({ ...formData, price: e.target.value })} required
+                                        onChange={(e) => {
+                                            // Remove tudo que não for número
+                                            const onlyNumbers = e.target.value.replace(/\D/g, '');
+                                            setNif(onlyNumbers);
+                                        }}
+                                        pattern="[0-9]{9,10}"
+                                        maxLength={10}
+                                        className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none disabled:bg-gray-100"
+                                        placeholder="Digite o Contacto"
+                                    />
+                                </div>
                             </div>
 
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">Descrição *</label>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Descrição</label>
                                 <textarea value={formData.description} onChange={e => setFormData({ ...formData, description: e.target.value })} required rows={4}
                                     className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                     placeholder="Descreva o evento..." />
                             </div>
 
+                            {/* Imagem de Capa com Preview e opção de trocar */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">URL da Imagem de Capa *</label>
-                                <input type="url" value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} required
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                                    placeholder="https://exemplo.com/imagem.jpg" />
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Imagem de Capa</label>
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        id="image-upload"
+                                        accept="image/*"
+                                        onChange={handleImageChange}
+                                        required={!imagePreview}
+                                        className="hidden"
+                                    />
+                                    {!imagePreview ? (
+                                        <label
+                                            htmlFor="image-upload"
+                                            className="flex items-center justify-center gap-3 w-full px-4 py-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-lg cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-all"
+                                        >
+                                            <ImageIcon className="w-6 h-6 text-gray-400" />
+                                            <div className="text-center">
+                                                <p className="text-sm font-medium text-gray-900">Clique para fazer upload</p>
+                                                <p className="text-xs text-gray-600 mt-1">JPG, PNG, GIF até 5MB</p>
+                                            </div>
+                                        </label>
+                                    ) : (
+                                        <div className="relative rounded-lg overflow-hidden border border-gray-200">
+                                            <img
+                                                src={imagePreview}
+                                                alt="Preview"
+                                                className="w-full h-48 object-cover"
+                                            />
+                                            <div className="absolute top-2 right-2 flex gap-2">
+                                                <label
+                                                    htmlFor="image-upload"
+                                                    className="p-1.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors cursor-pointer"
+                                                    title="Trocar imagem"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={clearImage}
+                                                    className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                    title="Remover imagem"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
+                            {/* Vídeo com Preview e opção de trocar */}
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">URL do Vídeo Publicitário (opcional)</label>
-                                <input type="url" value={formData.video} onChange={e => setFormData({ ...formData, video: e.target.value })}
-                                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                                    placeholder="https://youtube.com/..." />
+                                <label className="block text-sm font-medium text-gray-700 mb-2">Vídeo</label>
+                                <div className="relative">
+                                    <input
+                                        type="file"
+                                        id="video-upload"
+                                        accept="video/*"
+                                        onChange={handleVideoChange}
+                                        className="hidden"
+                                    />
+                                    {!videoPreview ? (
+                                        <label
+                                            htmlFor="video-upload"
+                                            className="flex items-center justify-center gap-3 w-full px-4 py-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-lg cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-all"
+                                        >
+                                            <Video className="w-6 h-6 text-gray-400" />
+                                            <div className="text-center">
+                                                <p className="text-sm font-medium text-gray-900">Clique para fazer upload</p>
+                                                <p className="text-xs text-gray-600 mt-1">MP4, WebM, OGG até 10MB</p>
+                                            </div>
+                                        </label>
+                                    ) : (
+                                        <div className="relative rounded-lg overflow-hidden border border-gray-200">
+                                            <video
+                                                src={videoPreview}
+                                                controls
+                                                className="w-full h-48 object-contain bg-black"
+                                            />
+                                            <div className="absolute top-2 right-2 flex gap-2">
+                                                <label
+                                                    htmlFor="video-upload"
+                                                    className="p-1.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors cursor-pointer"
+                                                    title="Trocar vídeo"
+                                                >
+                                                    <RefreshCw className="w-4 h-4" />
+                                                </label>
+                                                <button
+                                                    type="button"
+                                                    onClick={clearVideo}
+                                                    className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                    title="Remover vídeo"
+                                                >
+                                                    <X className="w-4 h-4" />
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
 
-                            {/* License Upload */}
+                            {/* License Upload com opção de trocar */}
                             <div className="border-t border-gray-200 pt-6">
                                 <div className="mb-4 p-4 bg-orange-50 rounded-lg border border-orange-200">
                                     <div className="flex items-start gap-3">
@@ -171,31 +335,47 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
                                     </div>
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-3">Licença do Evento (PDF) *</label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-3">Licença do Evento (PDF)</label>
                                     <div className="relative">
                                         <input type="file" id="license-upload" onChange={handleFileChange} required accept=".pdf,application/pdf" className="hidden" />
-                                        <label htmlFor="license-upload"
-                                            className={`flex items-center justify-center gap-3 w-full px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer transition-all ${eventLicenseFile ? 'border-green-400 bg-green-50' : 'border-gray-300 bg-gray-50 hover:border-orange-400 hover:bg-orange-50'
-                                                }`}
-                                        >
-                                            {eventLicenseFile ? (
-                                                <>
-                                                    <CheckCircle2 className="w-6 h-6 text-green-600" />
-                                                    <div className="text-center">
+                                        {!eventLicenseFile ? (
+                                            <label htmlFor="license-upload"
+                                                className="flex items-center justify-center gap-3 w-full px-4 py-6 border-2 border-dashed border-gray-300 bg-gray-50 rounded-lg cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-all"
+                                            >
+                                                <Upload className="w-6 h-6 text-gray-400" />
+                                                <div className="text-center">
+                                                    <p className="text-sm font-medium text-gray-900">Clique para fazer upload</p>
+                                                    <p className="text-xs text-gray-600 mt-1">PDF até 10MB</p>
+                                                </div>
+                                            </label>
+                                        ) : (
+                                            <div className="relative flex items-center justify-between w-full px-4 py-4 border-2 border-green-400 bg-green-50 rounded-lg">
+                                                <div className="flex items-center gap-3">
+                                                    <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0" />
+                                                    <div>
                                                         <p className="text-sm font-medium text-gray-900">{eventLicenseFile.name}</p>
-                                                        <p className="text-xs text-gray-600 mt-1">{(eventLicenseFile.size / 1024).toFixed(2)} KB • Clique para alterar</p>
+                                                        <p className="text-xs text-gray-600 mt-1">{(eventLicenseFile.size / 1024).toFixed(2)} KB</p>
                                                     </div>
-                                                </>
-                                            ) : (
-                                                <>
-                                                    <Upload className="w-6 h-6 text-gray-400" />
-                                                    <div className="text-center">
-                                                        <p className="text-sm font-medium text-gray-900">Clique para fazer upload</p>
-                                                        <p className="text-xs text-gray-600 mt-1">PDF até 10MB</p>
-                                                    </div>
-                                                </>
-                                            )}
-                                        </label>
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <label
+                                                        htmlFor="license-upload"
+                                                        className="p-1.5 bg-blue-500 text-white rounded-full hover:bg-blue-600 transition-colors cursor-pointer"
+                                                        title="Trocar ficheiro"
+                                                    >
+                                                        <RefreshCw className="w-4 h-4" />
+                                                    </label>
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearLicense}
+                                                        className="p-1.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                                        title="Remover ficheiro"
+                                                    >
+                                                        <X className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
