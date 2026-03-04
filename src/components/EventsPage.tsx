@@ -270,7 +270,7 @@ export function EventsPage({
       </header>
 
       {/* Main Content Area */}
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-100">
 
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
