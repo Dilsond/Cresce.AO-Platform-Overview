@@ -599,7 +599,7 @@ export default function App() {
     switch (currentPage) {
       case 'landing':
         return <LandingPage 
-          onExplore={() => setCurrentPage('signup')} 
+          onExplore={() => setCurrentPage('login')} 
           onNavigateToPrivacy={() => setCurrentPage('privacy-policy')}
           onNavigateToTerms={() => setCurrentPage('terms-of-use')}
         />;
@@ -614,7 +614,7 @@ export default function App() {
         return <SignupPage 
           onSignup={handleSignup}
           onNavigateToLogin={() => setCurrentPage('login')}
-          onBack={() => setCurrentPage('landing')}
+          onBack={() => setCurrentPage('login')}
         />;
       case 'organizer-signup':
         return <OrganizerSignupPage 
