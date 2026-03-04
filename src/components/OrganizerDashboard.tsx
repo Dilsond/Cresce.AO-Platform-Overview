@@ -118,15 +118,6 @@ export function OrganizerDashboard({ user, events, onAddEvent, onUpdateEvent, on
                                     {user.company || user.name}
                                 </p>
                             </div>
-                            <motion.button
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => setShowAddForm(!showAddForm)}
-                                className="flex items-center gap-2 px-6 py-3.5 bg-white text-orange-600 rounded-xl hover:bg-orange-50 transition-all shadow-lg font-semibold"
-                            >
-                                {showAddForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                                {showAddForm ? 'Cancelar' : 'Criar Evento'}
-                            </motion.button>
                         </div>
                     </div>
 
@@ -311,13 +302,16 @@ export function OrganizerDashboard({ user, events, onAddEvent, onUpdateEvent, on
                                 <p className="text-gray-600 mb-6 max-w-md mx-auto">
                                     Comece a criar eventos incríveis para alcançar seu público. É rápido e fácil!
                                 </p>
-                                <button
-                                    onClick={() => setShowAddForm(true)}
+
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
+                                    onClick={() => setShowAddForm(!showAddForm)}
                                     className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-all shadow-lg font-semibold"
                                 >
-                                    <Plus className="w-5 h-5" />
-                                    Criar Primeiro Evento
-                                </button>
+                                    {showAddForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
+                                    {showAddForm ?  'Cancelar' : 'Criar Primeiro Evento'}
+                                </motion.button>
                             </div>
                         ) : (
                             <div className="grid gap-6">

@@ -221,7 +221,7 @@ export function LoginPage({ onLogin, onNavigateToSignup, onNavigateToOrganizerSi
               </p>
 
               {/* Organizer link */}
-              <div className="mt-6 pt-6 border-t border-gray-100">
+              <div className="pt-6 border-t border-gray-100">
                 <button
                   onClick={onNavigateToOrganizerSignup}
                   className="w-full flex items-center justify-center gap-2 px-4 py-3 border-2 border-orange-600 text-orange-600 rounded-xl hover:bg-orange-50 transition-colors font-semibold"
