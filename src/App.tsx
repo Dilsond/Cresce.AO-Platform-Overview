@@ -4,8 +4,10 @@ import { LoginPage } from './components/LoginPage';
 import { SignupPage } from './components/SignupPage';
 import { OrganizerSignupPage } from './components/OrganizerSignupPage';
 import { EventsPage } from './components/EventsPage';
+import { CreateEvent } from './components/CreateEvent';
 import { EventDetailPage } from './components/EventDetailPage';
 import { UserDashboard } from './components/UserDashboard';
+import { OrganizerProfile } from './components/OrganizerProfile';
 import { OrganizerDashboard } from './components/OrganizerDashboard';
 import { FavoritesPage } from './components/FavoritesPage';
 import { PrivacyPolicyPage } from './components/PrivacyPolicyPage';
@@ -56,7 +58,7 @@ export interface Event {
 }
 
 export default function App() {
-  const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'organizer-signup' | 'events' | 'event-detail' | 'user-dashboard' | 'organizer-dashboard' | 'favorites' | 'privacy-policy' | 'terms-of-use'>(() => {
+  const [currentPage, setCurrentPage] = useState<'landing' | 'login' | 'signup' | 'organizer-signup' | 'events' | 'create-event' | 'event-detail' | 'user-dashboard' | 'organizer-dashboard' | 'organizer-profile' | 'favorites' | 'privacy-policy' | 'terms-of-use'>(() => {
     try { return (localStorage.getItem('cresceao_page') as any) || 'landing'; } catch { return 'landing'; }
   });
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
@@ -625,13 +627,21 @@ export default function App() {
           events={events}
           currentUser={currentUser}
           onEventClick={handleEventClick}
+          onNavigateToProfile={() => setCurrentPage(currentUser?.type === 'organizer' ? 'organizer-profile' : 'user-dashboard')}
           onNavigateToDashboard={() => setCurrentPage(currentUser?.type === 'organizer' ? 'organizer-dashboard' : 'user-dashboard')}
+          onNavigateToCreateEvent={() => setCurrentPage(currentUser?.type === 'organizer' ? 'create-event' : 'user-dashboard')}
           onLogout={handleLogout}
           likedEvents={likedEvents}
           onOpenCreateForm={() => setShouldOpenCreateForm(true)}
           onNavigateToFavorites={() => setCurrentPage('favorites')}
           onNavigateToPrivacy={() => setCurrentPage('privacy-policy')}
           onNavigateToTerms={() => setCurrentPage('terms-of-use')}
+        />;
+      case 'create-event':
+        return <CreateEvent
+          user={currentUser!}
+          onAddEvent={handleAddEvent}
+          onBack={() => setCurrentPage('events')}
         />;
       case 'event-detail':
         const selectedEvent = events.find(e => e.id === selectedEventId);
@@ -656,6 +666,13 @@ export default function App() {
         return <UserDashboard 
           user={currentUser!}
           onUpdateUser={(updates) => setCurrentUser({ ...currentUser!, ...updates })}
+          onBack={() => setCurrentPage('events')}
+        />;
+      case 'organizer-profile':
+        const organizerEventsProfile = events.filter(e => e.organizerId === currentUser?.id);
+        return <OrganizerProfile 
+          user={currentUser!}
+          events={organizerEventsProfile}
           onBack={() => setCurrentPage('events')}
         />;
       case 'organizer-dashboard':

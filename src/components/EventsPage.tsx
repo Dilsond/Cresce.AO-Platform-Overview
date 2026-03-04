@@ -22,6 +22,8 @@ interface EventsPageProps {
   currentUser: UserType | null;
   onEventClick: (eventId: string) => void;
   onNavigateToDashboard: () => void;
+  onNavigateToProfile: () => void;
+  onNavigateToCreateEvent: () => void;
   onLogout: () => void;
   likedEvents: string[];
   onOpenCreateForm: () => void;
@@ -31,11 +33,13 @@ interface EventsPageProps {
   onNavigateToTerms?: () => void;
 }
 
-export function EventsPage({ 
-  events, 
-  currentUser, 
-  onEventClick, 
-  onNavigateToDashboard, 
+export function EventsPage({
+  events,
+  currentUser,
+  onEventClick,
+  onNavigateToDashboard,
+  onNavigateToProfile,
+  onNavigateToCreateEvent,
   onLogout,
   likedEvents,
   onOpenCreateForm,
@@ -60,12 +64,12 @@ export function EventsPage({
   // Filter events
   const filteredEvents = events.filter(event => {
     const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                         event.organizerName.toLowerCase().includes(searchQuery.toLowerCase());
-    
+      event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      event.organizerName.toLowerCase().includes(searchQuery.toLowerCase());
+
     const matchesCategory = selectedCategory === 'Todas' || event.category === selectedCategory;
     const matchesEventType = selectedEventType === 'Todos' || event.eventType === selectedEventType;
-    
+
     // Price filtering
     let matchesPrice = true;
     if (selectedPriceFilter === 'Gratuito') {
@@ -79,7 +83,7 @@ export function EventsPage({
     const eventDate = new Date(event.date);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (selectedDateFilter === 'Hoje') {
       matchesDate = eventDate.toDateString() === today.toDateString();
     } else if (selectedDateFilter === 'Esta Semana') {
@@ -93,7 +97,7 @@ export function EventsPage({
       threeMonthsFromNow.setMonth(today.getMonth() + 3);
       matchesDate = eventDate >= today && eventDate <= threeMonthsFromNow;
     }
-    
+
     return matchesSearch && matchesCategory && matchesEventType && matchesDate && matchesPrice;
   });
 
@@ -133,11 +137,11 @@ export function EventsPage({
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          
+
           {/* Logo & Search Area */}
           <div className="flex items-center gap-6 flex-1">
             <div className="flex items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => window.location.reload()}>
-              
+
               <span className="hidden md:inline text-xl font-bold text-gray-800">Cresce.AO</span>
             </div>
 
@@ -167,18 +171,18 @@ export function EventsPage({
             {currentUser?.type === 'organizer' && (
               <Button variant="ghost" className="text-gray-600 hover:text-orange-600 font-medium flex gap-2" onClick={() => {
                 onOpenCreateForm();
-                onNavigateToDashboard();
+                onNavigateToCreateEvent();
               }}>
                 <PlusCircle className="w-5 h-5" />
                 Criar evento
               </Button>
             )}
-            
+
             {currentUser?.type === 'organizer' && (
-               <Button variant="ghost" onClick={onNavigateToDashboard} className="text-gray-600 hover:text-orange-600 font-medium flex gap-2">
-                 <LayoutDashboard className="w-5 h-5" />
-                 Meus eventos
-               </Button>
+              <Button variant="ghost" onClick={onNavigateToDashboard} className="text-gray-600 hover:text-orange-600 font-medium flex gap-2">
+                <LayoutDashboard className="w-5 h-5" />
+                Meus eventos
+              </Button>
             )}
 
             <Button variant="ghost" className="text-gray-600 hover:text-orange-600 font-medium flex gap-2" onClick={onNavigateToFavorites}>
@@ -200,12 +204,12 @@ export function EventsPage({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuLabel>Minha Conta</DropdownMenuLabel>
+                {/* <DropdownMenuLabel>Minha Conta</DropdownMenuLabel> */}
                 {currentUser && <DropdownMenuItem className="text-sm font-medium">{currentUser.name}</DropdownMenuItem>}
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onNavigateToDashboard}>
+                <DropdownMenuItem onClick={onNavigateToProfile}>
                   <LayoutDashboard className="mr-2 h-4 w-4" />
-                  <span>Dashboard</span>
+                  <span>Perfil</span>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
@@ -228,11 +232,11 @@ export function EventsPage({
         {mobileMenuOpen && (
           <div className="lg:hidden border-t border-gray-200 p-4 bg-white shadow-lg absolute w-full left-0 top-16 z-50">
             <div className="mb-4">
-              <Input 
-                placeholder="Buscar experiências" 
+              <Input
+                placeholder="Buscar experiências"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full mb-2" 
+                className="w-full mb-2"
               />
               <Button variant="outline" className="w-full justify-between">
                 <span className="flex items-center gap-2"><MapPin className="w-4 h-4" /> Qualquer lugar</span>
@@ -267,7 +271,7 @@ export function EventsPage({
 
       {/* Main Content Area */}
       <main className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        
+
         {/* Breadcrumbs */}
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
           <span className="hover:text-orange-600 cursor-pointer">Página inicial</span>
@@ -283,11 +287,11 @@ export function EventsPage({
 
           {/* Filters Bar */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-            
+
             {/* Filter Groups */}
             <div className="flex items-center gap-2 md:gap-4 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
               <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filtrar por</span>
-              
+
               {/* Category Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -322,8 +326,8 @@ export function EventsPage({
                 </DropdownMenuContent>
               </DropdownMenu>
 
-               {/* Price Dropdown */}
-               <DropdownMenu>
+              {/* Price Dropdown */}
+              <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
                     {selectedPriceFilter === 'Todos' ? 'Preço' : selectedPriceFilter}
@@ -401,7 +405,7 @@ export function EventsPage({
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum evento encontrado</h3>
             <p className="text-gray-500 max-w-md mx-auto mb-6">Não encontramos eventos correspondentes aos seus filtros. Tente limpar os filtros ou buscar por outro termo.</p>
-            <Button 
+            <Button
               onClick={() => {
                 setSearchQuery('');
                 setSelectedCategory('Todas');
@@ -429,20 +433,20 @@ export function EventsPage({
                     alt={event.name}
                     className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500"
                   />
-                  
+
                   {/* Overlay gradient on hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  
+
                   {/* Category Badge */}
                   <div className="absolute top-3 left-3 transform group-hover:scale-110 transition-transform duration-300">
-                     <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 hover:bg-white font-semibold shadow-sm">
+                    <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 hover:bg-white font-semibold shadow-sm">
                       {event.category}
-                     </Badge>
+                    </Badge>
                   </div>
 
                   {/* Likes Badge */}
                   <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                    <button 
+                    <button
                       className="p-2 rounded-full bg-white/90 backdrop-blur-sm text-gray-600 hover:text-red-500 hover:bg-white hover:scale-125 transition-all shadow-sm"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -453,14 +457,13 @@ export function EventsPage({
                     </button>
                   </div>
 
-                   {/* Status/Type Badge */}
-                   <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                     <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${
-                        event.eventType === 'presencial' ? 'text-blue-600' :
-                        event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
-                     }`}>
-                        {event.eventType}
-                     </span>
+                  {/* Status/Type Badge */}
+                  <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.eventType === 'presencial' ? 'text-blue-600' :
+                      event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
+                      }`}>
+                      {event.eventType}
+                    </span>
                   </div>
                 </div>
 
@@ -486,15 +489,15 @@ export function EventsPage({
                   </div>
 
                   <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
-                     <div className="flex items-center gap-2">
-                        <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-orange-100 flex items-center justify-center text-xs font-bold text-gray-600 group-hover:text-orange-600 transition-all duration-300">
-                           {event.organizerName.charAt(0)}
-                        </div>
-                        <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">{event.organizerName}</span>
-                     </div>
-                     <span className="text-sm font-bold text-green-600 group-hover:text-orange-600 group-hover:scale-110 transition-all duration-300">
-                        {event.price ? `${event.price.toLocaleString()} Kz` : 'Grátis'}
-                     </span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-orange-100 flex items-center justify-center text-xs font-bold text-gray-600 group-hover:text-orange-600 transition-all duration-300">
+                        {event.organizerName.charAt(0)}
+                      </div>
+                      <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">{event.organizerName}</span>
+                    </div>
+                    <span className="text-sm font-bold text-green-600 group-hover:text-orange-600 group-hover:scale-110 transition-all duration-300">
+                      {event.price ? `${event.price.toLocaleString()} Kz` : 'Grátis'}
+                    </span>
                   </div>
                 </div>
               </div>
