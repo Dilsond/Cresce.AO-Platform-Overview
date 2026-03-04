@@ -146,7 +146,7 @@ export function OrganizerSignupPage({ onSignup, onLogin, onBack }: OrganizerSign
                   <Building2 className="w-5 h-5 text-orange-600" />
                 </div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  {isLoginMode ? 'Login de Organizador' : 'Registo de Organizador'}
+                  {isLoginMode ? 'Registo de Organizador' : 'Login de Organizador'}
                 </h1>
                 <p className="text-gray-600">
                   {isLoginMode 
@@ -156,73 +156,8 @@ export function OrganizerSignupPage({ onSignup, onLogin, onBack }: OrganizerSign
               </div>
 
               {isLoginMode ? (
-                // Login Form
-                <form onSubmit={handleLoginSubmit} className="space-y-5">
-                  <div>
-                    <label htmlFor="loginEmail" className="block text-sm font-medium text-gray-700 mb-2">
-                      E-mail Empresarial
-                    </label>
-                    <input
-                      id="loginEmail"
-                      type="email"
-                      value={loginEmail}
-                      onChange={(e) => setLoginEmail(e.target.value)}
-                      required
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                      placeholder="contato@empresa.ao"
-                    />
-                  </div>
-
-                  <div>
-                    <label htmlFor="loginPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                      Senha
-                    </label>
-                    <div className="relative">
-                      <input
-                        id="loginPassword"
-                        type={showPassword ? "text" : "password"}
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        required
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-12"
-                        placeholder="••••••••"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                      >
-                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-                      </button>
-                    </div>
-                  </div>
-
-                  <motion.button
-                    type="submit"
-                    disabled={isLoading}
-                    className="w-full bg-orange-600 text-white py-3.5 rounded-xl font-semibold hover:bg-orange-700 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    whileHover={{ scale: 1.01 }}
-                    whileTap={{ scale: 0.99 }}
-                  >
-                    {isLoading ? (
-                      <>
-                        <motion.div
-                          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
-                          animate={{ rotate: 360 }}
-                          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
-                        />
-                        Entrando...
-                      </>
-                    ) : (
-                      <>
-                        <LogIn className="w-5 h-5" />
-                        Entrar como Organizador
-                      </>
-                    )}
-                  </motion.button>
-                </form>
-              ) : (
                 // Signup Form
+
                 <>
                   {/* Validation Notice */}
                   <div className="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-100">
@@ -333,14 +268,82 @@ export function OrganizerSignupPage({ onSignup, onLogin, onBack }: OrganizerSign
                     </motion.button>
                   </form>
                 </>
+
+                
+              ) : (
+                // Login Form
+                <form onSubmit={handleLoginSubmit} className="space-y-5">
+                  <div>
+                    <label htmlFor="loginEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                      E-mail Empresarial
+                    </label>
+                    <input
+                      id="loginEmail"
+                      type="email"
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      required
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                      placeholder="contato@empresa.ao"
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="loginPassword" className="block text-sm font-medium text-gray-700 mb-2">
+                      Senha
+                    </label>
+                    <div className="relative">
+                      <input
+                        id="loginPassword"
+                        type={showPassword ? "text" : "password"}
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        required
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-12"
+                        placeholder="••••••••"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                      >
+                        {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <motion.button
+                    type="submit"
+                    disabled={isLoading}
+                    className="w-full bg-orange-600 text-white py-3.5 rounded-xl font-semibold hover:bg-orange-700 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    whileHover={{ scale: 1.01 }}
+                    whileTap={{ scale: 0.99 }}
+                  >
+                    {isLoading ? (
+                      <>
+                        <motion.div
+                          className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                        />
+                        Entrando...
+                      </>
+                    ) : (
+                      <>
+                        <LogIn className="w-5 h-5" />
+                        Entrar como Organizador
+                      </>
+                    )}
+                  </motion.button>
+                </form>
               )}
 
               {/* Toggle Mode Button */}
               <div className="mt-6 text-center pt-6 border-t border-gray-100">
                 <p className="text-gray-600 mb-2">
                   {isLoginMode 
-                    ? 'Ainda não tem conta de organizador?' 
-                    : 'Já tem conta de organizador?'}
+                    ? 'Já tem conta de organizador?'
+                    : 'Ainda não tem conta de organizador?' }
                 </p>
                 <button
                   onClick={() => {
@@ -350,8 +353,8 @@ export function OrganizerSignupPage({ onSignup, onLogin, onBack }: OrganizerSign
                   className="text-orange-600 font-semibold hover:text-orange-700 transition-colors"
                 >
                   {isLoginMode 
-                    ? 'Criar nova conta' 
-                    : 'Entrar na minha conta'}
+                    ?  'Entrar na minha conta'
+                    : 'Criar uma conta'}
                 </button>
               </div>
             </motion.div>
