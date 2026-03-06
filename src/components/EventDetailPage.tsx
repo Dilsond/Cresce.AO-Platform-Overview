@@ -1,47 +1,324 @@
-import image_2b98f25257b1238c48d47c9236d12c5ed6e3cffe from 'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png'
-import image_60c6c4feca86a0a2717d134942980a7a4f5c7e88 from 'figma:asset/60c6c4feca86a0a2717d134942980a7a4f5c7e88.png'
-import { ArrowLeft, Calendar, MapPin, Heart, Building2, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare } from 'lucide-react';
-import type { Event, User } from '../App';
+import image_2b98f25257b1238c48d47c9236d12c5ed6e3cffe from 'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png';
+import { ArrowLeft, Calendar, MapPin, Heart, Building2, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
 import { EventReviews } from './EventReviews';
 import { Breadcrumbs } from './Breadcrumbs';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { EventQuiz } from './EventQuiz';
 import { EventChat } from './EventChat';
 import { Footer } from './Footer';
+import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { supabase } from '../lib/supabase';
 
-interface EventDetailPageProps {
-  event: Event;
-  isLiked: boolean;
-  onLikeToggle: () => void;
-  onBack: () => void;
-  currentUser: User | null;
-  onAddReview: (eventId: string, rating: number, comment: string, images?: string[]) => void;
-  onUpdateReview?: (eventId: string, reviewId: string, rating: number, comment: string, images?: string[]) => void;
-  onDeleteReview?: (eventId: string, reviewId: string) => void;
-  onNavigateToPrivacy?: () => void;
-  onNavigateToTerms?: () => void;
-}
+type User = {
+  id: string;
+  name: string;
+  email: string;
+  type?: 'user' | 'organizer';
+};
 
-export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentUser, onAddReview, onUpdateReview, onDeleteReview, onNavigateToPrivacy, onNavigateToTerms }: EventDetailPageProps) {
+type Event = {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  eventType: string;
+  description: string;
+  category: string;
+  image: string;
+  video?: string;
+  pdf?: string;
+  status: string;
+  organizerId: string;
+  organizerName: string;
+  organizerEmail?: string;
+  organizerPhone?: string;
+  likes: number;
+  price?: number;
+  reviews?: any[];
+  averageRating?: number;
+};
+
+export function EventDetailPage() {
   const [showQuiz, setShowQuiz] = useState(false);
   const [showChat, setShowChat] = useState(false);
+  const [event, setEvent] = useState<Event | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
+  const { id } = useParams();
+
+  const [currentUser] = useState<User | null>(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [isLiked, setIsLiked] = useState(false);
+
+  // Buscar evento do banco de dados
+  useEffect(() => {
+    if (id) {
+      fetchEvent(id);
+    }
+  }, [id]);
+
+  const fetchEvent = async (eventId: string) => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log('Buscando evento:', eventId);
+
+      // Buscar evento pelo ID
+      const { data: evento, error: eventoError } = await supabase
+        .from('eventos')
+        .select('*')
+        .eq('id', eventId)
+        .is('deleted_at', null)
+        .single();
+
+      if (eventoError) {
+        console.error('Erro ao buscar evento:', eventoError);
+        setError('Evento não encontrado');
+        setIsLoading(false);
+        return;
+      }
+
+      console.log('Evento encontrado:', evento);
+
+      // Buscar organizador
+      const { data: organizador, error: orgError } = await supabase
+        .from('organizadores')
+        .select('nome_empresa, email_empresa')
+        .eq('id', evento.organizador_id)
+        .single();
+
+      if (orgError) {
+        console.error('Erro ao buscar organizador:', orgError);
+      }
+
+      // Buscar número de likes (da tabela favoritos_eventos)
+      const { count: likesCount, error: likesError } = await supabase
+        .from('favoritos_eventos')
+        .select('*', { count: 'exact', head: true })
+        .eq('evento_id', eventId);
+
+      if (likesError) {
+        console.error('Erro ao buscar likes:', likesError);
+      }
+
+      // Verificar se o usuário atual deu like
+      if (currentUser) {
+        const { data: userLike } = await supabase
+          .from('favoritos_eventos')
+          .select('id')
+          .eq('evento_id', eventId)
+          .eq('usuario_normal_id', currentUser.id)
+          .maybeSingle();
+
+        setIsLiked(!!userLike);
+      }
+
+      // Buscar reviews (da tabela comentarios)
+      const { data: reviews, error: reviewsError } = await supabase
+        .from('comentarios')
+        .select(`
+          id,
+          descricao,
+          avaliacao,
+          imagem_url,
+          created_at,
+          usuario_normal:usuarios_normais (
+            nome_completo,
+            nome_utilizador
+          )
+        `)
+        .eq('evento_id', eventId)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (reviewsError) {
+        console.error('Erro ao buscar reviews:', reviewsError);
+      }
+
+      // Calcular média das avaliações
+      let averageRating = 0;
+      if (reviews && reviews.length > 0) {
+        const sum = reviews.reduce((acc, review) => acc + (review.avaliacao || 0), 0);
+        averageRating = sum / reviews.length;
+      }
+
+      // Formatar reviews
+      const formattedReviews = reviews?.map(review => ({
+        id: review.id,
+        userId: review.usuario_normal?.id,
+        userName: review.usuario_normal?.nome_completo || 'Usuário',
+        userUsername: review.usuario_normal?.nome_utilizador,
+        rating: review.avaliacao,
+        comment: review.descricao,
+        date: review.created_at,
+        images: review.imagem_url ? [review.imagem_url] : []
+      })) || [];
+
+      // Montar objeto do evento
+      const formattedEvent: Event = {
+        id: evento.id,
+        name: evento.nome_evento,
+        description: evento.descricao || 'Sem descrição disponível',
+        category: evento.categoria,
+        date: evento.data_evento,
+        time: evento.hora_evento,
+        eventType: evento.tipo_evento,
+        location: evento.local || 'Local a definir',
+        price: evento.valor || 0,
+        image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+        video: evento.video_url,
+        pdf: evento.arquivo_pdf_url,
+        status: 'A decorrer', // Você pode definir baseado na data
+        organizerId: evento.organizador_id,
+        organizerName: organizador?.nome_empresa || 'Organizador não identificado',
+        organizerEmail: organizador?.email_empresa,
+        organizerPhone: '244900000000', // Mock - idealmente ter campo na tabela organizadores
+        likes: likesCount || 0,
+        reviews: formattedReviews,
+        averageRating
+      };
+
+      console.log('Evento formatado:', formattedEvent);
+      setEvent(formattedEvent);
+
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      setError('Ocorreu um erro ao carregar o evento');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const onLikeToggle = async () => {
+    if (!currentUser || !event) return;
+
+    try {
+      if (isLiked) {
+        // Remover like
+        const { error } = await supabase
+          .from('favoritos_eventos')
+          .delete()
+          .eq('evento_id', event.id)
+          .eq('usuario_normal_id', currentUser.id);
+
+        if (!error) {
+          setIsLiked(false);
+          setEvent(prev => prev ? { ...prev, likes: prev.likes - 1 } : prev);
+        }
+      } else {
+        // Adicionar like
+        const { error } = await supabase
+          .from('favoritos_eventos')
+          .insert({
+            evento_id: event.id,
+            usuario_normal_id: currentUser.id,
+            created_at: new Date().toISOString()
+          });
+
+        if (!error) {
+          setIsLiked(true);
+          setEvent(prev => prev ? { ...prev, likes: prev.likes + 1 } : prev);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao alternar like:', err);
+    }
+  };
+
+  const onAddReview = async (rating: number, comment: string, images: any[]) => {
+    if (!currentUser || !event) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('comentarios')
+        .insert({
+          evento_id: event.id,
+          usuario_normal_id: currentUser.id,
+          descricao: comment,
+          avaliacao: rating,
+          imagem_url: images[0] || null, // Simplificado - idealmente várias imagens
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (!error && data) {
+        // Recarregar evento para atualizar reviews
+        fetchEvent(event.id);
+      }
+    } catch (err) {
+      console.error('Erro ao adicionar review:', err);
+    }
+  };
+
+  const onUpdateReview = async (reviewId: number, rating: number, comment: string, images: any[]) => {
+    if (!currentUser || !event) return;
+
+    try {
+      const { error } = await supabase
+        .from('comentarios')
+        .update({
+          descricao: comment,
+          avaliacao: rating,
+          imagem_url: images[0] || null,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reviewId)
+        .eq('usuario_normal_id', currentUser.id);
+
+      if (!error) {
+        fetchEvent(event.id);
+      }
+    } catch (err) {
+      console.error('Erro ao atualizar review:', err);
+    }
+  };
+
+  const onDeleteReview = async (reviewId: number) => {
+    if (!currentUser || !event) return;
+
+    try {
+      const { error } = await supabase
+        .from('comentarios')
+        .update({ deleted_at: new Date().toISOString() }) // Soft delete
+        .eq('id', reviewId)
+        .eq('usuario_normal_id', currentUser.id);
+
+      if (!error) {
+        fetchEvent(event.id);
+      }
+    } catch (err) {
+      console.error('Erro ao deletar review:', err);
+    }
+  };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', { 
-      day: '2-digit', 
-      month: 'short', 
-      year: 'numeric' 
+    return date.toLocaleDateString('pt-PT', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
     });
   };
 
   const formatDateFull = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', { 
+    return date.toLocaleDateString('pt-PT', {
       weekday: 'long',
-      day: 'numeric', 
-      month: 'long', 
-      year: 'numeric' 
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric'
     });
   };
 
@@ -65,26 +342,60 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
 
   // WhatsApp contact function
   const handleWhatsAppContact = () => {
-    const phoneNumber = '244900000000'; // Mock number - replace with actual organizer phone
+    const phoneNumber = event?.organizerPhone || '244900000000';
     const message = encodeURIComponent(
-      `Olá! Gostaria de obter mais informações sobre o evento: ${event.name}`
+      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}`
     );
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');
   };
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <p className="text-gray-600">Carregando evento...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error || !event) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+        <div className="text-center max-w-md">
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Evento não encontrado</h2>
+          <p className="text-gray-600 mb-6">{error || 'O evento que você procura não existe ou foi removido.'}</p>
+          <button
+            onClick={() => navigate('/events')}
+            className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors"
+          >
+            Voltar aos eventos
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm sticky top-0 z-10 border-b border-gray-200">
+      <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            Voltar aos Eventos
-          </button>
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Voltar</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-6 h-6 text-orange-600" />
+              <span className="font-bold text-gray-900">Cresce.AO</span>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -98,9 +409,9 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
               <div className="text-sm text-gray-300 mb-4">
                 Fale com o produtor: {event.organizerName}
               </div>
-              
+
               <h1 className="text-4xl font-bold mb-6">{event.name}</h1>
-              
+
               <div className="space-y-3">
                 {/* Date and Time */}
                 <div className="flex items-center gap-2 text-gray-200">
@@ -128,11 +439,14 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
           {/* Right Column - Event Image */}
           <div className="relative rounded-2xl overflow-hidden shadow-xl">
             <img
-              src={image_2b98f25257b1238c48d47c9236d12c5ed6e3cffe}
+              src={event.image}
               alt={event.name}
               className="w-full h-full object-cover min-h-[400px]"
+              onError={(e) => {
+                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+              }}
             />
-            
+
             {/* Status Badge */}
             {event.status === 'Cancelada' && (
               <div className="absolute top-6 left-6">
@@ -161,22 +475,6 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
               <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Descrição do evento</h2>
               <div className="space-y-4 text-gray-700 leading-relaxed">
                 <p>{event.description}</p>
-                
-                {/* Additional descriptive content */}
-                <p className="text-gray-600">
-                  Esta é uma oportunidade única de participar num evento que une profissionais, 
-                  estudantes e entusiastas da área. Prepare-se para uma experiência enriquecedora 
-                  com networking, aprendizagem e desenvolvimento profissional.
-                </p>
-                
-                <p className="text-gray-600">
-                  Não perca esta chance de expandir seus horizontes e conectar-se com outros 
-                  profissionais da sua área de interesse.
-                </p>
-                
-                <p className="font-semibold text-gray-900 mt-6">
-                  Preparado para este encontro no {event.location}?
-                </p>
               </div>
 
               {/* Quiz Button in Description */}
@@ -192,12 +490,12 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
                     </div>
                   </div>
                   <p className="text-gray-700 mb-4">
-                    Avalie o seu conhecimento respondendo a 5 perguntas de múltipla escolha. 
+                    Avalie o seu conhecimento respondendo a 5 perguntas de múltipla escolha.
                     No final, receberá feedback personalizado sobre o seu desempenho.
                   </p>
                   <button
                     onClick={() => setShowQuiz(true)}
-                    className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
+                    className="w-full bg-purple-600 hover:bg-purple-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
                   >
                     <GraduationCap className="w-5 h-5" />
                     Testar Quiz
@@ -211,17 +509,12 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
               <div className="bg-white rounded-xl shadow-md p-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Vídeo Promocional</h2>
                 <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden group">
-                  {/* Video Thumbnail/Preview */}
                   <img
                     src={event.image}
                     alt={`Preview de ${event.name}`}
                     className="w-full h-full object-cover"
                   />
-                  
-                  {/* Overlay gradient */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
-                  
-                  {/* Play button */}
                   <a
                     href={event.video}
                     target="_blank"
@@ -229,17 +522,11 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
                     className="absolute inset-0 flex items-center justify-center group-hover:bg-black/20 transition-all"
                   >
                     <div className="w-20 h-20 bg-orange-600 rounded-full flex items-center justify-center group-hover:bg-orange-700 group-hover:scale-110 transition-all shadow-2xl">
-                      <svg 
-                        className="w-10 h-10 text-white ml-1" 
-                        fill="currentColor" 
-                        viewBox="0 0 24 24"
-                      >
-                        <path d="M8 5v14l11-7z"/>
+                      <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M8 5v14l11-7z" />
                       </svg>
                     </div>
                   </a>
-                  
-                  {/* Label */}
                   <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-4 py-2 rounded-lg">
                     <p className="text-white font-semibold text-sm">▶ Assistir Vídeo Promocional</p>
                   </div>
@@ -257,6 +544,9 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">{event.organizerName}</h3>
                   <p className="text-gray-600">Organizador de Eventos</p>
+                  {event.organizerEmail && (
+                    <p className="text-sm text-gray-500 mt-1">{event.organizerEmail}</p>
+                  )}
                 </div>
               </div>
             </div>
@@ -266,7 +556,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Informações e Contacto</h3>
-              
+
               {event.status === 'A decorrer' ? (
                 <div className="space-y-4">
                   {/* Event Details Card */}
@@ -337,15 +627,15 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
                         Entre em contacto com o organizador para mais informações e inscrições
                       </p>
                     </div>
-                    
+
                     <button
                       onClick={handleWhatsAppContact}
-                      className="w-full bg-green-600 hover:bg-green-700 text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md"
+                      className="w-full bg-green-600 hover:bg-green-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md"
                     >
                       <MessageCircle className="w-6 h-6" />
                       Falar no WhatsApp
                     </button>
-                    
+
                     <p className="text-xs text-center text-gray-500 mt-3">
                       Será redirecionado para o WhatsApp
                     </p>
@@ -354,7 +644,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
                   {/* Like Button */}
                   <button
                     onClick={onLikeToggle}
-                    className={`w-full px-6 py-3 rounded-lg font-semibold transition-all flex items-center justify-center gap-2 ${
+                    className={`w-full px-6 py-3 rounded-lg cursor-pointer font-semibold transition-all flex items-center justify-center gap-2 ${
                       isLiked
                         ? 'bg-orange-600 text-white hover:bg-orange-700'
                         : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
@@ -386,7 +676,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
               )}
 
               {/* Share Button */}
-              <button className="w-full mt-4 px-6 py-3 border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+              <button className="w-full mt-4 px-6 py-3 cursor-pointer border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
                 <Share2 className="w-5 h-5" />
                 Partilhar Evento
               </button>
@@ -443,11 +733,11 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
         {/* Reviews Section */}
         <div className="mt-8">
           <EventReviews
-            reviews={event.reviews}
+            reviews={event.reviews || []}
             averageRating={event.averageRating}
-            onAddReview={(rating, comment, images) => onAddReview(event.id, rating, comment, images)}
-            onUpdateReview={onUpdateReview ? (reviewId, rating, comment, images) => onUpdateReview(event.id, reviewId, rating, comment, images) : undefined}
-            onDeleteReview={onDeleteReview ? (reviewId) => onDeleteReview(event.id, reviewId) : undefined}
+            onAddReview={(rating, comment, images) => onAddReview(rating, comment, images)}
+            onUpdateReview={(reviewId, rating, comment, images) => onUpdateReview(reviewId, rating, comment, images)}
+            onDeleteReview={(reviewId) => onDeleteReview(reviewId)}
             currentUserName={currentUser?.name}
           />
         </div>
@@ -455,7 +745,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
 
       {/* Quiz Modal */}
       {showQuiz && (
-        <EventQuiz 
+        <EventQuiz
           eventName={event.name}
           eventCategory={event.category}
           eventImage={event.image}
@@ -465,7 +755,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
 
       {/* Chat Modal */}
       {showChat && (
-        <EventChat 
+        <EventChat
           eventId={event.id}
           eventName={event.name}
           currentUser={currentUser}
@@ -474,7 +764,7 @@ export function EventDetailPage({ event, isLiked, onLikeToggle, onBack, currentU
       )}
 
       {/* Footer */}
-      <Footer onNavigateToPrivacy={onNavigateToPrivacy} onNavigateToTerms={onNavigateToTerms} />
+      <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
     </div>
   );
 }

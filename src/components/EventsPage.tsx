@@ -1,53 +1,148 @@
-import { useState } from 'react';
-import { Search, MapPin, Heart, User, LogOut, LayoutDashboard, PlusCircle, CalendarDays, ChevronDown, Menu, X, ChevronRight, SlidersHorizontal } from 'lucide-react';
-import type { Event, User as UserType } from '../App';
+import { useState, useEffect } from 'react';
+import { Search, MapPin, Heart, User, LogOut, LayoutDashboard, PlusCircle, CalendarDays, ChevronDown, Menu, X, ChevronRight, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
 import { Input } from './ui/input';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-  DropdownMenuCheckboxItem,
-} from "./ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
 import { EventCardSkeleton } from './EventCardSkeleton';
 import { Footer } from './Footer';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
 
-interface EventsPageProps {
-  events: Event[];
-  currentUser: UserType | null;
-  onEventClick: (eventId: string) => void;
-  onNavigateToDashboard: () => void;
-  onNavigateToProfile: () => void;
-  onNavigateToCreateEvent: () => void;
-  onLogout: () => void;
-  likedEvents: string[];
-  onOpenCreateForm: () => void;
-  onNavigateToFavorites: () => void;
-  isLoading?: boolean;
-  onNavigateToPrivacy?: () => void;
-  onNavigateToTerms?: () => void;
+export type UserType = 'user' | 'organizer';
+
+export interface User {
+  id: string;
+  name: string;
+  username?: string;
+  email: string;
+  type: UserType;
+  company?: string;
 }
 
-export function EventsPage({
-  events,
-  currentUser,
-  onEventClick,
-  onNavigateToDashboard,
-  onNavigateToProfile,
-  onNavigateToCreateEvent,
-  onLogout,
-  likedEvents,
-  onOpenCreateForm,
-  onNavigateToFavorites,
-  isLoading = false,
-  onNavigateToPrivacy,
-  onNavigateToTerms
-}: EventsPageProps) {
+export interface Event {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  eventType: string;
+  description: string;
+  category: string;
+  image: string;
+  status: string;
+  organizerId: string;
+  organizerName: string;
+  likes: number;
+  price?: number;
+}
+
+export function EventsPage() {
+  const navigate = useNavigate();
+  const [events, setEvents] = useState<Event[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // pegar usuário do localStorage
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  // buscar eventos do Supabase
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      console.log('Buscando eventos...');
+
+      // Primeiro, buscar todos os eventos
+      const { data: eventos, error: eventosError } = await supabase
+        .from('eventos')
+        .select('*')
+        .is('deleted_at', null)
+        .order('data_evento', { ascending: true });
+
+      if (eventosError) {
+        console.error('Erro ao buscar eventos:', eventosError);
+        setError('Erro ao carregar eventos.');
+        return;
+      }
+
+      console.log('Eventos encontrados:', eventos);
+
+      if (!eventos || eventos.length === 0) {
+        setEvents([]);
+        return;
+      }
+
+      // Para cada evento, buscar o organizador correspondente
+      const eventosComOrganizadores = await Promise.all(
+        eventos.map(async (evento) => {
+          // Buscar organizador pelo ID
+          const { data: organizador, error: orgError } = await supabase
+            .from('organizadores')
+            .select('nome_empresa, id')
+            .eq('id', evento.organizador_id)
+            .single();
+
+          if (orgError) {
+            console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
+          }
+
+          return {
+            id: evento.id,
+            name: evento.nome_evento,
+            description: evento.descricao || 'Sem descrição disponível',
+            category: evento.categoria,
+            date: evento.data_evento,
+            time: evento.hora_evento,
+            eventType: evento.tipo_evento,
+            location: evento.local || 'Local a definir',
+            price: evento.valor || 0,
+            image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+            status: 'A decorrer',
+            organizerId: organizador?.id || evento.organizador_id,
+            organizerName: organizador?.nome_empresa || 'Organizador não identificado',
+            likes: 0
+          };
+        })
+      );
+
+      console.log('Eventos formatados:', eventosComOrganizadores);
+      setEvents(eventosComOrganizadores);
+
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      setError('Ocorreu um erro inesperado ao carregar eventos.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // redirecionar se não estiver logado
+  useEffect(() => {
+    if (!currentUser) {
+      navigate('/login');
+    }
+  }, [currentUser, navigate]);
+
+  // logout
+  const onLogout = () => {
+    localStorage.removeItem('user');
+    navigate('/login');
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [selectedDateFilter, setSelectedDateFilter] = useState<string>('Todas');
@@ -55,35 +150,41 @@ export function EventsPage({
   const [selectedPriceFilter, setSelectedPriceFilter] = useState<string>('Todos');
   const [sortBy, setSortBy] = useState<string>('Relevância');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [likedEvents, setLikedEvents] = useState<string[]>(() => {
+    const l = localStorage.getItem('cresceao_liked');
+    return l ? JSON.parse(l) : [];
+  });
 
   const categories = ['Todas', 'Palestras', 'Workshops', 'Feiras', 'Masterclasses'];
   const dateFilters = ['Todas', 'Hoje', 'Esta Semana', 'Este Mês', 'Próximos 3 Meses'];
   const eventTypes = ['Todos', 'presencial', 'online', 'híbrido'];
   const priceFilters = ['Todos', 'Gratuito', 'Pago'];
 
-  // Filter events
+  const onNavigateToProfile = () => {
+    if (!currentUser) return;
+    if (currentUser.type === 'organizer') navigate('/organizer-profile');
+    else navigate('/user-dashboard');
+  };
+
+  // --- Filtragem ---
   const filteredEvents = events.filter(event => {
-    const matchesSearch = event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = searchQuery === '' || 
+      event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.organizerName.toLowerCase().includes(searchQuery.toLowerCase());
 
     const matchesCategory = selectedCategory === 'Todas' || event.category === selectedCategory;
     const matchesEventType = selectedEventType === 'Todos' || event.eventType === selectedEventType;
 
-    // Price filtering
     let matchesPrice = true;
-    if (selectedPriceFilter === 'Gratuito') {
-      matchesPrice = !event.price || event.price === 0;
-    } else if (selectedPriceFilter === 'Pago') {
-      matchesPrice = !!event.price && event.price > 0;
-    }
+    if (selectedPriceFilter === 'Gratuito') matchesPrice = !event.price || event.price === 0;
+    if (selectedPriceFilter === 'Pago') matchesPrice = !!event.price && event.price > 0;
 
-    // Date filtering
     let matchesDate = true;
     const eventDate = new Date(event.date);
-    const today = new Date();
+    const today = new Date(); 
     today.setHours(0, 0, 0, 0);
-
+    
     if (selectedDateFilter === 'Hoje') {
       matchesDate = eventDate.toDateString() === today.toDateString();
     } else if (selectedDateFilter === 'Esta Semana') {
@@ -98,13 +199,12 @@ export function EventsPage({
       matchesDate = eventDate >= today && eventDate <= threeMonthsFromNow;
     }
 
-    return matchesSearch && matchesCategory && matchesEventType && matchesDate && matchesPrice;
+    return matchesSearch && matchesCategory && matchesEventType && matchesPrice && matchesDate;
   });
 
-  // Sort events
+  // Ordenação
   const sortedEvents = [...filteredEvents].sort((a, b) => {
     if (sortBy === 'Relevância') {
-      // Simple relevance logic: prioritized by likes then date
       return b.likes - a.likes || new Date(a.date).getTime() - new Date(b.date).getTime();
     } else if (sortBy === 'Data: Próximos') {
       return new Date(a.date).getTime() - new Date(b.date).getTime();
@@ -118,38 +218,20 @@ export function EventsPage({
     return 0;
   });
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', { day: 'numeric', month: 'short' }); // Shortened for card
-  };
-
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
-      case 'presencial': return 'bg-blue-100 text-blue-700';
-      case 'online': return 'bg-green-100 text-green-700';
-      case 'híbrido': return 'bg-orange-100 text-orange-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
+  if (!currentUser) return null;
 
   return (
     <div className="min-h-screen bg-white font-sans">
       {/* Navbar */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-
-          {/* Logo & Search Area */}
           <div className="flex items-center gap-6 flex-1">
             <div className="flex items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => window.location.reload()}>
-
-              <span className="hidden md:inline text-xl font-bold text-gray-800">Cresce.AO</span>
+              <Sparkles className="w-6 h-6 text-orange-600" />
+              <span className="md:inline text-xl font-bold text-gray-800">Cresce.AO</span>
             </div>
-
-            {/* Desktop Search */}
-            <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200 focus-within:ring-2 focus-within:ring-orange-500 transition-all overflow-hidden">
-              <div className="pl-3 text-gray-400">
-                <Search className="w-5 h-5" />
-              </div>
+            <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
+              <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
               <input
                 type="text"
                 placeholder="Buscar experiências"
@@ -158,121 +240,51 @@ export function EventsPage({
                 className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
               />
               <div className="h-6 w-px bg-gray-300 mx-1"></div>
-              <button className="flex items-center gap-1 px-3 py-2 text-sm text-orange-600 font-medium hover:bg-gray-200 transition-colors whitespace-nowrap">
-                <MapPin className="w-4 h-4" />
-                <span>Qualquer lugar</span>
-                <ChevronDown className="w-3 h-3" />
+              <button className="flex items-center gap-1 px-3 py-2 text-sm text-orange-600 font-medium whitespace-nowrap">
+                <MapPin className="w-4 h-4" /> Qualquer lugar <ChevronDown className="w-3 h-3" />
               </button>
             </div>
           </div>
 
-          {/* Right Actions */}
           <div className="hidden lg:flex items-center gap-4">
-            {currentUser?.type === 'organizer' && (
-              <Button variant="ghost" className="text-gray-600 hover:text-orange-600 font-medium flex gap-2" onClick={() => {
-                onOpenCreateForm();
-                onNavigateToCreateEvent();
-              }}>
-                <PlusCircle className="w-5 h-5" />
-                Criar evento
-              </Button>
+            {currentUser.type === 'organizer' && (
+              <>
+                <Button variant="ghost" onClick={() => navigate('/create-event')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
+                  <PlusCircle className="w-5 h-5" /> Criar evento
+                </Button>
+                <Button variant="ghost" onClick={() => navigate('/organizer-dashboard')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
+                  <LayoutDashboard className="w-5 h-5" /> Meus eventos
+                </Button>
+              </>
             )}
-
-            {currentUser?.type === 'organizer' && (
-              <Button variant="ghost" onClick={onNavigateToDashboard} className="text-gray-600 hover:text-orange-600 font-medium flex gap-2">
-                <LayoutDashboard className="w-5 h-5" />
-                Meus eventos
-              </Button>
-            )}
-
-            <Button variant="ghost" className="text-gray-600 hover:text-orange-600 font-medium flex gap-2" onClick={onNavigateToFavorites}>
+            <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
               <Heart className="w-5 h-5" />
-              Favoritos
-              {likedEvents.length > 0 && (
-                <span className="ml-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
-                  {likedEvents.length}
-                </span>
-              )}
+              Favoritos {likedEvents.length > 0 && <span className="ml-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{likedEvents.length}</span>}
             </Button>
-
-            <div className="h-6 w-px bg-gray-300 mx-2"></div>
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="rounded-full w-10 h-10 p-0 border border-gray-200">
+                <Button variant="ghost" className="rounded-full w-10 h-10 cursor-pointer p-0 border border-gray-200">
                   <User className="w-5 h-5 text-gray-600" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                {/* <DropdownMenuLabel>Minha Conta</DropdownMenuLabel> */}
-                {currentUser && <DropdownMenuItem className="text-sm font-medium">{currentUser.name}</DropdownMenuItem>}
+                <DropdownMenuItem className="text-sm font-medium">{currentUser.name}</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onNavigateToProfile}>
-                  <LayoutDashboard className="mr-2 h-4 w-4" />
-                  <span>Perfil</span>
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={onNavigateToProfile} className="cursor-pointer">Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onLogout} className="text-red-600 focus:text-red-600 focus:bg-red-50">
-                  <LogOut className="mr-2 h-4 w-4" />
-                  <span>Sair</span>
+                <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
+                  <LogOut className="w-5 h-5 mr-2" /> 
+                  Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
-
-          {/* Mobile Menu Toggle */}
-          <div className="lg:hidden">
-            <Button variant="ghost" size="icon" onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
-              {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
-            </Button>
-          </div>
         </div>
-
-        {/* Mobile Menu */}
-        {mobileMenuOpen && (
-          <div className="lg:hidden border-t border-gray-200 p-4 bg-white shadow-lg absolute w-full left-0 top-16 z-50">
-            <div className="mb-4">
-              <Input
-                placeholder="Buscar experiências"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full mb-2"
-              />
-              <Button variant="outline" className="w-full justify-between">
-                <span className="flex items-center gap-2"><MapPin className="w-4 h-4" /> Qualquer lugar</span>
-                <ChevronDown className="w-4 h-4" />
-              </Button>
-            </div>
-            <div className="space-y-2">
-              <Button variant="ghost" className="w-full justify-start" onClick={onNavigateToDashboard}>
-                <LayoutDashboard className="w-4 h-4 mr-2" /> Dashboard
-              </Button>
-              {currentUser?.type === 'organizer' && (
-                <Button variant="ghost" className="w-full justify-start" onClick={() => {
-                  onOpenCreateForm();
-                  onNavigateToDashboard();
-                  setMobileMenuOpen(false);
-                }}>
-                  <PlusCircle className="w-4 h-4 mr-2" /> Criar evento
-                </Button>
-              )}
-              <Separator className="my-2" />
-              <Button variant="ghost" onClick={onLogout} className="w-full justify-start text-red-600">
-                <LogOut className="w-4 h-4 mr-2" /> Sair
-              </Button>
-              <Button variant="ghost" className="w-full justify-start" onClick={() => { onNavigateToFavorites(); setMobileMenuOpen(false); }}>
-                <Heart className="w-4 h-4 mr-2" /> Favoritos
-                {likedEvents.length > 0 && <span className="ml-auto bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">{likedEvents.length}</span>}
-              </Button>
-            </div>
-          </div>
-        )}
       </header>
 
-      {/* Main Content Area */}
-      <main className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8 bg-gray-100">
-
-        {/* Breadcrumbs */}
+      {/* Main Content */}
+      <main className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
           <span className="hover:text-orange-600 cursor-pointer">Página inicial</span>
           <ChevronRight className="w-4 h-4" />
@@ -287,7 +299,6 @@ export function EventsPage({
 
           {/* Filters Bar */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-
             {/* Filter Groups */}
             <div className="flex items-center gap-2 md:gap-4 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
               <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filtrar por</span>
@@ -295,7 +306,7 @@ export function EventsPage({
               {/* Category Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
                     {selectedCategory === 'Todas' ? 'Categoria' : selectedCategory}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -312,7 +323,7 @@ export function EventsPage({
               {/* Date Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
                     {selectedDateFilter === 'Todas' ? 'Data' : selectedDateFilter}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -329,7 +340,7 @@ export function EventsPage({
               {/* Price Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
                     {selectedPriceFilter === 'Todos' ? 'Preço' : selectedPriceFilter}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -346,7 +357,7 @@ export function EventsPage({
               {/* Type Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
                     {selectedEventType === 'Todos' ? 'Tipo Evento' : selectedEventType}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -359,7 +370,6 @@ export function EventsPage({
                   ))}
                 </DropdownMenuContent>
               </DropdownMenu>
-
             </div>
 
             {/* Sort Dropdown */}
@@ -367,7 +377,7 @@ export function EventsPage({
               <span className="text-sm font-semibold text-gray-700">Ordenar por</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="bg-orange-50 text-orange-600 border-orange-100 hover:bg-orange-100 hover:border-orange-200 h-10 px-4">
+                  <Button variant="outline" className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 hover:border-orange-200 h-10 px-4">
                     {sortBy}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -384,6 +394,20 @@ export function EventsPage({
           </div>
         </div>
 
+        {/* Mensagem de erro */}
+        {error && (
+          <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-600 font-medium mb-2">Erro ao carregar eventos</p>
+            <p className="text-red-600 text-sm mb-3">{error}</p>
+            <button 
+              onClick={fetchEvents}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+            >
+              Tentar novamente
+            </button>
+          </div>
+        )}
+
         {/* Results Count */}
         <div className="mb-6">
           <h2 className="text-lg font-medium text-gray-600">
@@ -394,11 +418,11 @@ export function EventsPage({
         {/* Events Grid */}
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {Array.from({ length: 4 }).map((_, index) => (
+            {Array.from({ length: 8 }).map((_, index) => (
               <EventCardSkeleton key={index} />
             ))}
           </div>
-        ) : sortedEvents.length === 0 ? (
+        ) : sortedEvents.length === 0 && !error ? (
           <div className="text-center py-24 bg-gray-50 rounded-2xl border border-dashed border-gray-200">
             <div className="bg-white p-4 rounded-full shadow-sm inline-block mb-4">
               <CalendarDays className="w-10 h-10 text-gray-400" />
@@ -418,13 +442,13 @@ export function EventsPage({
               Limpar filtros
             </Button>
           </div>
-        ) : (
+        ) : !error && (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {sortedEvents.map((event) => (
               <div
                 key={event.id}
                 className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:border-orange-200 hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full"
-                onClick={() => onEventClick(event.id)}
+                onClick={() => navigate(`/event/${event.id}`)}
               >
                 {/* Event Image */}
                 <div className="relative aspect-[16/9] overflow-hidden bg-gray-900">
@@ -432,6 +456,9 @@ export function EventsPage({
                     src={event.image}
                     alt={event.name}
                     className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+                    }}
                   />
 
                   {/* Overlay gradient on hover */}
@@ -447,10 +474,9 @@ export function EventsPage({
                   {/* Likes Badge */}
                   <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
                     <button
-                      className="p-2 rounded-full bg-white/90 backdrop-blur-sm text-gray-600 hover:text-red-500 hover:bg-white hover:scale-125 transition-all shadow-sm"
+                      className="p-2 rounded-full bg-white/90 backdrop-blur-sm cursor-pointer text-gray-600 hover:text-red-500 hover:bg-white hover:scale-125 transition-all shadow-sm"
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Handle like action
                       }}
                     >
                       <Heart className={`w-4 h-4 ${likedEvents.includes(event.id) ? 'fill-red-500 text-red-500' : ''}`} />
@@ -459,9 +485,10 @@ export function EventsPage({
 
                   {/* Status/Type Badge */}
                   <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.eventType === 'presencial' ? 'text-blue-600' :
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${
+                      event.eventType === 'presencial' ? 'text-blue-600' :
                       event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
-                      }`}>
+                    }`}>
                       {event.eventType}
                     </span>
                   </div>
@@ -506,8 +533,7 @@ export function EventsPage({
         )}
       </main>
 
-      {/* Footer */}
-      <Footer onNavigateToPrivacy={onNavigateToPrivacy} onNavigateToTerms={onNavigateToTerms} />
+      <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
     </div>
   );
 }

@@ -53,7 +53,7 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
               <li>
                 <button 
                   onClick={onNavigateToPrivacy}
-                  className="hover:text-orange-600 transition-colors"
+                  className="hover:text-orange-600 cursor-pointer transition-colors"
                 >
                   Política de Privacidade
                 </button>
@@ -61,7 +61,7 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
               <li>
                 <button 
                   onClick={onNavigateToTerms}
-                  className="hover:text-orange-600 transition-colors"
+                  className="hover:text-orange-600 cursor-pointer transition-colors"
                 >
                   Termos de Uso
                 </button>

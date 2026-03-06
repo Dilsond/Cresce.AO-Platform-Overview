@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { ArrowLeft, FileText, Upload, CheckCircle2, LayoutDashboard, Image as ImageIcon, Video, X, RefreshCw } from 'lucide-react';
+import { ArrowLeft, FileText, Upload, CheckCircle2, LayoutDashboard, Image as ImageIcon, Video, X, RefreshCw, Sparkles } from 'lucide-react';
 import type { User, Event } from '../App';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 
 interface CreateEventProps {
     user: User;
@@ -17,7 +18,8 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
     const [eventLicenseFile, setEventLicenseFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [videoPreview, setVideoPreview] = useState<string | null>(null);
-  const [nif, setNif] = useState('');
+    const [nif, setNif] = useState('');
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: '',
         date: '',
@@ -111,13 +113,19 @@ export function CreateEvent({ onAddEvent, onBack, shouldOpenCreateForm = false, 
             {/* Header */}
             <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                    <button
-                        onClick={onBack}
-                        className="flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-all group"
-                    >
-                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-medium">Voltar aos Eventos</span>
-                    </button>
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-900 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                            <span>Voltar</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <Sparkles className="w-6 h-6 text-orange-600" />
+                            <span className="font-bold text-gray-900">Cresce.AO</span>
+                        </div>
+                    </div>
                 </div>
             </header>
 

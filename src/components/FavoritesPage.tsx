@@ -1,20 +1,94 @@
 import { useState } from 'react';
-import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark } from 'lucide-react';
-import type { Event, User } from '../App';
+import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 
-interface FavoritesPageProps {
-  events: Event[];
-  likedEvents: string[];
-  currentUser: User | null;
-  onEventClick: (eventId: string) => void;
-  onBack: () => void;
-  onLikeToggle: (eventId: string) => void;
+export type UserType = 'user' | 'organizer' | null;
+
+export interface User {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  type: UserType;
+  company?: string;
 }
 
-export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, onBack, onLikeToggle }: FavoritesPageProps) {
+export function FavoritesPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
+  const [likedEvents, setLikedEvents] = useState<string[]>(() => {
+    try { const l = localStorage.getItem('cresceao_liked'); return l ? JSON.parse(l) : []; } catch { return []; }
+  });
+
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(() => {
+    try { return localStorage.getItem('cresceao_event_id'); } catch { return null; }
+  });
+  const handleEventClick = (eventId: string) => {
+    setSelectedEventId(eventId);
+    navigate('event-detail');
+  };
+
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try { const u = localStorage.getItem('cresceao_user'); return u ? JSON.parse(u) : null; } catch { return null; }
+  });
+
+  const navigate = useNavigate();
+
+  const handleLikeToggle = (eventId: string) => {
+    const newLikedEvents = likedEvents.includes(eventId) ? likedEvents.filter(id => id !== eventId) : [...likedEvents, eventId];
+    setLikedEvents(newLikedEvents);
+    setEvents(events.map(e => e.id === eventId ? { ...e, likes: e.likes + (likedEvents.includes(eventId) ? -1 : 1) } : e));
+  };
+
+  const [events, setEvents] = useState<Event[]>([
+    {
+      id: '1',
+      name: 'Workshop de Empreendedorismo Digital',
+      date: '2026-01-25',
+      time: '14:00',
+      location: 'Centro de Inovação de Luanda',
+      eventType: 'presencial',
+      description: 'Aprenda estratégias práticas para transformar ideias em negócios digitais lucrativos. Workshop interativo com casos de sucesso angolanos.',
+      category: 'Workshops',
+      image: 'https://images.unsplash.com/photo-1764173039056-3cc602fef942?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb25mZXJlbmNlJTIwd29ya3Nob3AlMjBuZXR3b3JraW5nfGVufDF8fHx8MTc2ODIzNDQwNnww&ixlib=rb-4.1.0&q=80&w=1080',
+      status: 'A decorrer',
+      organizerId: 'org1',
+      organizerName: 'StartHub Angola',
+      likes: 45,
+      price: 15000
+    },
+    {
+      id: '2',
+      name: 'Palestra: O Futuro do Trabalho em Angola',
+      date: '2026-01-28',
+      time: '10:00',
+      location: 'https://zoom.us/meeting',
+      eventType: 'online',
+      description: 'Discussão sobre tendências do mercado de trabalho, competências do futuro e oportunidades para jovens profissionais angolanos.',
+      category: 'Palestras',
+      image: 'https://images.unsplash.com/photo-1761250246894-ee2314939662?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBkZXZlbG9wbWVudCUyMHNlbWluYXJ8ZW58MXx8fHwxNzY4MjM0NDA4fDA&ixlib=rb-4.1.0&q=80&w=1080',
+      status: 'A decorrer',
+      organizerId: 'org2',
+      organizerName: 'Academia de Líderes',
+      likes: 78
+    },
+    {
+      id: '3',
+      name: 'Feira de Oportunidades Profissionais 2026',
+      date: '2026-02-10',
+      time: '09:00',
+      location: 'Talatona Convention Center',
+      eventType: 'presencial',
+      description: 'Conecte-se com as principais empresas de Angola. Vagas de emprego, estágios e oportunidades de networking.',
+      category: 'Feiras',
+      image: 'https://images.unsplash.com/photo-1630343350724-2eafe052719f?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxhbmdvbGElMjBsdWFuZGElMjBidXNpbmVzcyUyMHByb2Zlc3Npb25hbHN8ZW58MXx8fHwxNzY4MjM0NDA1fDA&ixlib=rb-4.1.0&q=80&w=1080',
+      status: 'A decorrer',
+      organizerId: 'org3',
+      organizerName: 'CarreiraAO',
+      likes: 156
+    },
+  ]);
 
   const favoriteEvents = events.filter(e => likedEvents.includes(e.id));
 
@@ -44,8 +118,8 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
       <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
           <button
-            onClick={onBack}
-            className="flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-all group"
+            onClick={() => navigate("/events")}
+            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
           >
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Voltar</span>
@@ -54,7 +128,10 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
             <Heart className="w-5 h-5 fill-orange-600" />
             <span className="font-semibold text-gray-800">Os Meus Favoritos</span>
           </div>
-          <div className="w-24" />
+          <div className="flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-orange-600" />
+            <span className="font-bold text-gray-900">Cresce.AO</span>
+          </div>
         </div>
       </header>
 
@@ -107,11 +184,10 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
                   <button
                     key={cat}
                     onClick={() => setSelectedCategory(cat)}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${
-                      selectedCategory === cat
-                        ? 'bg-orange-600 text-white shadow-md'
-                        : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
-                    }`}
+                    className={`px-4 py-2 rounded-xl text-sm font-medium transition-all ${selectedCategory === cat
+                      ? 'bg-orange-600 text-white shadow-md'
+                      : 'bg-white text-gray-600 border border-gray-200 hover:border-orange-300 hover:text-orange-600'
+                      }`}
                   >
                     {cat}
                   </button>
@@ -145,9 +221,8 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
               <p className="text-gray-500 max-w-sm">
                 Explore os eventos e clique no ícone de coração para guardar os que mais lhe interessam.
               </p>
-              <button
-                onClick={onBack}
-                className="mt-6 px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-all font-medium shadow-lg"
+              <button onClick={() => navigate('/events')}
+                className="mt-6 px-6 py-3 bg-orange-600 text-white cursor-pointer rounded-xl hover:bg-orange-700 transition-all font-medium shadow-lg"
               >
                 Explorar Eventos
               </button>
@@ -156,24 +231,21 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="text-center py-16 text-gray-500"
-            >
+              className="text-center py-16 text-gray-500">
               <p>Nenhum favorito encontrado com esses filtros.</p>
             </motion.div>
           ) : (
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-            >
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
               {filtered.map((event, index) => (
                 <motion.div
                   key={event.id}
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.04 }}
-                  className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200 cursor-pointer"
-                  onClick={() => onEventClick(event.id)}
+                  className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200 cursor-pointer" onClick={() => handleEventClick(event.id)}
                 >
                   {/* Image */}
                   <div className="relative overflow-hidden aspect-video">
@@ -188,7 +260,7 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
                     </span>
                     {/* Remove from favorites */}
                     <button
-                      onClick={(e) => { e.stopPropagation(); onLikeToggle(event.id); }}
+                      onClick={(e) => { e.stopPropagation(); handleLikeToggle(event.id); }}
                       className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
                       title="Remover dos favoritos"
                     >
@@ -225,11 +297,10 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                       <span className="text-xs text-gray-500">{event.organizerName}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
                         event.eventType === 'híbrido' ? 'bg-purple-100 text-purple-700' :
-                        'bg-orange-100 text-orange-700'
-                      }`}>
+                          'bg-orange-100 text-orange-700'
+                        }`}>
                         {event.eventType}
                       </span>
                     </div>
@@ -240,6 +311,6 @@ export function FavoritesPage({ events, likedEvents, currentUser, onEventClick, 
           )}
         </AnimatePresence>
       </main>
-    </div>
+    </div >
   );
 }

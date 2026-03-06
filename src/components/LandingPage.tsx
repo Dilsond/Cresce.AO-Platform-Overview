@@ -72,7 +72,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             </p>
             <button
               onClick={onExplore}
-              className="bg-white text-orange-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
+              className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
             >
               Explorar Eventos
             </button>
@@ -118,7 +118,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                       }`}
                       style={{
                         width: isActive ? '600px' : '500px',
-                        maxWidth: '90vw'
+                        maxWidth: '90vw',
                       }}
                     >
                       <div className="relative h-[350px] rounded-2xl overflow-hidden shadow-2xl">
@@ -164,7 +164,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                             {isActive && (
                               <button 
                                 onClick={onExplore}
-                                className="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
+                                className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                               >
                                 Ver Detalhes
                               </button>
@@ -181,7 +181,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             {/* Navigation Buttons */}
             <button
               onClick={prevSlide}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-40 bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
+              className="absolute left-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
               aria-label="Anterior"
             >
               <ChevronLeft className="w-6 h-6" />
@@ -189,7 +189,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             
             <button
               onClick={nextSlide}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-40 bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
+              className="absolute right-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
               aria-label="Próximo"
             >
               <ChevronRight className="w-6 h-6" />
@@ -201,7 +201,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full transition-all ${
+                  className={`h-2 rounded-full cursor-pointer transition-all ${
                     index === currentSlide 
                       ? 'bg-orange-600 w-8' 
                       : 'bg-gray-300 w-2 hover:bg-gray-400'
@@ -221,7 +221,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <h2 className="text-3xl font-bold text-gray-900">Workshops</h2>
             <button 
               onClick={onExplore}
-              className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+              className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
               Ver tudo <ArrowRight className="w-4 h-4" />
             </button>
@@ -262,7 +262,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             </h2>
             <button 
               onClick={onExplore}
-              className="text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1"
+              className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
               Ver tudo <ArrowRight className="w-4 h-4" />
             </button>
@@ -585,13 +585,13 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
               <button
                 onClick={() => toggleFaq(0)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-lg text-gray-900">
                   A plataforma é gratuita?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${
+                  className={`w-6 h-6 text-orange-600 cursor-pointer transition-transform ${
                     openFaq === 0 ? 'rotate-180' : ''
                   }`}
                 />
@@ -608,7 +608,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
               <button
                 onClick={() => toggleFaq(1)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-lg text-gray-900">
                   Como me inscrevo num evento?
@@ -632,7 +632,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
               <button
                 onClick={() => toggleFaq(2)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-lg text-gray-900">
                   Como publico um evento?
@@ -656,7 +656,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
               <button
                 onClick={() => toggleFaq(3)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-lg text-gray-900">
                   Posso salvar eventos para ver mais tarde?
@@ -679,7 +679,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
               <button
                 onClick={() => toggleFaq(4)}
-                className="w-full px-8 py-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
               >
                 <span className="font-semibold text-lg text-gray-900">
                   Que tipos de eventos posso encontrar?
@@ -713,7 +713,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           </p>
           <button
             onClick={onExplore}
-            className="bg-white text-orange-600 px-8 py-4 rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
+            className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
           >
             Começar Agora
           </button>
