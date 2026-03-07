@@ -53,9 +53,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
 
             {/* Logo */}
             <div className="flex items-center gap-2 cursor-pointer">
-              <div className="p-2 bg-orange-100 rounded-xl">
-                <Sparkles className="w-6 h-6 text-orange-600" />
-              </div>
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>

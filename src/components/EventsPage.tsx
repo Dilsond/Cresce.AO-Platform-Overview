@@ -48,17 +48,177 @@ export function EventsPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const u = localStorage.getItem('user');
+      console.log('Usuário do localStorage:', u);
       return u ? JSON.parse(u) : null;
-    } catch {
+    } catch (err) {
+      console.error('Erro ao parsear usuário:', err);
       return null;
     }
   });
 
-  // buscar eventos do Supabase
-  useEffect(() => {
-    fetchEvents();
-  }, []);
+  // Estado para eventos favoritados
+  const [likedEvents, setLikedEvents] = useState<string[]>([]);
 
+  // Buscar eventos e favoritos do usuário
+  useEffect(() => {
+    console.log('useEffect - currentUser:', currentUser);
+    if (currentUser) {
+      fetchEvents();
+      fetchUserLikes();
+    }
+  }, [currentUser]);
+
+  // Buscar eventos favoritos do usuário
+  const fetchUserLikes = async () => {
+    if (!currentUser) {
+      console.log('fetchUserLikes: usuário não logado');
+      return;
+    }
+
+    console.log('fetchUserLikes - currentUser:', currentUser);
+
+    try {
+      let query = supabase.from('favoritos_eventos').select('evento_id');
+
+      // Filtrar baseado no tipo de usuário
+      if (currentUser.type === 'user') {
+        query = query.eq('usuario_normal_id', currentUser.id);
+      } else if (currentUser.type === 'organizer') {
+        query = query.eq('organizador_id', currentUser.id);
+      }
+
+      const { data: favorites, error } = await query;
+
+      if (error) {
+        console.error('Erro ao buscar favoritos:', error);
+        return;
+      }
+
+      console.log('Favoritos encontrados:', favorites);
+
+      const likedIds = favorites.map(fav => fav.evento_id);
+      console.log('IDs favoritos:', likedIds);
+
+      setLikedEvents(likedIds);
+      localStorage.setItem('cresceao_liked', JSON.stringify(likedIds));
+    } catch (err) {
+      console.error('Erro ao buscar favoritos:', err);
+    }
+  };
+
+  // Função para alternar like
+  const handleLikeToggle = async (eventId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+
+    console.log('handleLikeToggle - eventId:', eventId);
+    console.log('handleLikeToggle - currentUser:', currentUser);
+
+    if (!currentUser) {
+      console.log('Usuário não logado, redirecionando para login');
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const isLiked = likedEvents.includes(eventId);
+      console.log('Evento já é favorito?', isLiked);
+
+      let query = supabase.from('favoritos_eventos');
+
+      if (isLiked) {
+        console.log('Removendo dos favoritos...');
+
+        // Construir query de deleção baseada no tipo de usuário
+        if (currentUser.type === 'user') {
+          query = query.delete()
+            .eq('evento_id', eventId)
+            .eq('usuario_normal_id', currentUser.id);
+        } else if (currentUser.type === 'organizer') {
+          query = query.delete()
+            .eq('evento_id', eventId)
+            .eq('organizador_id', currentUser.id);
+        }
+
+        const { error } = await query;
+
+        if (error) {
+          console.error('Erro ao remover favorito:', error);
+          console.error('Detalhes do erro:', {
+            code: error.code,
+            message: error.message,
+            details: error.details
+          });
+          return;
+        }
+
+        console.log('Removido com sucesso');
+
+        // Atualizar estado local
+        const newLikedEvents = likedEvents.filter(id => id !== eventId);
+        setLikedEvents(newLikedEvents);
+        localStorage.setItem('cresceao_liked', JSON.stringify(newLikedEvents));
+
+        // Atualizar contagem de likes no evento
+        setEvents(prevEvents =>
+          prevEvents.map(event =>
+            event.id === eventId
+              ? { ...event, likes: Math.max(0, event.likes - 1) }
+              : event
+          )
+        );
+
+      } else {
+        console.log('Adicionando aos favoritos...');
+
+        // Construir objeto de inserção baseado no tipo de usuário
+        const insertData: any = {
+          evento_id: eventId,
+          created_at: new Date().toISOString()
+        };
+
+        if (currentUser.type === 'user') {
+          insertData.usuario_normal_id = currentUser.id;
+        } else if (currentUser.type === 'organizer') {
+          insertData.organizador_id = currentUser.id;
+        }
+
+        const { error } = await supabase
+          .from('favoritos_eventos')
+          .insert(insertData);
+
+        if (error) {
+          console.error('Erro ao adicionar favorito:', error);
+          console.error('Detalhes do erro:', {
+            code: error.code,
+            message: error.message,
+            details: error.details
+          });
+          return;
+        }
+
+        console.log('Adicionado com sucesso');
+
+        // Atualizar estado local
+        const newLikedEvents = [...likedEvents, eventId];
+        setLikedEvents(newLikedEvents);
+        localStorage.setItem('cresceao_liked', JSON.stringify(newLikedEvents));
+
+        // Atualizar contagem de likes no evento
+        setEvents(prevEvents =>
+          prevEvents.map(event =>
+            event.id === eventId
+              ? { ...event, likes: event.likes + 1 }
+              : event
+          )
+        );
+      }
+    } catch (err) {
+      console.error('Erro ao alternar like:', err);
+    }
+  };
+
+  // Buscar eventos do Supabase
   const fetchEvents = async () => {
     try {
       setIsLoading(true);
@@ -100,6 +260,16 @@ export function EventsPage() {
             console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
           }
 
+          // Buscar contagem de likes para este evento
+          const { count: likesCount, error: likesError } = await supabase
+            .from('favoritos_eventos')
+            .select('*', { count: 'exact', head: true })
+            .eq('evento_id', evento.id);
+
+          if (likesError) {
+            console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
+          }
+
           return {
             id: evento.id,
             name: evento.nome_evento,
@@ -114,7 +284,7 @@ export function EventsPage() {
             status: 'A decorrer',
             organizerId: organizador?.id || evento.organizador_id,
             organizerName: organizador?.nome_empresa || 'Organizador não identificado',
-            likes: 0
+            likes: likesCount || 0
           };
         })
       );
@@ -132,7 +302,9 @@ export function EventsPage() {
 
   // redirecionar se não estiver logado
   useEffect(() => {
+    console.log('Verificando autenticação - currentUser:', currentUser);
     if (!currentUser) {
+      console.log('Usuário não logado, redirecionando para login');
       navigate('/login');
     }
   }, [currentUser, navigate]);
@@ -150,10 +322,6 @@ export function EventsPage() {
   const [selectedPriceFilter, setSelectedPriceFilter] = useState<string>('Todos');
   const [sortBy, setSortBy] = useState<string>('Relevância');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [likedEvents, setLikedEvents] = useState<string[]>(() => {
-    const l = localStorage.getItem('cresceao_liked');
-    return l ? JSON.parse(l) : [];
-  });
 
   const categories = ['Todas', 'Palestras', 'Workshops', 'Feiras', 'Masterclasses'];
   const dateFilters = ['Todas', 'Hoje', 'Esta Semana', 'Este Mês', 'Próximos 3 Meses'];
@@ -168,7 +336,7 @@ export function EventsPage() {
 
   // --- Filtragem ---
   const filteredEvents = events.filter(event => {
-    const matchesSearch = searchQuery === '' || 
+    const matchesSearch = searchQuery === '' ||
       event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.description.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.organizerName.toLowerCase().includes(searchQuery.toLowerCase());
@@ -182,9 +350,9 @@ export function EventsPage() {
 
     let matchesDate = true;
     const eventDate = new Date(event.date);
-    const today = new Date(); 
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
-    
+
     if (selectedDateFilter === 'Hoje') {
       matchesDate = eventDate.toDateString() === today.toDateString();
     } else if (selectedDateFilter === 'Esta Semana') {
@@ -269,12 +437,14 @@ export function EventsPage() {
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem className="text-sm font-medium">{currentUser.name}</DropdownMenuItem>
+                <DropdownMenuItem className="text-sm font-medium">
+                  {currentUser.type === "organizer" ? currentUser.name : currentUser.username}
+                </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onNavigateToProfile} className="cursor-pointer">Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
-                  <LogOut className="w-5 h-5 mr-2" /> 
+                  <LogOut className="w-5 h-5 mr-2" />
                   Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
@@ -399,7 +569,7 @@ export function EventsPage() {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-600 font-medium mb-2">Erro ao carregar eventos</p>
             <p className="text-red-600 text-sm mb-3">{error}</p>
-            <button 
+            <button
               onClick={fetchEvents}
               className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
             >
@@ -407,7 +577,14 @@ export function EventsPage() {
             </button>
           </div>
         )}
-        
+
+        {/* Results Count */}
+        <div className="mb-6">
+          <h2 className="text-lg font-medium text-gray-600">
+            {sortedEvents.length} {sortedEvents.length === 1 ? 'evento encontrado' : 'eventos encontrados'}
+          </h2>
+        </div>
+
         {/* Events Grid */}
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -467,21 +644,23 @@ export function EventsPage() {
                   {/* Likes Badge */}
                   <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
                     <button
-                      className="p-2 rounded-full bg-white/90 backdrop-blur-sm cursor-pointer text-gray-600 hover:text-red-500 hover:bg-white hover:scale-125 transition-all shadow-sm"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                      }}
+                      className="p-2 rounded-full bg-white/90 backdrop-blur-sm cursor-pointer hover:bg-white hover:scale-110 transition-all shadow-sm"
+                      onClick={(e) => handleLikeToggle(event.id, e)}
                     >
-                      <Heart className={`w-4 h-4 ${likedEvents.includes(event.id) ? 'fill-red-500 text-red-500' : ''}`} />
+                      <Heart
+                        className={`w-5 h-5 transition-all duration-200 ${likedEvents.includes(event.id)
+                          ? "text-red-500 fill-red-500 scale-110"
+                          : "text-gray-600 hover:text-red-500"
+                          }`}
+                      />
                     </button>
                   </div>
 
                   {/* Status/Type Badge */}
                   <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${
-                      event.eventType === 'presencial' ? 'text-blue-600' :
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.eventType === 'presencial' ? 'text-blue-600' :
                       event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
-                    }`}>
+                      }`}>
                       {event.eventType}
                     </span>
                   </div>

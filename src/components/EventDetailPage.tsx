@@ -113,12 +113,18 @@ export function EventDetailPage() {
 
       // Verificar se o usuário atual deu like
       if (currentUser) {
-        const { data: userLike } = await supabase
+        let query = supabase
           .from('favoritos_eventos')
           .select('id')
-          .eq('evento_id', eventId)
-          .eq('usuario_normal_id', currentUser.id)
-          .maybeSingle();
+          .eq('evento_id', eventId);
+
+        if (currentUser.type === 'user') {
+          query = query.eq('usuario_normal_id', currentUser.id);
+        } else if (currentUser.type === 'organizer') {
+          query = query.eq('organizador_id', currentUser.id);
+        }
+
+        const { data: userLike } = await query.maybeSingle();
 
         setIsLiked(!!userLike);
       }
@@ -204,30 +210,48 @@ export function EventDetailPage() {
 
     try {
       if (isLiked) {
-        // Remover like
-        const { error } = await supabase
+        // Remover like - construir query baseada no tipo de usuário
+        let query = supabase
           .from('favoritos_eventos')
           .delete()
-          .eq('evento_id', event.id)
-          .eq('usuario_normal_id', currentUser.id);
+          .eq('evento_id', event.id);
+
+        if (currentUser.type === 'user') {
+          query = query.eq('usuario_normal_id', currentUser.id);
+        } else if (currentUser.type === 'organizer') {
+          query = query.eq('organizador_id', currentUser.id);
+        }
+
+        const { error } = await query;
 
         if (!error) {
           setIsLiked(false);
           setEvent(prev => prev ? { ...prev, likes: prev.likes - 1 } : prev);
+        } else {
+          console.error('Erro ao remover like:', error);
         }
       } else {
-        // Adicionar like
+        // Adicionar like - construir objeto baseado no tipo de usuário
+        const insertData: any = {
+          evento_id: event.id,
+          created_at: new Date().toISOString()
+        };
+
+        if (currentUser.type === 'user') {
+          insertData.usuario_normal_id = currentUser.id;
+        } else if (currentUser.type === 'organizer') {
+          insertData.organizador_id = currentUser.id;
+        }
+
         const { error } = await supabase
           .from('favoritos_eventos')
-          .insert({
-            evento_id: event.id,
-            usuario_normal_id: currentUser.id,
-            created_at: new Date().toISOString()
-          });
+          .insert(insertData);
 
         if (!error) {
           setIsLiked(true);
           setEvent(prev => prev ? { ...prev, likes: prev.likes + 1 } : prev);
+        } else {
+          console.error('Erro ao adicionar like:', error);
         }
       }
     } catch (err) {
@@ -391,7 +415,7 @@ export function EventDetailPage() {
               <ArrowLeft className="w-5 h-5" />
               <span>Voltar</span>
             </button>
-            
+
             <div className="flex items-center gap-2">
               <Sparkles className="w-6 h-6 text-orange-600" />
               <span className="font-bold text-gray-900">Cresce.AO</span>
@@ -545,9 +569,6 @@ export function EventDetailPage() {
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900">{event.organizerName}</h3>
                   <p className="text-gray-600">Organizador de Eventos</p>
-                  {event.organizerEmail && (
-                    <p className="text-sm text-gray-500 mt-1">{event.organizerEmail}</p>
-                  )}
                 </div>
               </div>
             </div>
@@ -645,11 +666,10 @@ export function EventDetailPage() {
                   {/* Like Button */}
                   <button
                     onClick={onLikeToggle}
-                    className={`w-full px-6 py-3 rounded-lg cursor-pointer font-semibold transition-all flex items-center justify-center gap-2 ${
-                      isLiked
-                        ? 'bg-orange-600 text-white hover:bg-orange-700'
-                        : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
-                    }`}
+                    className={`w-full px-6 py-3 rounded-lg cursor-pointer font-semibold transition-all flex items-center justify-center gap-2 ${isLiked
+                      ? 'bg-orange-600 text-white hover:bg-orange-700'
+                      : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
+                      }`}
                   >
                     <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                     {isLiked ? 'Interessado' : 'Demonstrar Interesse'}
