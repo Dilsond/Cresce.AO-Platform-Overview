@@ -1,9 +1,11 @@
-import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock } from 'lucide-react';
+import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { landingPageSlides, cursosWorkshops, eventosNegocios } from './LandingPageSlides';
 import { AnimatedCounter } from './AnimatedCounter';
 import { Footer } from './Footer';
 import heroBg from "figma:asset/d48dbf308596a19f3efe4145eb156c4fa0bae765.png";
+import { motion, AnimatePresence } from 'motion/react';
+import { useNavigate } from 'react-router-dom';
 
 interface LandingPageProps {
   onExplore: () => void;
@@ -14,6 +16,7 @@ interface LandingPageProps {
 export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: LandingPageProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const navigate = useNavigate();
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -44,6 +47,46 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-sm bg-white/90">
+        <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
+
+            {/* Logo */}
+            <div className="flex items-center gap-2 cursor-pointer">
+              <div className="p-2 bg-orange-100 rounded-xl">
+                <Sparkles className="w-6 h-6 text-orange-600" />
+              </div>
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
+                Cresce<span className="text-orange-600">.AO</span>
+              </span>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex items-center gap-3">
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={onExplore}
+                className="px-5 py-2.5 text-sm font-semibold border cursor-pointer border-gray-300 text-gray-700 rounded-xl hover:bg-gray-100 transition-all"
+              >
+                Entrar
+              </motion.button>
+
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => navigate('/signup')}
+                className="px-5 py-2.5 text-sm font-semibold rounded-xl cursor-pointer bg-orange-600 text-white hover:bg-orange-700 shadow-sm transition-all"
+              >
+                Registrar
+              </motion.button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+
       {/* Hero Section */}
       <section className="relative h-[600px] flex items-center justify-center overflow-hidden text-white">
         <div className="absolute inset-0 w-full h-full z-0">
@@ -60,12 +103,12 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <source src="/videos/hero-background.mp4" type="video/mp4" />
           </video>
         </div>
-        
+
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 w-full">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-6">
-              <Sparkles className="w-12 h-12" />
-              <h1 className="text-5xl sm:text-7xl font-bold">Cresce.AO</h1>
+              {/* <Sparkles className="w-12 h-12" /> */}
+              <h1 className="text-5xl sm:text-7xl font-bold">Cresce<span className="text-orange-600">.AO</span></h1>
             </div>
             <p className="text-xl sm:text-2xl mb-8 max-w-3xl mx-auto opacity-95">
               A plataforma que centraliza oportunidades de aprendizagem, networking e desenvolvimento profissional em Angola
@@ -109,13 +152,12 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   return (
                     <div
                       key={slide.id}
-                      className={`absolute transition-all duration-500 ease-in-out ${
-                        isActive 
-                          ? 'z-30 scale-100 opacity-100 translate-x-0' 
-                          : isPrev
-                            ? 'z-10 scale-75 opacity-40 -translate-x-[60%]'
-                            : 'z-10 scale-75 opacity-40 translate-x-[60%]'
-                      }`}
+                      className={`absolute transition-all duration-500 ease-in-out ${isActive
+                        ? 'z-30 scale-100 opacity-100 translate-x-0'
+                        : isPrev
+                          ? 'z-10 scale-75 opacity-40 -translate-x-[60%]'
+                          : 'z-10 scale-75 opacity-40 translate-x-[60%]'
+                        }`}
                       style={{
                         width: isActive ? '600px' : '500px',
                         maxWidth: '90vw',
@@ -162,7 +204,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                               {slide.price}
                             </span>
                             {isActive && (
-                              <button 
+                              <button
                                 onClick={onExplore}
                                 className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                               >
@@ -186,7 +228,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             >
               <ChevronLeft className="w-6 h-6" />
             </button>
-            
+
             <button
               onClick={nextSlide}
               className="absolute right-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
@@ -201,11 +243,10 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                 <button
                   key={index}
                   onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full cursor-pointer transition-all ${
-                    index === currentSlide 
-                      ? 'bg-orange-600 w-8' 
-                      : 'bg-gray-300 w-2 hover:bg-gray-400'
-                  }`}
+                  className={`h-2 rounded-full cursor-pointer transition-all ${index === currentSlide
+                    ? 'bg-orange-600 w-8'
+                    : 'bg-gray-300 w-2 hover:bg-gray-400'
+                    }`}
                   aria-label={`Ir para slide ${index + 1}`}
                 />
               ))}
@@ -219,7 +260,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Workshops</h2>
-            <button 
+            <button
               onClick={onExplore}
               className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
@@ -234,7 +275,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                 <div key={curso.id} className="flex-shrink-0 w-[280px]">
                   <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={onExplore}>
                     <div className="relative h-[180px]">
-                      <img 
+                      <img
                         src={curso.image}
                         alt={curso.title}
                         className="w-full h-full object-cover"
@@ -260,7 +301,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <h2 className="text-3xl font-bold text-gray-900">
               Eventos de Negócios e Networking
             </h2>
-            <button 
+            <button
               onClick={onExplore}
               className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
@@ -275,7 +316,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                 <div key={evento.id} className="flex-shrink-0 w-[280px]">
                   <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={onExplore}>
                     <div className="relative h-[180px]">
-                      <img 
+                      <img
                         src={evento.image}
                         alt={evento.title}
                         className="w-full h-full object-cover"
@@ -591,14 +632,13 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   A plataforma é gratuita?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 cursor-pointer transition-transform ${
-                    openFaq === 0 ? 'rotate-180' : ''
-                  }`}
+                  className={`w-6 h-6 text-orange-600 cursor-pointer transition-transform ${openFaq === 0 ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
               {openFaq === 0 && (
                 <div className="px-8 pb-6 text-gray-600">
-                  Sim! O Cresce.AO é totalmente gratuito para utilizadores que desejam explorar e participar em eventos. 
+                  Sim! O Cresce.AO é totalmente gratuito para utilizadores que desejam explorar e participar em eventos.
                   Organizadores também podem publicar eventos gratuitamente na plataforma.
                 </div>
               )}
@@ -614,15 +654,14 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   Como me inscrevo num evento?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${
-                    openFaq === 1 ? 'rotate-180' : ''
-                  }`}
+                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 1 ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
               {openFaq === 1 && (
                 <div className="px-8 pb-6 text-gray-600">
-                  É muito simples! Navegue pelos eventos disponíveis, clique no evento que lhe interessa para ver os detalhes completos, 
-                  e siga as instruções de inscrição fornecidas pelo organizador. Algumas inscrições são feitas diretamente na plataforma, 
+                  É muito simples! Navegue pelos eventos disponíveis, clique no evento que lhe interessa para ver os detalhes completos,
+                  e siga as instruções de inscrição fornecidas pelo organizador. Algumas inscrições são feitas diretamente na plataforma,
                   outras podem redirecionar para o site do organizador.
                 </div>
               )}
@@ -638,15 +677,14 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   Como publico um evento?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${
-                    openFaq === 2 ? 'rotate-180' : ''
-                  }`}
+                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 2 ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
               {openFaq === 2 && (
                 <div className="px-8 pb-6 text-gray-600">
-                  Para publicar um evento, primeiro faça o cadastro como organizador. Após o login, aceda ao painel do organizador 
-                  e clique em "Criar Evento". Preencha as informações do evento (título, descrição, data, local, categoria) e publique. 
+                  Para publicar um evento, primeiro faça o cadastro como organizador. Após o login, aceda ao painel do organizador
+                  e clique em "Criar Evento". Preencha as informações do evento (título, descrição, data, local, categoria) e publique.
                   O seu evento ficará visível para todos os utilizadores da plataforma!
                 </div>
               )}
@@ -662,14 +700,13 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   Posso salvar eventos para ver mais tarde?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${
-                    openFaq === 3 ? 'rotate-180' : ''
-                  }`}
+                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 3 ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
               {openFaq === 3 && (
                 <div className="px-8 pb-6 text-gray-600">
-                  Sim! Utilize a funcionalidade de "curtidas" para marcar eventos do seu interesse. 
+                  Sim! Utilize a funcionalidade de "curtidas" para marcar eventos do seu interesse.
                   Todos os eventos que você curtir ficam salvos no seu perfil para fácil acesso posterior.
                 </div>
               )}
@@ -685,15 +722,14 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                   Que tipos de eventos posso encontrar?
                 </span>
                 <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${
-                    openFaq === 4 ? 'rotate-180' : ''
-                  }`}
+                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 4 ? 'rotate-180' : ''
+                    }`}
                 />
               </button>
               {openFaq === 4 && (
                 <div className="px-8 pb-6 text-gray-600">
-                  No Cresce.AO você encontra diversos tipos de eventos: Palestras, Workshops práticos, 
-                  Feiras corporativas e Masterclasses. Todos focados em desenvolvimento profissional, 
+                  No Cresce.AO você encontra diversos tipos de eventos: Palestras, Workshops práticos,
+                  Feiras corporativas e Masterclasses. Todos focados em desenvolvimento profissional,
                   networking e aprendizagem contínua.
                 </div>
               )}
@@ -777,7 +813,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       </section>
 
       {/* Footer */}
-      <Footer 
+      <Footer
         onExplore={onExplore}
         onNavigateToPrivacy={onNavigateToPrivacy}
         onNavigateToTerms={onNavigateToTerms}

@@ -1,19 +1,23 @@
 import { ArrowLeft, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 
 interface TermsOfUsePageProps {
   onBack: () => void;
 }
 
 export function TermsOfUsePage({ onBack }: TermsOfUsePageProps) {
+
+  const navigate = useNavigate();
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
             <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 cursor-pointer text-gray-600 hover:text-gray-900 transition-colors"
             >
               <ArrowLeft className="w-5 h-5" />
               <span>Voltar</span>
@@ -27,7 +31,7 @@ export function TermsOfUsePage({ onBack }: TermsOfUsePageProps) {
       </header>
 
       {/* Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div className="bg-white rounded-2xl shadow-sm p-8 sm:p-12">
           <h1 className="text-4xl font-bold text-gray-900 mb-4">Termos de Uso</h1>
           <p className="text-gray-600 mb-8">Última atualização: Janeiro de 2026</p>

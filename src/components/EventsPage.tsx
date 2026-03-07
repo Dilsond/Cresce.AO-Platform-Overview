@@ -407,14 +407,7 @@ export function EventsPage() {
             </button>
           </div>
         )}
-
-        {/* Results Count */}
-        <div className="mb-6">
-          <h2 className="text-lg font-medium text-gray-600">
-            {sortedEvents.length} {sortedEvents.length === 1 ? 'evento encontrado' : 'eventos encontrados'}
-          </h2>
-        </div>
-
+        
         {/* Events Grid */}
         {isLoading ? (
           <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">

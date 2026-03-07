@@ -434,7 +434,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                       Criando...
                     </>
                   ) : (
-                    'Criar Conta de Organizador'
+                    'Criar Conta'
                   )}
                 </motion.button>
               </form>

@@ -60,11 +60,9 @@ function AppRoutes() {
 
         <Route
           path="/organizer-signup"
-          element={
-            <OrganizerSignupPage
-              onSignup={() => navigate('/events')}
-              onBack={() => navigate('/login')}
-            />
+          element={<OrganizerSignupPage
+            onBack={() => navigate('/login')}
+          />
           }
         />
 
@@ -72,7 +70,6 @@ function AppRoutes() {
           path="/organizer-login"
           element={
             <OrganizerLoginPage
-              onLogin={() => navigate('/events')}
               onBack={() => navigate('/login')}
             />
           }
@@ -86,9 +83,9 @@ function AppRoutes() {
           }
         />
 
-        <Route path="/favorites" element={ <PrivateRoute><FavoritesPage /></PrivateRoute> } />
+        <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
 
-        <Route path="/create-event" element={ <PrivateRoute><CreateEvent /></PrivateRoute> } />
+        <Route path="/create-event" element={<PrivateRoute><CreateEvent /></PrivateRoute>} />
 
         <Route path="/events" element={<PrivateRoute><EventsPage /></PrivateRoute>} />
 
@@ -100,12 +97,12 @@ function AppRoutes() {
 
         <Route
           path="/privacy-policy"
-          element={<PrivateRoute><PrivacyPolicyPage onBack={() => navigate('/events')} /></PrivateRoute>}
+          element={<PrivacyPolicyPage onBack={() => navigate('/events')} />}
         />
 
         <Route
           path="/terms-of-use"
-          element={<PrivateRoute><TermsOfUsePage onBack={() => navigate('/events')} /></PrivateRoute>}
+          element={<TermsOfUsePage onBack={() => navigate('/events')} />}
         />
 
       </Routes>
