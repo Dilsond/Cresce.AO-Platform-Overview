@@ -57,6 +57,12 @@ export function EventDetailPage() {
     }
   });
 
+  const formatTime = (time: string) => {
+    if (!time) return '';
+    // Se tiver no formato HH:MM:SS, pegar apenas HH:MM
+    return time.split(':').slice(0, 2).join(':');
+  };
+
   const [isLiked, setIsLiked] = useState(false);
 
   // Buscar evento do banco de dados
@@ -177,7 +183,7 @@ export function EventDetailPage() {
         description: evento.descricao || 'Sem descrição disponível',
         category: evento.categoria,
         date: evento.data_evento,
-        time: evento.hora_evento,
+        time: formatTime(evento.hora_evento),
         eventType: evento.tipo_evento,
         location: evento.local || 'Local a definir',
         price: evento.valor || 0,
@@ -188,7 +194,7 @@ export function EventDetailPage() {
         organizerId: evento.organizador_id,
         organizerName: organizador?.nome_empresa || 'Organizador não identificado',
         organizerEmail: organizador?.email_empresa,
-        organizerPhone: '244900000000', // Mock - idealmente ter campo na tabela organizadores
+        organizerPhone: evento.contacto_whatsapp,
         likes: likesCount || 0,
         reviews: formattedReviews,
         averageRating

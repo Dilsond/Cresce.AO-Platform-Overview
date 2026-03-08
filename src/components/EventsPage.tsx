@@ -218,6 +218,13 @@ export function EventsPage() {
     }
   };
 
+  // Função para formatar hora (remover segundos)
+  const formatTime = (time: string) => {
+    if (!time) return '';
+    // Se tiver no formato HH:MM:SS, pegar apenas HH:MM
+    return time.split(':').slice(0, 2).join(':');
+  };
+
   // Buscar eventos do Supabase
   const fetchEvents = async () => {
     try {
@@ -226,7 +233,7 @@ export function EventsPage() {
 
       console.log('Buscando eventos...');
 
-      // Primeiro, buscar todos os eventos
+      // Primeiro, buscar todos os eventos não deletados
       const { data: eventos, error: eventosError } = await supabase
         .from('eventos')
         .select('*')
@@ -246,51 +253,58 @@ export function EventsPage() {
         return;
       }
 
-      // Para cada evento, buscar o organizador correspondente
-      const eventosComOrganizadores = await Promise.all(
-        eventos.map(async (evento) => {
-          // Buscar organizador pelo ID
-          const { data: organizador, error: orgError } = await supabase
-            .from('organizadores')
-            .select('nome_empresa, id')
-            .eq('id', evento.organizador_id)
-            .single();
+      // Filtrar apenas eventos cujo organizador não está deletado
+      const eventosValidos = [];
 
-          if (orgError) {
-            console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
-          }
+      for (const evento of eventos) {
+        // Buscar organizador e verificar se não está deletado
+        const { data: organizador, error: orgError } = await supabase
+          .from('organizadores')
+          .select('nome_empresa, id, deleted_at')
+          .eq('id', evento.organizador_id)
+          .single();
 
-          // Buscar contagem de likes para este evento
-          const { count: likesCount, error: likesError } = await supabase
-            .from('favoritos_eventos')
-            .select('*', { count: 'exact', head: true })
-            .eq('evento_id', evento.id);
+        if (orgError) {
+          console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
+          continue; // Pular este evento se não encontrar organizador
+        }
 
-          if (likesError) {
-            console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
-          }
+        // Verificar se organizador está deletado
+        if (organizador.deleted_at) {
+          console.log(`Evento ${evento.id} ignorado: organizador deletado`);
+          continue; // Pular este evento se organizador estiver deletado
+        }
 
-          return {
-            id: evento.id,
-            name: evento.nome_evento,
-            description: evento.descricao || 'Sem descrição disponível',
-            category: evento.categoria,
-            date: evento.data_evento,
-            time: evento.hora_evento,
-            eventType: evento.tipo_evento,
-            location: evento.local || 'Local a definir',
-            price: evento.valor || 0,
-            image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-            status: 'A decorrer',
-            organizerId: organizador?.id || evento.organizador_id,
-            organizerName: organizador?.nome_empresa || 'Organizador não identificado',
-            likes: likesCount || 0
-          };
-        })
-      );
+        // Buscar contagem de likes para este evento
+        const { count: likesCount, error: likesError } = await supabase
+          .from('favoritos_eventos')
+          .select('*', { count: 'exact', head: true })
+          .eq('evento_id', evento.id);
 
-      console.log('Eventos formatados:', eventosComOrganizadores);
-      setEvents(eventosComOrganizadores);
+        if (likesError) {
+          console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
+        }
+
+        eventosValidos.push({
+          id: evento.id,
+          name: evento.nome_evento,
+          description: evento.descricao || 'Sem descrição disponível',
+          category: evento.categoria,
+          date: evento.data_evento,
+          time: formatTime(evento.hora_evento),
+          eventType: evento.tipo_evento,
+          location: evento.local || 'Local a definir',
+          price: evento.valor || 0,
+          image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+          status: 'A decorrer',
+          organizerId: organizador.id,
+          organizerName: organizador.nome_empresa || 'Organizador não identificado',
+          likes: likesCount || 0
+        });
+      }
+
+      console.log('Eventos válidos encontrados:', eventosValidos);
+      setEvents(eventosValidos);
 
     } catch (err) {
       console.error('Erro inesperado:', err);
@@ -323,15 +337,22 @@ export function EventsPage() {
   const [sortBy, setSortBy] = useState<string>('Relevância');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const categories = ['Todas', 'Palestras', 'Workshops', 'Feiras', 'Masterclasses'];
-  const dateFilters = ['Todas', 'Hoje', 'Esta Semana', 'Este Mês', 'Próximos 3 Meses'];
-  const eventTypes = ['Todos', 'presencial', 'online', 'híbrido'];
-  const priceFilters = ['Todos', 'Gratuito', 'Pago'];
-
   const onNavigateToProfile = () => {
     if (!currentUser) return;
     if (currentUser.type === 'organizer') navigate('/organizer-profile');
     else navigate('/user-dashboard');
+  };
+
+  const categories = ['Todas', 'palestra', 'workshop', 'feiras', 'masterclasse'];
+  const dateFilters = ['Todas', 'Hoje', 'Esta Semana', 'Este Mês', 'Próximos 3 Meses'];
+  const eventTypes = ['Todos', 'presencial', 'online', 'hibrido'];
+  const priceFilters = ['Todos', 'Gratuito', 'Pago'];
+
+  const categoryLabels: Record<string, string> = {
+    palestra: "Palestra",
+    workshop: "Workshop",
+    feiras: "Feira",
+    masterclasse: "Masterclasse"
   };
 
   // --- Filtragem ---
@@ -483,8 +504,11 @@ export function EventsPage() {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {categories.map(cat => (
-                    <DropdownMenuItem key={cat} onClick={() => setSelectedCategory(cat)}>
-                      {cat}
+                    <DropdownMenuItem
+                      key={cat}
+                      onClick={() => setSelectedCategory(cat)}
+                    >
+                      {cat === "Todas" ? "Todas" : categoryLabels[cat]}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuContent>
@@ -637,7 +661,7 @@ export function EventsPage() {
                   {/* Category Badge */}
                   <div className="absolute top-3 left-3 transform group-hover:scale-110 transition-transform duration-300">
                     <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 hover:bg-white font-semibold shadow-sm">
-                      {event.category}
+                      {categoryLabels[event.category]}
                     </Badge>
                   </div>
 

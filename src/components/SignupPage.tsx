@@ -282,7 +282,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
                     onChange={(e) => setName(e.target.value)}
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="João Silva"
+                    placeholder="Digite seu nome completo"
                   />
                 </div>
 
@@ -297,7 +297,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
                     onChange={(e) => setUsername(e.target.value)}
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="joaosilva"
+                    placeholder="Digite seu nome de utilizador"
                   />
                   <p className="text-xs text-gray-500 mt-1.5">3-20 caracteres, apenas letras, números e _</p>
                 </div>

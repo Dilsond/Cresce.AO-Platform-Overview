@@ -355,7 +355,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                     onChange={(e) => setCompany(e.target.value)}
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="StartHub Angola, Lda"
+                    placeholder="Digite o nome da empresa"
                   />
                 </div>
 
@@ -371,7 +371,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                     required
                     pattern="[0-9]{9,10}"
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="123456789"
+                    placeholder="Digite o NIF da empresa"
                   />
                   <p className="text-xs text-gray-500 mt-1.5">Digite apenas números (9-10 dígitos)</p>
                 </div>
@@ -387,7 +387,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="contato@empresa.ao"
+                    placeholder="Contato@empresa.ao"
                   />
                 </div>
 
