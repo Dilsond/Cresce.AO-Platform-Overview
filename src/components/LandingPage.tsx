@@ -1,5 +1,5 @@
 import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { landingPageSlides, cursosWorkshops, eventosNegocios } from './LandingPageSlides';
 import { AnimatedCounter } from './AnimatedCounter';
 import { Footer } from './Footer';
@@ -18,12 +18,29 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
+  
+  // Referência para a seção de atividades em destaque
+  const atividadesRef = useRef<HTMLElement>(null);
 
   const toggleFaq = (index: number) => {
     setOpenFaq(openFaq === index ? null : index);
   };
 
   const slides = landingPageSlides;
+
+  // Função para rolar suavemente até a seção de atividades
+  const scrollToAtividades = () => {
+    if (atividadesRef.current) {
+      const offset = 80; // Altura do header fixo
+      const elementPosition = atividadesRef.current.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - offset;
+
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+    }
+  };
 
   // Auto-play do slideshow
   useEffect(() => {
@@ -62,7 +79,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                 alt="Cresce.AO Logo"
                 className="h-10 w-auto object-contain"
               />
-
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>
@@ -70,7 +86,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
 
             {/* Buttons */}
             <div className="flex items-center gap-3">
-
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -120,7 +135,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
               A plataforma que centraliza oportunidades de aprendizagem, networking e desenvolvimento profissional em Angola
             </p>
             <button
-              onClick={onExplore}
+              onClick={scrollToAtividades}
               className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
             >
               Explorar Eventos
@@ -129,8 +144,8 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
         </div>
       </section>
 
-      {/* Slideshow de Atividades Disponíveis */}
-      <section className="py-20 bg-gray-50">
+      {/* Slideshow de Atividades Disponíveis - ADICIONADA A REFERÊNCIA AQUI */}
+      <section ref={atividadesRef} className="py-20 bg-gray-50 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
@@ -211,7 +226,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                             </span>
                             {isActive && (
                               <button
-                                onClick={onExplore}
+                                onClick={scrollToAtividades}
                                 className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                               >
                                 Ver Detalhes
@@ -267,7 +282,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Workshops</h2>
             <button
-              onClick={onExplore}
+              onClick={scrollToAtividades}
               className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
               Ver tudo <ArrowRight className="w-4 h-4" />
@@ -279,7 +294,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="flex gap-4 pb-4">
               {cursosWorkshops.map((curso) => (
                 <div key={curso.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={onExplore}>
+                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={scrollToAtividades}>
                     <div className="relative h-[180px]">
                       <img
                         src={curso.image}
@@ -308,7 +323,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
               Eventos de Negócios e Networking
             </h2>
             <button
-              onClick={onExplore}
+              onClick={scrollToAtividades}
               className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
             >
               Ver tudo <ArrowRight className="w-4 h-4" />
@@ -320,7 +335,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="flex gap-4 pb-4">
               {eventosNegocios.map((evento) => (
                 <div key={evento.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={onExplore}>
+                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={scrollToAtividades}>
                     <div className="relative h-[180px]">
                       <img
                         src={evento.image}
@@ -754,7 +769,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             Junte-se à comunidade de profissionais angolanos que estão a investir no seu desenvolvimento
           </p>
           <button
-            onClick={onExplore}
+            onClick={scrollToAtividades}
             className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
           >
             Começar Agora
@@ -820,7 +835,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
 
       {/* Footer */}
       <Footer
-        onExplore={onExplore}
+        onExplore={scrollToAtividades}
         onNavigateToPrivacy={onNavigateToPrivacy}
         onNavigateToTerms={onNavigateToTerms}
       />
