@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { ArrowLeft, Building2, Eye, EyeOff, LogIn } from 'lucide-react';
 import { motion } from 'motion/react';
 import { supabase } from '../lib/supabase';
-import { Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 
 export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (user: any) => void }) {
   const [email, setEmail] = useState('');
@@ -10,6 +10,7 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   // Função auxiliar para gerar hash SHA-256 (igual ao mock_hash_password)
   async function sha256(message: string) {
@@ -217,6 +218,16 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                       {showPassword ? <EyeOff className="w-5 h-5 cursor-pointer" /> : <Eye className="w-5 h-5 cursor-pointer" />}
                     </button>
                   </div>
+                </div>
+
+                <div className="text-right">
+                  <button
+                    type="button"
+                    onClick={() => navigate('/forgot-password')}
+                    className="text-sm text-orange-600 hover:text-orange-700 font-semibold transition-colors cursor-pointer"
+                  >
+                    Esqueceu a senha?
+                  </button>
                 </div>
 
                 <motion.button

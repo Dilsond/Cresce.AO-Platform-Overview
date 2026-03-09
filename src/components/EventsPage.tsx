@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Search, MapPin, Heart, User, LogOut, LayoutDashboard, PlusCircle, CalendarDays, ChevronDown, Menu, X, ChevronRight, Sparkles } from 'lucide-react';
 import { Button } from './ui/button';
-import { Input } from './ui/input';
+import logo from "../assets/logo.png";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { Badge } from './ui/badge';
 import { Separator } from './ui/separator';
@@ -415,9 +415,18 @@ export function EventsPage() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-6 flex-1">
-            <div className="flex items-center gap-1 flex-shrink-0 cursor-pointer" onClick={() => window.location.reload()}>
-              <Sparkles className="w-6 h-6 text-orange-600" />
-              <span className="md:inline text-xl font-bold text-gray-800">Cresce.AO</span>
+            <div
+              className="flex items-center"
+            >
+              <img
+                src={logo}
+                alt="Cresce.AO Logo"
+                className="h-10 w-auto object-contain"
+              />
+
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
+                Cresce<span className="text-orange-600">.AO</span>
+              </span>
             </div>
             <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>

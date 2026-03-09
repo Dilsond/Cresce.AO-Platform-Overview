@@ -1,4 +1,4 @@
-import image_2b98f25257b1238c48d47c9236d12c5ed6e3cffe from 'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png';
+import logo from "../assets/logo.png";
 import { ArrowLeft, Calendar, MapPin, Heart, Building2, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
 import { EventReviews } from './EventReviews';
 import { useState, useEffect } from 'react';
@@ -503,9 +503,18 @@ export function EventDetailPage() {
               <span>Voltar</span>
             </button>
 
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-orange-600" />
-              <span className="font-bold text-gray-900">Cresce.AO</span>
+            <div
+              className="flex items-center"
+            >
+              <img
+                src={logo}
+                alt="Cresce.AO Logo"
+                className="h-10 w-auto object-contain"
+              />
+
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
+                Cresce<span className="text-orange-600">.AO</span>
+              </span>
             </div>
           </div>
         </div>
@@ -567,16 +576,6 @@ export function EventDetailPage() {
                 </span>
               </div>
             )}
-
-            {/* Share Button */}
-            <div className="absolute bottom-6 right-6">
-              <button
-                onClick={handleShareEvent}
-                className="flex items-center gap-2 bg-white px-5 cursor-pointer py-3 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
-                <Share2 className="w-5 h-5 text-orange-600" />
-                <span className="font-semibold text-gray-900">COMPARTILHAR</span>
-              </button>
-            </div>
           </div>
         </div>
 

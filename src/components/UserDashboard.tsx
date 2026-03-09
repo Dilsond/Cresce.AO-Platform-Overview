@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, Edit2, Sparkles, Save, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import logo from "../assets/logo.png";
 
 export function UserDashboard() {
   const navigate = useNavigate();
@@ -141,9 +142,18 @@ export function UserDashboard() {
             <ArrowLeft className="w-5 h-5" />
             <span>Voltar</span>
           </button>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-orange-600" />
-            <span className="font-bold text-gray-900">Cresce.AO</span>
+          <div
+            className="flex items-center"
+          >
+            <img
+              src={logo}
+              alt="Cresce.AO Logo"
+              className="h-10 w-auto object-contain"
+            />
+
+            <span className="text-xl font-bold text-gray-900 tracking-tight">
+              Cresce<span className="text-orange-600">.AO</span>
+            </span>
           </div>
         </div>
       </header>

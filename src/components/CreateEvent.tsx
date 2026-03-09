@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
+import logo from "../assets/logo.png";
 
 interface User {
     id: string;
@@ -307,15 +308,28 @@ export function CreateEvent() {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <header className="bg-white shadow-sm">
+            <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
                     <button
                         onClick={() => navigate(-1)}
-                        className="flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors"
+                        className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
                     >
-                        <ArrowLeft className="w-5 h-5" />
-                        <span>Voltar</span>
+                        <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                        <span className="font-medium">Voltar</span>
                     </button>
+                    <div
+                        className="flex items-center"
+                    >
+                        <img
+                            src={logo}
+                            alt="Cresce.AO Logo"
+                            className="h-10 w-auto object-contain"
+                        />
+
+                        <span className="text-xl font-bold text-gray-900 tracking-tight">
+                            Cresce<span className="text-orange-600">.AO</span>
+                        </span>
+                    </div>
                 </div>
             </header>
 

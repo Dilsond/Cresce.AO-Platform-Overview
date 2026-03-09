@@ -3,7 +3,8 @@ import { useState, useEffect } from 'react';
 import { landingPageSlides, cursosWorkshops, eventosNegocios } from './LandingPageSlides';
 import { AnimatedCounter } from './AnimatedCounter';
 import { Footer } from './Footer';
-import heroBg from "figma:asset/d48dbf308596a19f3efe4145eb156c4fa0bae765.png";
+import heroBg from "../assets/d48dbf308596a19f3efe4145eb156c4fa0bae765.png";
+import logo from "../assets/logo.png";
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 
@@ -52,7 +53,16 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           <div className="flex items-center justify-between h-20">
 
             {/* Logo */}
-            <div className="flex items-center gap-2 cursor-pointer">
+            <div
+              className="flex items-center cursor-pointer"
+              onClick={() => navigate('/')}
+            >
+              <img
+                src={logo}
+                alt="Cresce.AO Logo"
+                className="h-10 w-auto object-contain"
+              />
+
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>
@@ -82,7 +92,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           </div>
         </div>
       </header>
-
 
       {/* Hero Section */}
       <section className="relative h-[600px] flex items-center justify-center overflow-hidden text-white">

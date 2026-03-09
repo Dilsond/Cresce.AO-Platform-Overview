@@ -242,6 +242,16 @@ export function OrganizerLoginPage({ onBack }: { onBack: () => void }) {
                                     </div>
                                 </div>
 
+                                <div className="text-right">
+                                    <button
+                                        type="button"
+                                        onClick={() => navigate('/forgot-password')}
+                                        className="text-sm text-orange-600 hover:text-orange-700 font-semibold transition-colors cursor-pointer"
+                                    >
+                                        Esqueceu a senha?
+                                    </button>
+                                </div>
+
                                 <motion.button
                                     type="submit"
                                     disabled={isLoading}

@@ -3,6 +3,7 @@ import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark, Sparkles }
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import logo from "../assets/logo.png";
 
 export type UserType = 'user' | 'organizer' | null;
 
@@ -277,13 +278,18 @@ export function FavoritesPage() {
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Voltar</span>
           </button>
-          <div className="flex items-center gap-2 text-orange-600">
-            <Heart className="w-5 h-5 fill-orange-600" />
-            <span className="font-semibold text-gray-800">Os Meus Favoritos</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-orange-600" />
-            <span className="font-bold text-gray-900">Cresce.AO</span>
+          <div
+            className="flex items-center"
+          >
+            <img
+              src={logo}
+              alt="Cresce.AO Logo"
+              className="h-10 w-auto object-contain"
+            />
+
+            <span className="text-xl font-bold text-gray-900 tracking-tight">
+              Cresce<span className="text-orange-600">.AO</span>
+            </span>
           </div>
         </div>
       </header>
@@ -410,11 +416,10 @@ export function FavoritesPage() {
                     </div>
                     <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
                       <span className="text-xs text-gray-500">{event.organizerName}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                        event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
-                        event.eventType === 'híbrido' ? 'bg-purple-100 text-purple-700' :
-                          'bg-orange-100 text-orange-700'
-                      }`}>
+                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
+                          event.eventType === 'híbrido' ? 'bg-purple-100 text-purple-700' :
+                            'bg-orange-100 text-orange-700'
+                        }`}>
                         {event.eventType}
                       </span>
                     </div>

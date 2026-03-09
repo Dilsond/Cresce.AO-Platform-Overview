@@ -16,6 +16,7 @@ import { OrganizerProfile } from './components/OrganizerProfile';
 import { UserDashboard } from './components/UserDashboard';
 import { PrivateRoute } from "./components/PrivateRoute";
 import OrganizerProfilePage from "./components/OrganizerProfilePage";
+import { ForgotPassword } from './components/ForgotPassword';
 
 function AppRoutes() {
 
@@ -97,6 +98,8 @@ function AppRoutes() {
         <Route path="/user-dashboard" element={<PrivateRoute><UserDashboard /></PrivateRoute>} />
 
         <Route path="/organizer/:id" element={ <PrivateRoute><OrganizerProfilePage /></PrivateRoute>} />
+
+        <Route path="/forgot-password" element={ <ForgotPassword onBack={() => navigate('/login')} />}  />
 
         <Route
           path="/privacy-policy"

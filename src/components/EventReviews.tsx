@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { Star, Send, Image as ImageIcon, X, Edit2, Check, Trash2, ZoomIn, Plus, ChevronLeft, ChevronRight, Flag } from 'lucide-react';
+import { Star, Send, Image as ImageIcon, X, Edit2, Check, Trash2, ZoomIn, Plus, ChevronLeft, ChevronRight, Flag, AlertTriangle } from 'lucide-react';
 import { ImageEditor } from './ImageEditor';
 import { supabase } from '../lib/supabase';
 import { ReportCommentModal } from './ReportCommentModal';
@@ -733,9 +733,9 @@ export function EventReviews({
               {!canEditReview(review) && currentUserId && (
                 <button
                   onClick={() => setSelectedReportComment(review)}
-                  className="flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
+                  className="flex items-center gap-2 mt-10 px-4 py-2 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium"
                 >
-                  <Flag className="w-4 h-4" />
+                  <AlertTriangle className="w-4 h-4" />
                   Denunciar
                 </button>
               )}

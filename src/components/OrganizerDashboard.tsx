@@ -21,6 +21,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from "react-router-dom";
 import { supabase } from '../lib/supabase';
 import { OrganizerCommentManagement } from "./OrganizerCommentManegament";
+import logo from "../assets/logo.png";
 
 export type UserType = "user" | "organizer";
 
@@ -494,9 +495,18 @@ export function OrganizerDashboard() {
                             <ArrowLeft className="w-5 h-5" />
                             <span>Voltar</span>
                         </button>
-                        <div className="flex items-center gap-2">
-                            <Sparkles className="w-6 h-6 text-orange-600" />
-                            <span className="font-bold text-gray-900">Cresce.AO</span>
+                        <div
+                            className="flex items-center"
+                        >
+                            <img
+                                src={logo}
+                                alt="Cresce.AO Logo"
+                                className="h-10 w-auto object-contain"
+                            />
+
+                            <span className="text-xl font-bold text-gray-900 tracking-tight">
+                                Cresce<span className="text-orange-600">.AO</span>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -512,31 +522,42 @@ export function OrganizerDashboard() {
 
                 {/* Tabs */}
                 <div className="flex items-center justify-between bg-white rounded-2xl px-4 shadow-sm border border-gray-100">
-                    <div className="flex gap-1 overflow-x-auto">
+                    <div className="flex gap-1 overflow-x-auto border-b border-gray-200">
                         {[
                             { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
-                            { key: 'comments', label: 'Comentários', icon: <MessageSquare className="w-4 h-4" /> }
-                        ].map(tab => (
-                            <button
-                                key={tab.key}
-                                onClick={() => setActiveTab(tab.key as any)}
-                                className={`flex items-center gap-2 px-5 py-4 text-sm font-semibold border-b-2 transition-all whitespace-nowrap border-orange-600 text-orange-600`}
-                            >
-                                {tab.icon}
-                                {tab.label}
-                            </button>
-                        ))}
+                            { key: 'comments', label: 'Comentários', icon: <MessageSquare className="w-4 h-4" /> },
+                            { key: 'create-event', label: 'Criar Evento', icon: <Plus className="w-4 h-4" /> },
+                        ].map(tab => {
+                            const isActive = activeTab === tab.key;
+
+                            return (
+                                <button
+                                    key={tab.key}
+                                    onClick={() => setActiveTab(tab.key as any)}
+                                    className={`
+                                        flex items-center gap-2 px-5 py-4 text-sm font-semibold whitespace-nowrap
+                                        border-b-2 transition-all duration-200 cursor-pointer
+                                            ${isActive
+                                            ? 'border-orange-600 text-orange-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}
+                                    `}
+                                >
+                                    {tab.icon}
+                                    {tab.label}
+                                </button>
+                            );
+                        })}
                     </div>
 
                     {/* Botão */}
-                    <motion.button
+                    {/* <motion.button
                         whileHover={{ scale: 1.05 }}
                         whileTap={{ scale: 0.95 }}
                         onClick={() => navigate('/create-event')}
                         className="flex items-center gap-2 px-5 py-4 text-sm font-semibold border-2 rounded-2xl transition-all whitespace-nowrap border-orange-600 text-orange-600"
                     >
                         Criar Evento
-                    </motion.button>
+                    </motion.button> */}
                 </div>
 
                 {/* HERO */}
@@ -613,9 +634,13 @@ export function OrganizerDashboard() {
                     ))}
                 </div>
 
-                
+
                 {activeTab === 'comments' && (
                     <OrganizerCommentManagement organizerId={user.id} />
+                )}
+
+                {activeTab === 'create-event' && (
+                    navigate('/create-event')
                 )}
 
                 {/* LISTA DE EVENTOS */}

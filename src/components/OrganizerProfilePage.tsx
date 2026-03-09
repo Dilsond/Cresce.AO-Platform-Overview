@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EventCardSkeleton } from "./EventCardSkeleton";
+import logo from "../assets/logo.png";
 
 export default function OrganizerProfilePage() {
   const navigate = useNavigate();
@@ -21,10 +22,10 @@ export default function OrganizerProfilePage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
+    return date.toLocaleDateString('pt-PT', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
     });
   };
 
@@ -140,9 +141,18 @@ export default function OrganizerProfilePage() {
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Voltar</span>
           </button>
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-6 h-6 text-orange-600" />
-            <span className="font-bold text-gray-900">Cresce.AO</span>
+          <div
+            className="flex items-center"
+          >
+            <img
+              src={logo}
+              alt="Cresce.AO Logo"
+              className="h-10 w-auto object-contain"
+            />
+
+            <span className="text-xl font-bold text-gray-900 tracking-tight">
+              Cresce<span className="text-orange-600">.AO</span>
+            </span>
           </div>
         </div>
       </header>
@@ -152,12 +162,12 @@ export default function OrganizerProfilePage() {
         <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white mb-8">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-          
+
           <div className="relative z-10 flex items-center justify-between">
             <div>
               <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
               <h1 className="text-4xl md:text-5xl font-bold mb-3">{organizerName || "Organizador"}</h1>
-              
+
               {organizerInfo && (
                 <div className="flex items-center gap-4 mt-4 text-orange-50">
                   <div className="flex items-center gap-2">
@@ -172,7 +182,7 @@ export default function OrganizerProfilePage() {
                 </div>
               )}
             </div>
-            
+
             <div className="hidden md:flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3">
               <Heart className="w-6 h-6 fill-white text-white" />
               <span className="text-2xl font-bold">{events.length}</span>
@@ -272,9 +282,8 @@ export default function OrganizerProfilePage() {
 
                         {/* Status Badge */}
                         <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                          <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${
-                            event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'
-                          }`}>
+                          <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'
+                            }`}>
                             {event.status}
                           </span>
                         </div>
