@@ -428,10 +428,6 @@ export function EventsPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
               />
-              <div className="h-6 w-px bg-gray-300 mx-1"></div>
-              <button className="flex items-center gap-1 px-3 py-2 text-sm text-orange-600 font-medium whitespace-nowrap">
-                <MapPin className="w-4 h-4" /> Qualquer lugar <ChevronDown className="w-3 h-3" />
-              </button>
             </div>
           </div>
 

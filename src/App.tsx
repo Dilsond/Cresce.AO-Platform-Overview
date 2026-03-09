@@ -15,6 +15,7 @@ import { EventDetailPage } from './components/EventDetailPage';
 import { OrganizerProfile } from './components/OrganizerProfile';
 import { UserDashboard } from './components/UserDashboard';
 import { PrivateRoute } from "./components/PrivateRoute";
+import OrganizerProfilePage from "./components/OrganizerProfilePage";
 
 function AppRoutes() {
 
@@ -94,6 +95,8 @@ function AppRoutes() {
         <Route path="/organizer-profile" element={<PrivateRoute><OrganizerProfile /></PrivateRoute>} />
 
         <Route path="/user-dashboard" element={<PrivateRoute><UserDashboard /></PrivateRoute>} />
+
+        <Route path="/organizer/:id" element={ <PrivateRoute><OrganizerProfilePage /></PrivateRoute>} />
 
         <Route
           path="/privacy-policy"

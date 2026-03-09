@@ -1,12 +1,11 @@
 import image_2b98f25257b1238c48d47c9236d12c5ed6e3cffe from 'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png';
 import { ArrowLeft, Calendar, MapPin, Heart, Building2, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
 import { EventReviews } from './EventReviews';
-import { Breadcrumbs } from './Breadcrumbs';
 import { useState, useEffect } from 'react';
 import { EventQuiz } from './EventQuiz';
 import { EventChat } from './EventChat';
 import { Footer } from './Footer';
-import { useNavigate, useParams, useLocation } from "react-router-dom";
+import { useNavigate, useParams, Link } from "react-router-dom";
 import { supabase } from '../lib/supabase';
 
 type User = {
@@ -47,6 +46,7 @@ export function EventDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
   const { id } = useParams();
+  const [showVideo, setShowVideo] = useState(false);
 
   const [currentUser] = useState<User | null>(() => {
     try {
@@ -211,6 +211,12 @@ export function EventDetailPage() {
     }
   };
 
+  // No EventDetailPage, antes de renderizar o EventReviews:
+  console.log('EventDetailPage - event:', event);
+  console.log('EventDetailPage - currentUser:', currentUser);
+  console.log('EventDetailPage - eventId:', event?.id);
+  console.log('EventDetailPage - currentUserId:', currentUser?.id);
+
   const onLikeToggle = async () => {
     if (!currentUser || !event) return;
 
@@ -265,69 +271,143 @@ export function EventDetailPage() {
     }
   };
 
+  const handleShareEvent = async () => {
+    const shareData = {
+      title: event?.name,
+      text: `Confira este evento: ${event?.name}\n\n${event?.description}`,
+      url: window.location.href,
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(window.location.href);
+        alert("Link do evento copiado para a área de transferência!");
+      }
+    } catch (error) {
+      console.error("Erro ao partilhar:", error);
+    }
+  };
+
   const onAddReview = async (rating: number, comment: string, images: any[]) => {
     if (!currentUser || !event) return;
 
     try {
+      // Determinar qual coluna usar baseado no tipo de usuário
+      const insertData: any = {
+        evento_id: event.id,
+        descricao: comment,
+        avaliacao: rating,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (currentUser.type === 'user') {
+        insertData.usuario_normal_id = currentUser.id;
+      } else if (currentUser.type === 'organizer') {
+        insertData.organizador_id = currentUser.id;
+      }
+
+      // Se houver imagens, guardar a primeira
+      if (images && images.length > 0) {
+        insertData.imagem_url = images[0];
+      }
+
+      console.log('Adicionando review:', insertData);
+
       const { data, error } = await supabase
         .from('comentarios')
-        .insert({
-          evento_id: event.id,
-          usuario_normal_id: currentUser.id,
-          descricao: comment,
-          avaliacao: rating,
-          imagem_url: images[0] || null, // Simplificado - idealmente várias imagens
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
+        .insert([insertData])
         .select()
         .single();
 
-      if (!error && data) {
-        // Recarregar evento para atualizar reviews
-        fetchEvent(event.id);
+      if (error) {
+        console.error('Erro ao adicionar review:', error);
+        return;
       }
+
+      console.log('Review adicionada:', data);
+
+      // Recarregar evento para atualizar reviews
+      fetchEvent(event.id);
+
     } catch (err) {
       console.error('Erro ao adicionar review:', err);
     }
   };
 
-  const onUpdateReview = async (reviewId: number, rating: number, comment: string, images: any[]) => {
+  const onUpdateReview = async (reviewId: string, rating: number, comment: string, images: any[]) => {
     if (!currentUser || !event) return;
 
     try {
-      const { error } = await supabase
-        .from('comentarios')
-        .update({
-          descricao: comment,
-          avaliacao: rating,
-          imagem_url: images[0] || null,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', reviewId)
-        .eq('usuario_normal_id', currentUser.id);
+      const updateData: any = {
+        descricao: comment,
+        avaliacao: rating,
+        updated_at: new Date().toISOString()
+      };
 
-      if (!error) {
-        fetchEvent(event.id);
+      if (images && images.length > 0) {
+        updateData.imagem_url = images[0];
       }
+
+      console.log('Atualizando review:', reviewId, updateData);
+
+      let query = supabase
+        .from('comentarios')
+        .update(updateData)
+        .eq('id', reviewId);
+
+      // Adicionar filtro baseado no tipo de usuário
+      if (currentUser.type === 'user') {
+        query = query.eq('usuario_normal_id', currentUser.id);
+      } else if (currentUser.type === 'organizer') {
+        query = query.eq('organizador_id', currentUser.id);
+      }
+
+      const { error } = await query;
+
+      if (error) {
+        console.error('Erro ao atualizar review:', error);
+        return;
+      }
+
+      console.log('Review atualizada com sucesso');
+      fetchEvent(event.id);
+
     } catch (err) {
       console.error('Erro ao atualizar review:', err);
     }
   };
 
-  const onDeleteReview = async (reviewId: number) => {
+  const onDeleteReview = async (reviewId: string) => {
     if (!currentUser || !event) return;
 
     try {
-      const { error } = await supabase
-        .from('comentarios')
-        .update({ deleted_at: new Date().toISOString() }) // Soft delete
-        .eq('id', reviewId)
-        .eq('usuario_normal_id', currentUser.id);
+      console.log('Deletando review:', reviewId);
 
-      if (!error) {
-        fetchEvent(event.id);
+      let query = supabase
+        .from('comentarios')
+        .update({ deleted_at: new Date().toISOString() })
+        .eq('id', reviewId);
+
+      // Adicionar filtro baseado no tipo de usuário
+      if (currentUser.type === 'user') {
+        query = query.eq('usuario_normal_id', currentUser.id);
+      } else if (currentUser.type === 'organizer') {
+        query = query.eq('organizador_id', currentUser.id);
       }
+
+      const { error } = await query;
+
+      if (error) {
+        console.error('Erro ao deletar review:', error);
+        return;
+      }
+
+      console.log('Review deletada com sucesso');
+      fetchEvent(event.id);
+
     } catch (err) {
       console.error('Erro ao deletar review:', err);
     }
@@ -374,7 +454,7 @@ export function EventDetailPage() {
   const handleWhatsAppContact = () => {
     const phoneNumber = event?.organizerPhone || '244900000000';
     const message = encodeURIComponent(
-      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}`
+      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}. Com a descrição: ${event?.description}`
     );
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');
@@ -407,6 +487,7 @@ export function EventDetailPage() {
       </div>
     );
   }
+
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -489,7 +570,9 @@ export function EventDetailPage() {
 
             {/* Share Button */}
             <div className="absolute bottom-6 right-6">
-              <button className="flex items-center gap-2 bg-white px-5 py-3 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
+              <button
+                onClick={handleShareEvent}
+                className="flex items-center gap-2 bg-white px-5 cursor-pointer py-3 rounded-full shadow-lg hover:bg-gray-100 transition-colors">
                 <Share2 className="w-5 h-5 text-orange-600" />
                 <span className="font-semibold text-gray-900">COMPARTILHAR</span>
               </button>
@@ -538,29 +621,47 @@ export function EventDetailPage() {
             {/* Video Section */}
             {event.video && (
               <div className="bg-white rounded-xl shadow-md p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">Vídeo Promocional</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">
+                  Vídeo Promocional
+                </h2>
+
                 <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden group">
-                  <img
-                    src={event.image}
-                    alt={`Preview de ${event.name}`}
-                    className="w-full h-full object-cover"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent"></div>
-                  <a
-                    href={event.video}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="absolute inset-0 flex items-center justify-center group-hover:bg-black/20 transition-all"
-                  >
-                    <div className="w-20 h-20 bg-orange-600 rounded-full flex items-center justify-center group-hover:bg-orange-700 group-hover:scale-110 transition-all shadow-2xl">
-                      <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M8 5v14l11-7z" />
-                      </svg>
-                    </div>
-                  </a>
-                  <div className="absolute bottom-4 left-4 bg-black/70 backdrop-blur-sm px-4 py-2 rounded-lg">
-                    <p className="text-white font-semibold text-sm">▶ Assistir Vídeo Promocional</p>
-                  </div>
+
+                  {showVideo ? (
+                    <iframe
+                      src={event.video}
+                      title="Video do evento"
+                      className="w-full h-full"
+                      allowFullScreen
+                    />
+                  ) : (
+                    <>
+                      <img
+                        src={event.image}
+                        alt={`Preview de ${event.name}`}
+                        className="w-full h-full object-cover"
+                      />
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setShowVideo(true);
+                        }}
+                        className="absolute inset-0 flex items-center justify-center"
+                      >
+                        <div className="w-20 h-20 bg-orange-600 rounded-full flex items-center justify-center shadow-2xl">
+                          <svg
+                            className="w-10 h-10 text-white ml-1"
+                            fill="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path d="M8 5v14l11-7z" />
+                          </svg>
+                        </div>
+                      </button>
+                    </>
+                  )}
+
                 </div>
               </div>
             )}
@@ -568,15 +669,22 @@ export function EventDetailPage() {
             {/* Organizer Info */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Organizador</h2>
-              <div className="flex items-center gap-4">
+
+              <Link
+                to={`/organizer/${event.organizerId}`}
+                className="flex items-center gap-4 hover:bg-gray-50 p-2 rounded-lg transition"
+              >
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-600 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                   {event.organizerName.charAt(0).toUpperCase()}
                 </div>
+
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{event.organizerName}</h3>
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {event.organizerName}
+                  </h3>
                   <p className="text-gray-600">Organizador de Eventos</p>
                 </div>
-              </div>
+              </Link>
             </div>
           </div>
 
@@ -703,14 +811,17 @@ export function EventDetailPage() {
               )}
 
               {/* Share Button */}
-              <button className="w-full mt-4 px-6 py-3 cursor-pointer border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
+              <button
+                onClick={handleShareEvent}
+                className="w-full mt-4 px-6 py-3 cursor-pointer border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
+              >
                 <Share2 className="w-5 h-5" />
                 Partilhar Evento
               </button>
             </div>
 
             {/* Quiz Section */}
-            <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl shadow-md p-6">
+            {/* <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl shadow-md p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
                   <GraduationCap className="w-6 h-6 text-white" />
@@ -730,10 +841,10 @@ export function EventDetailPage() {
                 <GraduationCap className="w-5 h-5" />
                 Testar Quiz
               </button>
-            </div>
+            </div> */}
 
             {/* Chat Section */}
-            <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-md p-6">
+            {/* <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-md p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
                   <MessageSquare className="w-6 h-6 text-white" />
@@ -753,42 +864,47 @@ export function EventDetailPage() {
                 <MessageSquare className="w-5 h-5" />
                 Abrir Chat
               </button>
-            </div>
+            </div> */}
+
           </div>
         </div>
 
         {/* Reviews Section */}
         <div className="mt-8">
           <EventReviews
-            reviews={event.reviews || []}
-            averageRating={event.averageRating}
+            eventId={event.id}
             onAddReview={(rating, comment, images) => onAddReview(rating, comment, images)}
             onUpdateReview={(reviewId, rating, comment, images) => onUpdateReview(reviewId, rating, comment, images)}
             onDeleteReview={(reviewId) => onDeleteReview(reviewId)}
             currentUserName={currentUser?.name}
+            currentUserId={currentUser?.id}
+            currentUserType={currentUser?.type}
           />
         </div>
       </main>
 
       {/* Quiz Modal */}
-      {showQuiz && (
+      {/* {showQuiz && (
         <EventQuiz
+          eventId={event.id}
           eventName={event.name}
+          eventDescription={event.description}
           eventCategory={event.category}
           eventImage={event.image}
+          currentUser={currentUser}
           onClose={() => setShowQuiz(false)}
         />
-      )}
+      )} */}
 
       {/* Chat Modal */}
-      {showChat && (
+      {/* {showChat && (
         <EventChat
           eventId={event.id}
           eventName={event.name}
           currentUser={currentUser}
           onClose={() => setShowChat(false)}
         />
-      )}
+      )} */}
 
       {/* Footer */}
       <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />

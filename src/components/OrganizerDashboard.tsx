@@ -15,10 +15,12 @@ import {
     Sparkles,
     FileText,
     Upload,
+    MessageSquare,
 } from "lucide-react";
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from "react-router-dom";
 import { supabase } from '../lib/supabase';
+import { OrganizerCommentManagement } from "./OrganizerCommentManegament";
 
 export type UserType = "user" | "organizer";
 
@@ -49,6 +51,7 @@ export interface Event {
     likes: number;
     contacto_whatsapp?: string;
     created_at?: string;
+    deleted_at?: string | null;
 }
 
 export function OrganizerDashboard() {
@@ -125,7 +128,8 @@ export function OrganizerDashboard() {
 
             console.log('Buscando eventos do organizador:', user.id);
 
-            // Buscar eventos do organizador
+            // Buscar eventos do organizador, excluindo os deletados se quiser escondê-los
+            // Ou incluindo todos e tratando o status baseado no deleted_at
             const { data: eventos, error: eventosError } = await supabase
                 .from('eventos')
                 .select('*')
@@ -157,13 +161,15 @@ export function OrganizerDashboard() {
                         console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
                     }
 
-                    // Determinar status baseado na data
+                    // Determinar status baseado na data e no deleted_at
                     const hoje = new Date();
                     const dataEvento = new Date(evento.data_evento);
                     let status = 'A decorrer';
 
-                    if (dataEvento < hoje) {
-                        status = 'Cancelada'; // Poderia ser "Finalizado" se preferir
+                    if (evento.deleted_at) {
+                        status = 'Cancelada';
+                    } else if (dataEvento < hoje) {
+                        status = 'Finalizado';
                     }
 
                     return {
@@ -183,7 +189,8 @@ export function OrganizerDashboard() {
                         organizerName: user.name,
                         likes: likesCount || 0,
                         contacto_whatsapp: evento.contacto_whatsapp,
-                        created_at: evento.created_at
+                        created_at: evento.created_at,
+                        deleted_at: evento.deleted_at
                     };
                 })
             );
@@ -294,123 +301,168 @@ export function OrganizerDashboard() {
         }
     };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    // const handleSubmit = async (e: React.FormEvent) => {
+    //     e.preventDefault();
 
-        if (!user) {
-            setError('Usuário não autenticado');
-            return;
-        }
+    //     if (!user) {
+    //         setError('Usuário não autenticado');
+    //         return;
+    //     }
 
-        setUploading(true);
-        setError(null);
+    //     setUploading(true);
+    //     setError(null);
 
-        try {
-            // Validações
-            if (!formData.name) throw new Error('O nome do evento é obrigatório');
-            if (!formData.date) throw new Error('A data do evento é obrigatória');
-            if (!formData.time) throw new Error('A hora do evento é obrigatória');
-            if (!formData.location && formData.eventType !== 'online') {
-                throw new Error('O local do evento é obrigatório para eventos presenciais ou híbridos');
-            }
-            if (!imageFile) throw new Error('A imagem do evento é obrigatória');
+    //     try {
+    //         // Validações
+    //         if (!formData.name) throw new Error('O nome do evento é obrigatório');
+    //         if (!formData.date) throw new Error('A data do evento é obrigatória');
+    //         if (!formData.time) throw new Error('A hora do evento é obrigatória');
+    //         if (!formData.location && formData.eventType !== 'online') {
+    //             throw new Error('O local do evento é obrigatório para eventos presenciais ou híbridos');
+    //         }
+    //         if (!imageFile) throw new Error('A imagem do evento é obrigatória');
 
-            console.log('Iniciando criação do evento...');
+    //         console.log('Iniciando criação do evento...');
 
-            // Upload da imagem (obrigatório)
-            const imageUrl = await uploadFile(imageFile, 'event-images');
-            if (!imageUrl) throw new Error('Erro ao fazer upload da imagem');
+    //         // Upload da imagem (obrigatório)
+    //         const imageUrl = await uploadFile(imageFile, 'event-images');
+    //         if (!imageUrl) throw new Error('Erro ao fazer upload da imagem');
 
-            // Upload do vídeo (opcional)
-            let videoUrl = null;
-            if (videoFile) {
-                videoUrl = await uploadFile(videoFile, 'event-videos');
-                if (!videoUrl) throw new Error('Erro ao fazer upload do vídeo');
-            }
+    //         // Upload do vídeo (opcional)
+    //         let videoUrl = null;
+    //         if (videoFile) {
+    //             videoUrl = await uploadFile(videoFile, 'event-videos');
+    //             if (!videoUrl) throw new Error('Erro ao fazer upload do vídeo');
+    //         }
 
-            // Upload do PDF (opcional)
-            let pdfUrl = null;
-            if (pdfFile) {
-                pdfUrl = await uploadFile(pdfFile, 'event-pdfs');
-                if (!pdfUrl) throw new Error('Erro ao fazer upload do PDF');
-            }
+    //         // Upload do PDF (opcional)
+    //         let pdfUrl = null;
+    //         if (pdfFile) {
+    //             pdfUrl = await uploadFile(pdfFile, 'event-pdfs');
+    //             if (!pdfUrl) throw new Error('Erro ao fazer upload do PDF');
+    //         }
 
-            // Inserir evento no banco
-            const { data: newEvent, error: insertError } = await supabase
-                .from('eventos')
-                .insert([
-                    {
-                        organizador_id: user.id,
-                        nome_evento: formData.name,
-                        categoria: formData.category.toLowerCase(),
-                        data_evento: formData.date,
-                        hora_evento: formData.time,
-                        tipo_evento: formData.eventType,
-                        local: formData.location || null,
-                        descricao: formData.description || null,
-                        valor: null, // Adicionar campo de preço se necessário
-                        contacto_whatsapp: formData.contacto_whatsapp || null,
-                        imagem_url: imageUrl,
-                        video_url: videoUrl,
-                        arquivo_pdf_url: pdfUrl,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }
-                ])
-                .select()
-                .single();
+    //         // Inserir evento no banco
+    //         const { data: newEvent, error: insertError } = await supabase
+    //             .from('eventos')
+    //             .insert([
+    //                 {
+    //                     organizador_id: user.id,
+    //                     nome_evento: formData.name,
+    //                     categoria: formData.category.toLowerCase(),
+    //                     data_evento: formData.date,
+    //                     hora_evento: formData.time,
+    //                     tipo_evento: formData.eventType,
+    //                     local: formData.location || null,
+    //                     descricao: formData.description || null,
+    //                     valor: null, // Adicionar campo de preço se necessário
+    //                     contacto_whatsapp: formData.contacto_whatsapp || null,
+    //                     imagem_url: imageUrl,
+    //                     video_url: videoUrl,
+    //                     arquivo_pdf_url: pdfUrl,
+    //                     created_at: new Date().toISOString(),
+    //                     updated_at: new Date().toISOString()
+    //                 }
+    //             ])
+    //             .select()
+    //             .single();
 
-            if (insertError) {
-                console.error('Erro ao inserir evento:', insertError);
-                throw new Error('Erro ao salvar evento no banco de dados');
-            }
+    //         if (insertError) {
+    //             console.error('Erro ao inserir evento:', insertError);
+    //             throw new Error('Erro ao salvar evento no banco de dados');
+    //         }
 
-            console.log('Evento criado com sucesso:', newEvent);
+    //         console.log('Evento criado com sucesso:', newEvent);
 
-            // Limpar formulário
-            setFormData({
-                name: "",
-                date: "",
-                time: "",
-                location: "",
-                eventType: "presencial",
-                description: "",
-                category: "Workshops",
-                image: "",
-                video: "",
-                contacto_whatsapp: ""
-            });
-            setImageFile(null);
-            setImagePreview(null);
-            setVideoFile(null);
-            setPdfFile(null);
-            setShowAddForm(false);
+    //         // Limpar formulário
+    //         setFormData({
+    //             name: "",
+    //             date: "",
+    //             time: "",
+    //             location: "",
+    //             eventType: "presencial",
+    //             description: "",
+    //             category: "Workshops",
+    //             image: "",
+    //             video: "",
+    //             contacto_whatsapp: ""
+    //         });
+    //         setImageFile(null);
+    //         setImagePreview(null);
+    //         setVideoFile(null);
+    //         setPdfFile(null);
+    //         setShowAddForm(false);
 
-            // Recarregar eventos
-            fetchOrganizerEvents();
+    //         // Recarregar eventos
+    //         fetchOrganizerEvents();
 
-        } catch (err: any) {
-            console.error('Erro ao criar evento:', err);
-            setError(err.message || 'Ocorreu um erro ao criar o evento');
-        } finally {
-            setUploading(false);
-        }
-    };
+    //     } catch (err: any) {
+    //         console.error('Erro ao criar evento:', err);
+    //         setError(err.message || 'Ocorreu um erro ao criar o evento');
+    //     } finally {
+    //         setUploading(false);
+    //     }
+    // };
 
     const handleStatusToggle = async (id: string, currentStatus: string) => {
         try {
-            const newStatus = currentStatus === "A decorrer" ? "Cancelada" : "A decorrer";
+            // Encontrar o evento atual
+            const event = events.find(e => e.id === id);
+            if (!event) return;
 
-            // Atualizar no banco (se você tiver um campo de status)
-            // Se não tiver, pode usar soft delete ou apenas atualizar localmente
-            setEvents(events.map(event =>
-                event.id === id
-                    ? { ...event, status: newStatus }
-                    : event
-            ));
+            // Determinar a nova ação
+            const isCurrentlyDeleted = !!event.deleted_at;
+
+            if (isCurrentlyDeleted) {
+                // Reativar: remover deleted_at
+                const { error: updateError } = await supabase
+                    .from('eventos')
+                    .update({
+                        deleted_at: null,
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', id);
+
+                if (updateError) {
+                    console.error('Erro ao reativar evento:', updateError);
+                    setError('Erro ao reativar evento');
+                    return;
+                }
+
+                // Atualizar estado local
+                setEvents(events.map(event =>
+                    event.id === id
+                        ? { ...event, deleted_at: null, status: 'A decorrer' }
+                        : event
+                ));
+
+            } else {
+                // Cancelar: definir deleted_at com a data atual
+                const { error: updateError } = await supabase
+                    .from('eventos')
+                    .update({
+                        deleted_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    })
+                    .eq('id', id);
+
+                if (updateError) {
+                    console.error('Erro ao cancelar evento:', updateError);
+                    setError('Erro ao cancelar evento');
+                    return;
+                }
+
+                // Atualizar estado local
+                setEvents(events.map(event =>
+                    event.id === id
+                        ? { ...event, deleted_at: new Date().toISOString(), status: 'Cancelada' }
+                        : event
+                ));
+            }
 
         } catch (err) {
             console.error('Erro ao alterar status:', err);
+            setError('Ocorreu um erro ao alterar o status do evento');
         }
     };
 
@@ -463,6 +515,7 @@ export function OrganizerDashboard() {
                     <div className="flex gap-1 overflow-x-auto">
                         {[
                             { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="w-4 h-4" /> },
+                            { key: 'comments', label: 'Comentários', icon: <MessageSquare className="w-4 h-4" /> }
                         ].map(tab => (
                             <button
                                 key={tab.key}
@@ -560,6 +613,11 @@ export function OrganizerDashboard() {
                     ))}
                 </div>
 
+                
+                {activeTab === 'comments' && (
+                    <OrganizerCommentManagement organizerId={user.id} />
+                )}
+
                 {/* LISTA DE EVENTOS */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
@@ -611,18 +669,17 @@ export function OrganizerDashboard() {
                             {events.map((event, index) => (
                                 <motion.div
                                     key={event.id}
-                                    onClick={() => navigate(`/event/${event.id}`)}
                                     initial={{ opacity: 0, x: -20 }}
                                     animate={{ opacity: 1, x: 0 }}
                                     transition={{ delay: index * 0.05 }}
                                     className={`group relative overflow-hidden rounded-2xl border-2 transition-all hover:shadow-xl ${event.status === 'Cancelada'
-                                            ? 'bg-gray-50 border-gray-200'
-                                            : 'bg-gradient-to-br from-white to-orange-50/30 border-orange-200/50 hover:border-orange-300'
+                                        ? 'bg-gray-50 border-gray-200'
+                                        : 'bg-gradient-to-br from-white to-orange-50/30 border-orange-200/50 hover:border-orange-300'
                                         }`}
                                 >
                                     <div className={`absolute top-0 left-0 right-0 h-1.5 ${event.status === 'Cancelada'
-                                            ? 'bg-gradient-to-r from-gray-400 to-gray-500'
-                                            : 'bg-gradient-to-r from-orange-500 via-red-500 to-orange-600'
+                                        ? 'bg-gradient-to-r from-gray-400 to-gray-500'
+                                        : 'bg-gradient-to-r from-orange-500 via-red-500 to-orange-600'
                                         }`} />
 
                                     <div className="p-6">
@@ -630,6 +687,7 @@ export function OrganizerDashboard() {
                                             {/* Thumbnail */}
                                             <div className="relative overflow-hidden rounded-xl aspect-video bg-gray-200 group-hover:scale-105 transition-transform shadow-md">
                                                 <img
+                                                    onClick={() => navigate(`/event/${event.id}`)}
                                                     src={event.image}
                                                     alt={event.name}
                                                     className="w-full h-full object-cover"
@@ -651,8 +709,8 @@ export function OrganizerDashboard() {
                                                 </div>
                                                 <div className="flex items-center gap-2 mb-4 flex-wrap">
                                                     <span className={`px-3 py-1.5 rounded-lg text-xs font-bold ${event.status === 'A decorrer'
-                                                            ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
-                                                            : 'bg-gray-200 text-gray-700'
+                                                        ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white shadow-md'
+                                                        : 'bg-gray-200 text-gray-700'
                                                         }`}>
                                                         {event.status}
                                                     </span>
@@ -688,8 +746,8 @@ export function OrganizerDashboard() {
                                                 <button
                                                     onClick={() => handleStatusToggle(event.id, event.status)}
                                                     className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all ${event.status === 'A decorrer'
-                                                            ? 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100 hover:border-red-300'
-                                                            : 'bg-green-50 text-green-600 border-2 border-green-200 hover:bg-green-100 hover:border-green-300'
+                                                        ? 'bg-red-50 text-red-600 border-2 border-red-200 hover:bg-red-100 hover:border-red-300'
+                                                        : 'bg-green-50 text-green-600 border-2 border-green-200 hover:bg-green-100 hover:border-green-300'
                                                         }`}
                                                 >
                                                     <Edit2 className="w-4 h-4" />
