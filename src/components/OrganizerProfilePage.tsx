@@ -184,7 +184,6 @@ export default function OrganizerProfilePage() {
             </div>
 
             <div className="hidden md:flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3">
-              <Heart className="w-6 h-6 fill-white text-white" />
               <span className="text-2xl font-bold">{events.length}</span>
               <span className="text-sm opacity-90">eventos</span>
             </div>

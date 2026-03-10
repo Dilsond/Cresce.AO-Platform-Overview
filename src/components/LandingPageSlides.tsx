@@ -190,20 +190,6 @@ export const cursosWorkshops = [
     date: '01 de Mar',
     image: 'https://images.unsplash.com/photo-1763568258445-70fecf4e78af?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxjb2RpbmclMjBib290Y2FtcCUyMHByb2dyYW1taW5nfGVufDF8fHx8MTc2OTEwNzY1MHww&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
   },
-  {
-    id: '13',
-    title: 'Conferência de Liderança Executiva',
-    location: 'Hotel Skyna - Luanda',
-    date: '08 de Mar',
-    image: 'https://images.unsplash.com/photo-1745970649957-b4b1f7fde4ea?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxleGVjdXRpdmUlMjBsZWFkZXJzaGlwJTIwY29uZmVyZW5jZXxlbnwxfHx8fDE3NjkxMTI0MTh8MA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-  },
-  {
-    id: '17',
-    title: 'Masterclass de Estratégia Empresarial',
-    location: 'ISCEE - Instituto Superior de Ciências da Educação',
-    date: '05 de Abr',
-    image: 'https://images.unsplash.com/photo-1654608996535-068c6bbff7f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHN1bW1pdCUyMG1lZXRpbmd8ZW58MXx8fHwxNzY5MTEyNDE2fDA&ixlib=rb-4.1.0&q=80&w=1080&utm_source=figma&utm_medium=referral'
-  }
 ];
 
 export const eventosNegocios = [

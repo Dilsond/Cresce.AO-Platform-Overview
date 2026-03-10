@@ -119,50 +119,58 @@ export function FavoritesPage() {
 
       console.log('Eventos encontrados:', eventos);
 
-      // Para cada evento, buscar o organizador correspondente
-      const eventosComOrganizadores = await Promise.all(
-        eventos.map(async (evento) => {
-          const { data: organizador, error: orgError } = await supabase
-            .from('organizadores')
-            .select('nome_empresa, id')
-            .eq('id', evento.organizador_id)
-            .single();
+      // Filtrar apenas eventos cujo organizador NÃO está deletado
+      const eventosValidos = [];
 
-          if (orgError) {
-            console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
-          }
+      for (const evento of eventos) {
+        // Buscar organizador e verificar se não está deletado
+        const { data: organizador, error: orgError } = await supabase
+          .from('organizadores')
+          .select('nome_empresa, id, deleted_at')
+          .eq('id', evento.organizador_id)
+          .single();
 
-          // Buscar contagem de likes para este evento
-          const { count: likesCount, error: likesError } = await supabase
-            .from('favoritos_eventos')
-            .select('*', { count: 'exact', head: true })
-            .eq('evento_id', evento.id);
+        if (orgError) {
+          console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
+          continue; // Pular este evento se não encontrar organizador
+        }
 
-          if (likesError) {
-            console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
-          }
+        // Verificar se organizador está deletado
+        if (organizador.deleted_at) {
+          console.log(`Evento ${evento.id} ignorado: organizador deletado`);
+          continue; // Pular este evento se organizador estiver deletado
+        }
 
-          return {
-            id: evento.id,
-            name: evento.nome_evento,
-            description: evento.descricao || 'Sem descrição disponível',
-            category: evento.categoria,
-            date: evento.data_evento,
-            time: evento.hora_evento,
-            eventType: evento.tipo_evento,
-            location: evento.local || 'Local a definir',
-            price: evento.valor || 0,
-            image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-            status: 'A decorrer',
-            organizerId: organizador?.id || evento.organizador_id,
-            organizerName: organizador?.nome_empresa || 'Organizador não identificado',
-            likes: likesCount || 0
-          };
-        })
-      );
+        // Buscar contagem de likes para este evento
+        const { count: likesCount, error: likesError } = await supabase
+          .from('favoritos_eventos')
+          .select('*', { count: 'exact', head: true })
+          .eq('evento_id', evento.id);
 
-      console.log('Eventos formatados:', eventosComOrganizadores);
-      setEvents(eventosComOrganizadores);
+        if (likesError) {
+          console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
+        }
+
+        eventosValidos.push({
+          id: evento.id,
+          name: evento.nome_evento,
+          description: evento.descricao || 'Sem descrição disponível',
+          category: evento.categoria,
+          date: evento.data_evento,
+          time: evento.hora_evento,
+          eventType: evento.tipo_evento,
+          location: evento.local || 'Local a definir',
+          price: evento.valor || 0,
+          image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+          status: 'A decorrer',
+          organizerId: organizador.id,
+          organizerName: organizador.nome_empresa || 'Organizador não identificado',
+          likes: likesCount || 0
+        });
+      }
+
+      console.log('Eventos válidos encontrados:', eventosValidos);
+      setEvents(eventosValidos);
 
     } catch (err) {
       console.error('Erro inesperado:', err);
@@ -318,6 +326,29 @@ export function FavoritesPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Search and Filters - só mostrar se houver eventos */}
+        {events.length > 0 && (
+          <>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="flex flex-col sm:flex-row gap-4"
+            >
+              <div className="flex-1 relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Pesquisar nos favoritos..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-4xl pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                />
+              </div>
+            </motion.div>
+          </>
+        )}
 
         {/* Events Grid */}
         <AnimatePresence mode="wait">

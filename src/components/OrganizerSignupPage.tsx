@@ -15,6 +15,9 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
   const [password, setPassword] = useState('');
   const [company, setCompany] = useState('');
   const [nif, setNif] = useState('');
+  const [contacto, setContacto] = useState('');
+  const [localizacao, setLocalizacao] = useState('');
+  const [sobre, setSobre] = useState('');
 
   // Função auxiliar para gerar hash SHA-256 (igual ao mock_hash_password)
   async function sha256(message: string) {
@@ -106,8 +109,13 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
             nif: nif,
             email_empresa: email,
             senha: hashedPassword,
+            contacto: contacto || null, // Opcional
+            localizacao: localizacao || null, // Opcional
+            sobre: sobre || null, // Opcional
+            tags: ['Empreendedorismo', 'Tecnologia'], // Tags padrão ou personalizadas
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
+
           }
         ])
         .select();

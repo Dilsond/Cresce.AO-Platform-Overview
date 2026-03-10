@@ -671,7 +671,7 @@ export function EventDetailPage() {
 
               <Link
                 to={`/organizer/${event.organizerId}`}
-                className="flex items-center gap-4 hover:bg-gray-50 p-2 rounded-lg transition"
+                className="flex items-center gap-4 p-2 rounded-lg transition"
               >
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-600 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                   {event.organizerName.charAt(0).toUpperCase()}

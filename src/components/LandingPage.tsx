@@ -18,7 +18,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   const navigate = useNavigate();
-  
+
   // Referência para a seção de atividades em destaque
   const atividadesRef = useRef<HTMLElement>(null);
 
@@ -226,7 +226,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                             </span>
                             {isActive && (
                               <button
-                                onClick={scrollToAtividades}
+                                onClick={onExplore}
                                 className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
                               >
                                 Ver Detalhes
@@ -281,12 +281,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
             <h2 className="text-3xl font-bold text-gray-900">Workshops</h2>
-            <button
-              onClick={scrollToAtividades}
-              className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
-            >
-              Ver tudo <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
 
           {/* Scroll horizontal */}
@@ -294,7 +288,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="flex gap-4 pb-4">
               {cursosWorkshops.map((curso) => (
                 <div key={curso.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={scrollToAtividades}>
+                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1">
                     <div className="relative h-[180px]">
                       <img
                         src={curso.image}
@@ -322,12 +316,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <h2 className="text-3xl font-bold text-gray-900">
               Eventos de Negócios e Networking
             </h2>
-            <button
-              onClick={scrollToAtividades}
-              className="text-blue-600 hover:text-blue-700 cursor-pointer font-semibold flex items-center gap-1"
-            >
-              Ver tudo <ArrowRight className="w-4 h-4" />
-            </button>
           </div>
 
           {/* Scroll horizontal */}
@@ -335,7 +323,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             <div className="flex gap-4 pb-4">
               {eventosNegocios.map((evento) => (
                 <div key={evento.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1" onClick={scrollToAtividades}>
+                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1">
                     <div className="relative h-[180px]">
                       <img
                         src={evento.image}
@@ -769,7 +757,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
             Junte-se à comunidade de profissionais angolanos que estão a investir no seu desenvolvimento
           </p>
           <button
-            onClick={scrollToAtividades}
+            onClick={onExplore}
             className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
           >
             Começar Agora

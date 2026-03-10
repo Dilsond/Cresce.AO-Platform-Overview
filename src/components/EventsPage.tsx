@@ -96,11 +96,37 @@ export function EventsPage() {
 
       console.log('Favoritos encontrados:', favorites);
 
+      // Obter os IDs dos favoritos
       const likedIds = favorites.map(fav => fav.evento_id);
-      console.log('IDs favoritos:', likedIds);
 
+      // Verificar quais destes eventos ainda existem e são válidos
+      if (likedIds.length > 0) {
+        const { data: eventosValidos, error: eventosError } = await supabase
+          .from('eventos')
+          .select('id')
+          .in('id', likedIds)
+          .is('deleted_at', null);
+
+        if (eventosError) {
+          console.error('Erro ao verificar eventos válidos:', eventosError);
+        } else {
+          // Filtrar apenas os IDs que correspondem a eventos válidos
+          const idsValidos = eventosValidos.map(e => e.id);
+
+          // Opcionalmente, podes também verificar os organizadores
+          // Mas isso seria mais complexo e poderia ser feito na página de favoritos
+
+          console.log('IDs válidos:', idsValidos);
+          setLikedEvents(idsValidos);
+          localStorage.setItem('cresceao_liked', JSON.stringify(idsValidos));
+          return;
+        }
+      }
+
+      // Se não houver eventos para verificar ou se houver erro, usar os IDs originais
       setLikedEvents(likedIds);
       localStorage.setItem('cresceao_liked', JSON.stringify(likedIds));
+
     } catch (err) {
       console.error('Erro ao buscar favoritos:', err);
     }
@@ -435,7 +461,7 @@ export function EventsPage() {
                 placeholder="Buscar experiências"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
+                className="flex-1 bg-transparent border-none border-gray-200 py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
               />
             </div>
           </div>
