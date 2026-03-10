@@ -107,22 +107,22 @@ export function EventReviews({
       const { data: comentarios, error } = await supabase
         .from('comentarios')
         .select(`
+        id,
+        descricao,
+        avaliacao,
+        imagem_url,
+        created_at,
+        updated_at,
+        usuario_normal:usuarios_normais (
           id,
-          descricao,
-          avaliacao,
-          imagem_url,
-          created_at,
-          updated_at,
-          usuario_normal:usuarios_normais (
-            id,
-            nome_completo,
-            nome_utilizador
-          ),
-          organizador:organizadores (
-            id,
-            nome_empresa
-          )
-        `)
+          nome_completo,
+          nome_utilizador
+        ),
+        organizador:organizadores (
+          id,
+          nome_empresa
+        )
+      `)
         .eq('evento_id', localEventId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -166,7 +166,20 @@ export function EventReviews({
         setAverageRating(undefined);
       }
 
-      setReviews(formattedReviews);
+      // Atualizar estado com verificação para evitar duplicação
+      setReviews(prevReviews => {
+        // Se o número de reviews for o mesmo e os IDs corresponderem, não atualiza
+        if (prevReviews.length === formattedReviews.length) {
+          const allIdsMatch = prevReviews.every((prev, index) =>
+            prev.id === formattedReviews[index]?.id
+          );
+          if (allIdsMatch) {
+            console.log('Reviews já estão atualizadas, mantendo estado atual');
+            return prevReviews;
+          }
+        }
+        return formattedReviews;
+      });
 
     } catch (err) {
       console.error('Erro ao buscar reviews:', err);

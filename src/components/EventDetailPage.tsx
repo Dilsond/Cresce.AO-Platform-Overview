@@ -47,6 +47,8 @@ export function EventDetailPage() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [showVideo, setShowVideo] = useState(false);
+  const [reviews, setReviews] = useState<any[]>([]);
+  const [averageRating, setAverageRating] = useState<number | undefined>(undefined);
 
   const [currentUser] = useState<User | null>(() => {
     try {
@@ -330,7 +332,7 @@ export function EventDetailPage() {
       console.log('Review adicionada:', data);
 
       // Recarregar evento para atualizar reviews
-      fetchEvent(event.id);
+      // fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao adicionar review:', err);
@@ -373,7 +375,7 @@ export function EventDetailPage() {
       }
 
       console.log('Review atualizada com sucesso');
-      fetchEvent(event.id);
+      // fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao atualizar review:', err);
@@ -406,7 +408,7 @@ export function EventDetailPage() {
       }
 
       console.log('Review deletada com sucesso');
-      fetchEvent(event.id);
+      // fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao deletar review:', err);
@@ -589,9 +591,10 @@ export function EventDetailPage() {
               <div className="space-y-4 text-gray-700 leading-relaxed">
                 <p>{event.description}</p>
               </div>
+            </div>
 
-              {/* Quiz Button in Description */}
-              <div className="mt-8 pt-6 border-t border-gray-200">
+            {/* Quiz Button in Description */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
                 <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
                   <div className="flex items-center gap-4 mb-4">
                     <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
@@ -615,7 +618,6 @@ export function EventDetailPage() {
                   </button>
                 </div>
               </div>
-            </div>
 
             {/* Video Section */}
             {event.video && (
@@ -819,52 +821,6 @@ export function EventDetailPage() {
               </button>
             </div>
 
-            {/* Quiz Section */}
-            {/* <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl shadow-md p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-purple-600 rounded-lg flex items-center justify-center">
-                  <GraduationCap className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Quiz Educativo</h3>
-                  <p className="text-sm text-gray-600">Teste seus conhecimentos</p>
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Responda 5 perguntas e avalie seu conhecimento sobre o tema do evento
-              </p>
-              <button
-                onClick={() => setShowQuiz(true)}
-                className="w-full bg-purple-600 hover:bg-purple-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                <GraduationCap className="w-5 h-5" />
-                Testar Quiz
-              </button>
-            </div> */}
-
-            {/* Chat Section */}
-            {/* <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl shadow-md p-6">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-12 h-12 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <MessageSquare className="w-6 h-6 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">Chat do Evento</h3>
-                  <p className="text-sm text-gray-600">Partilhe experiências</p>
-                </div>
-              </div>
-              <p className="text-sm text-gray-600 mb-4">
-                Converse com outros participantes e partilhe fotografias do evento
-              </p>
-              <button
-                onClick={() => setShowChat(true)}
-                className="w-full bg-blue-600 hover:bg-blue-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-              >
-                <MessageSquare className="w-5 h-5" />
-                Abrir Chat
-              </button>
-            </div> */}
-
           </div>
         </div>
 
@@ -881,29 +837,6 @@ export function EventDetailPage() {
           />
         </div>
       </main>
-
-      {/* Quiz Modal */}
-      {/* {showQuiz && (
-        <EventQuiz
-          eventId={event.id}
-          eventName={event.name}
-          eventDescription={event.description}
-          eventCategory={event.category}
-          eventImage={event.image}
-          currentUser={currentUser}
-          onClose={() => setShowQuiz(false)}
-        />
-      )} */}
-
-      {/* Chat Modal */}
-      {/* {showChat && (
-        <EventChat
-          eventId={event.id}
-          eventName={event.name}
-          currentUser={currentUser}
-          onClose={() => setShowChat(false)}
-        />
-      )} */}
 
       {/* Footer */}
       <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />

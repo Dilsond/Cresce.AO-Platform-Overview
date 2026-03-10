@@ -49,27 +49,49 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
       }
 
       console.log('2. Verificando email existente...');
-      // Verificar se já existe usuário com este email
-      const { data: existingEmail, error: emailCheckError } = await supabase
+
+      // Verificar se já existe usuário normal com este email
+      const { data: existingUserEmail, error: userEmailCheckError } = await supabase
         .from('usuarios_normais')
         .select('email')
         .eq('email', email)
         .maybeSingle();
 
-      if (emailCheckError) {
-        console.error('Erro ao verificar email:', emailCheckError);
+      if (userEmailCheckError) {
+        console.error('Erro ao verificar email em usuários normais:', userEmailCheckError);
         setError('Erro ao verificar email. Tente novamente.');
         setIsLoading(false);
         return;
       }
 
-      if (existingEmail) {
-        setError('Este email já está registado');
+      if (existingUserEmail) {
+        setError('Este email já está registado como usuário normal');
+        setIsLoading(false);
+        return;
+      }
+
+      // Verificar se já existe organizador com este email
+      const { data: existingOrganizerEmail, error: organizerEmailCheckError } = await supabase
+        .from('organizadores')
+        .select('email_empresa')
+        .eq('email_empresa', email)
+        .maybeSingle();
+
+      if (organizerEmailCheckError) {
+        console.error('Erro ao verificar email em organizadores:', organizerEmailCheckError);
+        setError('Erro ao verificar email. Tente novamente.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (existingOrganizerEmail) {
+        setError('Este email já está registado como organizador. Por favor, utilize um email diferente.');
         setIsLoading(false);
         return;
       }
 
       console.log('3. Verificando username existente...');
+
       // Verificar se já existe usuário com este username
       const { data: existingUsername, error: usernameCheckError } = await supabase
         .from('usuarios_normais')
@@ -91,6 +113,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
       }
 
       console.log('4. Gerando hash da senha...');
+
       // Gerar hash da senha (igual ao mock_hash_password)
       const hashedPassword = '$2a$10$' + await sha256(password);
 
@@ -143,7 +166,8 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         type: 'user' as const
       };
 
-      console.log('7. Chamando onSignup com:', user);
+      console.log('7. Salvando usuário no localStorage:', user);
+      localStorage.setItem('user', JSON.stringify(user));
       onSignup(user);
 
     } catch (err) {

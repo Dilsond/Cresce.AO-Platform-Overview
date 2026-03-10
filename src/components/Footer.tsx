@@ -1,4 +1,4 @@
-import { Sparkles } from 'lucide-react';
+import logo from "../assets/logo.png";
 
 interface FooterProps {
   onExplore?: () => void;
@@ -13,9 +13,18 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
         <div className="grid md:grid-cols-4 gap-8 mb-8">
           {/* Sobre */}
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <Sparkles className="w-6 h-6 text-orange-600" />
-              <h3 className="font-bold text-white text-lg">Cresce.AO</h3>
+            <div
+              className="flex items-center"
+            >
+              <img
+                src={logo}
+                alt="Cresce.AO Logo"
+                className="h-10 w-auto object-contain"
+              />
+
+              <span className="text-xl font-bold text-gray-900 tracking-tight">
+                <span className="text-white">Cresce</span> <span className="text-orange-600">.AO</span>
+              </span>
             </div>
             <p className="text-sm">
               Plataforma que centraliza oportunidades de aprendizagem e desenvolvimento profissional em Angola.
@@ -51,7 +60,7 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
             <h4 className="font-semibold text-white mb-4">Legal</h4>
             <ul className="space-y-2 text-sm">
               <li>
-                <button 
+                <button
                   onClick={onNavigateToPrivacy}
                   className="hover:text-orange-600 cursor-pointer transition-colors"
                 >
@@ -59,7 +68,7 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
                 </button>
               </li>
               <li>
-                <button 
+                <button
                   onClick={onNavigateToTerms}
                   className="hover:text-orange-600 cursor-pointer transition-colors"
                 >

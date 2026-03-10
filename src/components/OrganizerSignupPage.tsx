@@ -50,27 +50,49 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
       }
 
       console.log('2. Verificando email existente...');
+
       // Verificar se já existe organizador com este email
-      const { data: existingEmail, error: emailCheckError } = await supabase
+      const { data: existingOrganizerEmail, error: emailCheckError } = await supabase
         .from('organizadores')
         .select('email_empresa')
         .eq('email_empresa', email)
         .maybeSingle();
 
       if (emailCheckError) {
-        console.error('Erro ao verificar email:', emailCheckError);
+        console.error('Erro ao verificar email em organizadores:', emailCheckError);
         setError('Erro ao verificar email. Tente novamente.');
         setIsLoading(false);
         return;
       }
 
-      if (existingEmail) {
-        setError('Este email empresarial já está registado');
+      if (existingOrganizerEmail) {
+        setError('Este email empresarial já está registado como organizador');
+        setIsLoading(false);
+        return;
+      }
+
+      // Verificar se já existe usuário normal com este email
+      const { data: existingUserEmail, error: userEmailCheckError } = await supabase
+        .from('usuarios_normais')
+        .select('email')
+        .eq('email', email)
+        .maybeSingle();
+
+      if (userEmailCheckError) {
+        console.error('Erro ao verificar email em usuários normais:', userEmailCheckError);
+        setError('Erro ao verificar email. Tente novamente.');
+        setIsLoading(false);
+        return;
+      }
+
+      if (existingUserEmail) {
+        setError('Este email já está registado como usuário normal. Por favor, utilize um email diferente.');
         setIsLoading(false);
         return;
       }
 
       console.log('3. Verificando NIF existente...');
+
       // Verificar se já existe organizador com este NIF
       const { data: existingNif, error: nifCheckError } = await supabase
         .from('organizadores')
@@ -97,10 +119,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
 
       console.log('5. Inserindo novo organizador...');
 
-      // SOLUÇÃO: Usar o cliente anônimo do Supabase sem autenticação
-      // Ou criar uma política RLS que permita inserção anônima
-
-      // Tentativa 1: Inserir diretamente
+      // Inserir diretamente
       const { data: newOrganizer, error: insertError } = await supabase
         .from('organizadores')
         .insert([
@@ -109,13 +128,12 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
             nif: nif,
             email_empresa: email,
             senha: hashedPassword,
-            contacto: contacto || null, // Opcional
-            localizacao: localizacao || null, // Opcional
-            sobre: sobre || null, // Opcional
-            tags: ['Empreendedorismo', 'Tecnologia'], // Tags padrão ou personalizadas
+            contacto: contacto || null,
+            localizacao: localizacao || null,
+            sobre: sobre || null,
+            tags: ['Empreendedorismo', 'Tecnologia'],
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
-
           }
         ])
         .select();
@@ -153,11 +171,15 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
               .from('organizadores')
               .insert([
                 {
-                  id: authData.user.id, // Usa o mesmo ID do auth
+                  id: authData.user.id,
                   nome_empresa: company,
                   nif: nif,
                   email_empresa: email,
                   senha: hashedPassword,
+                  contacto: contacto || null,
+                  localizacao: localizacao || null,
+                  sobre: sobre || null,
+                  tags: ['Empreendedorismo', 'Tecnologia'],
                   created_at: new Date().toISOString(),
                   updated_at: new Date().toISOString()
                 }
@@ -179,6 +201,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 nif: organizerData[0].nif,
                 type: 'organizer' as const
               };
+              localStorage.setItem('user', JSON.stringify(user));
               navigate("/events");
               setIsLoading(false);
               return;
@@ -208,7 +231,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         type: 'organizer' as const
       };
 
-      console.log('7. Chamando onSignup com:', user);
+      console.log('7. Salvando usuário no localStorage:', user);
       localStorage.setItem('user', JSON.stringify(user));
       navigate("/events");
 
