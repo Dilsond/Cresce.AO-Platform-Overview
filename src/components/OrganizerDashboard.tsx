@@ -501,7 +501,7 @@ export function OrganizerDashboard() {
                             <img
                                 src={logo}
                                 alt="Cresce.AO Logo"
-                                className="h-10 w-auto object-contain"
+                                className="h-8 w-auto object-contain"
                             />
 
                             <span className="text-xl font-bold text-gray-900 tracking-tight">
@@ -562,12 +562,12 @@ export function OrganizerDashboard() {
 
                 {/* HERO */}
                 <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white">
-                    <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-                    <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+                    <div className="absolute bottom-0 left-0 w-32 h-32 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
                     <div className="relative z-10 flex items-center justify-between">
                         <div>
                             <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Painel do Organizador</p>
-                            <h1 className="text-4xl md:text-5xl font-bold mb-3">Dashboard</h1>
+                            <h1 className="text-3xl md:text-4xl font-bold mb-3">Dashboard</h1>
                             <p className="text-xl text-orange-50 flex items-center gap-2">
                                 <Building2 className="w-5 h-5" />
                                 {user.company || user.name}
@@ -619,15 +619,15 @@ export function OrganizerDashboard() {
                             transition={{ delay: 0.1 + i * 0.1 }}
                             className={`group relative overflow-hidden bg-gradient-to-br ${stat.gradient} rounded-2xl shadow-lg p-6 text-white hover:shadow-2xl transition-all`}
                         >
-                            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl translate-x-1/2 -translate-y-1/2" />
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-white/10 rounded-full blur-2xl translate-x-1/2 -translate-y-1/2" />
                             <div className="relative z-10">
                                 <div className="flex items-center justify-between mb-4">
-                                    <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
+                                    <div className="w-8 h-8 bg-white/20 rounded-xl flex items-center justify-center backdrop-blur-sm">
                                         {stat.icon}
                                     </div>
                                     {stat.badge}
                                 </div>
-                                <p className="text-5xl font-bold mb-2">{stat.value}</p>
+                                <p className="text-2xl font-bold mb-2">{stat.value}</p>
                                 <p className={`${stat.labelColor} font-medium`}>{stat.label}</p>
                             </div>
                         </motion.div>
