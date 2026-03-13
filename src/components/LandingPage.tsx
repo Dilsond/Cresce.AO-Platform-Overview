@@ -1,4 +1,4 @@
-import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft } from 'lucide-react';
+import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, Mic, Wrench, GraduationCap, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
 import { landingPageSlides, cursosWorkshops, eventosNegocios } from './LandingPageSlides';
 import { AnimatedCounter } from './AnimatedCounter';
@@ -511,6 +511,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       {/* Categorias */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
           <div className="text-center mb-16">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">
               Categorias de Atividades
@@ -521,21 +522,39 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {['Palestras', 'Workshops', 'Feiras', 'Masterclasses'].map((category) => (
-              <div key={category} className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all text-center border border-orange-200 hover:border-orange-600 cursor-pointer transform hover:-translate-y-1 h-full">
-                <div className="text-3xl mb-3">
-                  {category === 'Palestras' && '🎤'}
-                  {category === 'Workshops' && '🛠️'}
-                  {category === 'Feiras' && '🏢'}
-                  {category === 'Masterclasses' && '🎓'}
+
+            {[
+              { name: "Palestras", icon: Mic },
+              { name: "Workshops", icon: Wrench },
+              { name: "Feiras", icon: Building2 },
+              { name: "Masterclasses", icon: GraduationCap }
+            ].map((category) => {
+              const Icon = category.icon;
+
+              return (
+                <div
+                  key={category.name}
+                  className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all text-center border border-orange-200 hover:border-orange-600 transform hover:-translate-y-1 h-full"
+                >
+
+                  <div className="flex justify-center mb-4">
+                    <div className="bg-orange-100 p-4 rounded-full">
+                      <Icon className="w-7 h-7 text-orange-600" />
+                    </div>
+                  </div>
+
+                  <h3 className="text-xl font-semibold text-gray-900">
+                    {category.name}
+                  </h3>
+
                 </div>
-                <h3 className="text-xl font-semibold text-gray-900">{category}</h3>
-              </div>
-            ))}
+              );
+            })}
+
           </div>
+
         </div>
       </section>
-
       {/* Depoimentos */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
