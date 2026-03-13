@@ -311,6 +311,16 @@ export function EventsPage() {
           console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
         }
 
+        const hoje = new Date();
+        const dataEvento = new Date(evento.data_evento);
+
+
+        let status = "A decorrer";
+
+        if (dataEvento < hoje) {
+          status = "Finalizado";
+        }
+
         eventosValidos.push({
           id: evento.id,
           name: evento.nome_evento,
@@ -322,7 +332,7 @@ export function EventsPage() {
           location: evento.local || 'Local a definir',
           price: evento.valor || 0,
           image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-          status: 'A decorrer',
+          status,
           organizerId: organizador.id,
           organizerName: organizador.nome_empresa || 'Organizador não identificado',
           likes: likesCount || 0
@@ -696,6 +706,7 @@ export function EventsPage() {
                     </Badge>
                   </div>
 
+
                   {/* Likes Badge */}
                   <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
                     <button
@@ -711,14 +722,22 @@ export function EventsPage() {
                     </button>
                   </div>
 
-                  {/* Status/Type Badge */}
                   <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
+                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'
+                      }`}>
+                      {event.status}
+                    </span>
+                  </div>
+
+
+                  {/* Status/Type Badge */}
+                  {/* <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
                     <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.eventType === 'presencial' ? 'text-blue-600' :
                       event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
                       }`}>
                       {event.eventType}
                     </span>
-                  </div>
+                  </div> */}
                 </div>
 
                 {/* Event Details */}
