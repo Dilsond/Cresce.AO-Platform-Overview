@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark, Sparkles } from 'lucide-react';
+import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark, Sparkles, Users, CalendarDays, Building2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -33,11 +33,27 @@ export interface Event {
   price?: number;
 }
 
+export interface FavoriteOrganizer {
+  id: string;
+  organizerId: string;
+  name: string;
+  email: string;
+  logo?: string;
+  location?: string;
+  description?: string;
+  eventosCount: number;
+  likes: number;
+  createdAt: string;
+}
+
 export function FavoritesPage() {
+  const [activeTab, setActiveTab] = useState<'events' | 'organizers'>('events');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string>('Todas');
   const [likedEvents, setLikedEvents] = useState<string[]>([]);
+  const [likedOrganizers, setLikedOrganizers] = useState<string[]>([]);
   const [events, setEvents] = useState<Event[]>([]);
+  const [organizers, setOrganizers] = useState<FavoriteOrganizer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -53,6 +69,9 @@ export function FavoritesPage() {
     }
   });
 
+  // Verificar se o usuário é normal (pode ver a aba de organizadores)
+  const isNormalUser = currentUser?.type === 'user';
+
   // Buscar favoritos do usuário
   useEffect(() => {
     if (currentUser) {
@@ -60,7 +79,7 @@ export function FavoritesPage() {
     } else {
       navigate('/login');
     }
-  }, [currentUser]);
+  }, [currentUser, activeTab]);
 
   // Buscar eventos favoritos do usuário
   const fetchUserLikes = async () => {
@@ -70,14 +89,31 @@ export function FavoritesPage() {
       setIsLoading(true);
       setError(null);
 
-      console.log('Buscando favoritos do usuário:', currentUser.id, 'Tipo:', currentUser.type);
+      if (activeTab === 'events') {
+        await fetchFavoriteEvents();
+      } else if (isNormalUser) {
+        // Só busca organizadores se for usuário normal
+        await fetchFavoriteOrganizers();
+      }
+
+    } catch (err) {
+      console.error('Erro inesperado:', err);
+      setError('Ocorreu um erro ao carregar favoritos');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const fetchFavoriteEvents = async () => {
+    try {
+      console.log('Buscando eventos favoritos do usuário:', currentUser?.id);
 
       // Construir query baseada no tipo de usuário
       let query = supabase.from('favoritos_eventos').select('evento_id');
 
-      if (currentUser.type === 'user') {
+      if (currentUser?.type === 'user') {
         query = query.eq('usuario_normal_id', currentUser.id);
-      } else if (currentUser.type === 'organizer') {
+      } else if (currentUser?.type === 'organizer') {
         query = query.eq('organizador_id', currentUser.id);
       }
 
@@ -86,11 +122,8 @@ export function FavoritesPage() {
       if (favError) {
         console.error('Erro ao buscar favoritos:', favError);
         setError('Erro ao carregar favoritos');
-        setIsLoading(false);
         return;
       }
-
-      console.log('Favoritos encontrados:', favorites);
 
       const likedIds = favorites.map(fav => fav.evento_id);
       setLikedEvents(likedIds);
@@ -98,7 +131,6 @@ export function FavoritesPage() {
 
       if (likedIds.length === 0) {
         setEvents([]);
-        setIsLoading(false);
         return;
       }
 
@@ -113,43 +145,29 @@ export function FavoritesPage() {
       if (eventosError) {
         console.error('Erro ao buscar eventos:', eventosError);
         setError('Erro ao carregar eventos');
-        setIsLoading(false);
         return;
       }
-
-      console.log('Eventos encontrados:', eventos);
 
       // Filtrar apenas eventos cujo organizador NÃO está deletado
       const eventosValidos = [];
 
-      for (const evento of eventos) {
-        // Buscar organizador e verificar se não está deletado
+      for (const evento of eventos || []) {
         const { data: organizador, error: orgError } = await supabase
           .from('organizadores')
           .select('nome_empresa, id, deleted_at')
           .eq('id', evento.organizador_id)
           .single();
 
-        if (orgError) {
-          console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
-          continue; // Pular este evento se não encontrar organizador
-        }
-
-        // Verificar se organizador está deletado
-        if (organizador.deleted_at) {
-          console.log(`Evento ${evento.id} ignorado: organizador deletado`);
-          continue; // Pular este evento se organizador estiver deletado
+        if (orgError || organizador?.deleted_at) {
+          console.log(`Evento ${evento.id} ignorado: organizador não disponível`);
+          continue;
         }
 
         // Buscar contagem de likes para este evento
-        const { count: likesCount, error: likesError } = await supabase
+        const { count: likesCount } = await supabase
           .from('favoritos_eventos')
           .select('*', { count: 'exact', head: true })
           .eq('evento_id', evento.id);
-
-        if (likesError) {
-          console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
-        }
 
         eventosValidos.push({
           id: evento.id,
@@ -164,33 +182,95 @@ export function FavoritesPage() {
           image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
           status: 'A decorrer',
           organizerId: organizador.id,
-          organizerName: organizador.nome_empresa || 'Organizador não identificado',
+          organizerName: organizador.nome_empresa || 'Organizador',
           likes: likesCount || 0
         });
       }
 
-      console.log('Eventos válidos encontrados:', eventosValidos);
       setEvents(eventosValidos);
-
     } catch (err) {
-      console.error('Erro inesperado:', err);
-      setError('Ocorreu um erro ao carregar favoritos');
-    } finally {
-      setIsLoading(false);
+      console.error('Erro ao buscar eventos favoritos:', err);
     }
   };
 
-  // Função para remover dos favoritos
-  const handleLikeToggle = async (eventId: string) => {
-    if (!currentUser) {
-      navigate('/login');
-      return;
+  const fetchFavoriteOrganizers = async () => {
+    try {
+      console.log('Buscando organizadores favoritos do usuário normal:', currentUser?.id);
+
+      // Buscar IDs dos organizadores favoritados (apenas para usuários normais)
+      const { data: favorites, error: favError } = await supabase
+        .from('favoritos_organizadores')
+        .select('organizador_favoritado_id')
+        .eq('usuario_normal_id', currentUser?.id);
+
+      if (favError) {
+        console.error('Erro ao buscar favoritos de organizadores:', favError);
+        setError('Erro ao carregar organizadores favoritos');
+        return;
+      }
+
+      const likedIds = favorites.map(fav => fav.organizador_favoritado_id);
+      setLikedOrganizers(likedIds);
+
+      if (likedIds.length === 0) {
+        setOrganizers([]);
+        return;
+      }
+
+      // Buscar detalhes dos organizadores
+      const { data: organizadores, error: orgError } = await supabase
+        .from('organizadores')
+        .select('*')
+        .in('id', likedIds)
+        .is('deleted_at', null);
+
+      if (orgError) {
+        console.error('Erro ao buscar organizadores:', orgError);
+        setError('Erro ao carregar organizadores');
+        return;
+      }
+
+      // Para cada organizador, buscar contagem de eventos e likes
+      const organizadoresCompletos = await Promise.all(
+        organizadores.map(async (org) => {
+          // Contar eventos deste organizador
+          const { count: eventosCount } = await supabase
+            .from('eventos')
+            .select('*', { count: 'exact', head: true })
+            .eq('organizador_id', org.id)
+            .is('deleted_at', null);
+
+          // Contar quantas vezes este organizador foi favoritado
+          const { count: likesCount } = await supabase
+            .from('favoritos_organizadores')
+            .select('*', { count: 'exact', head: true })
+            .eq('organizador_favoritado_id', org.id);
+
+          return {
+            id: org.id,
+            organizerId: org.id,
+            name: org.nome_empresa,
+            email: org.email_empresa,
+            logo: org.avatar_url,
+            location: org.localizacao,
+            description: org.sobre,
+            eventosCount: eventosCount || 0,
+            likes: likesCount || 0,
+            createdAt: org.created_at
+          };
+        })
+      );
+
+      setOrganizers(organizadoresCompletos);
+    } catch (err) {
+      console.error('Erro ao buscar organizadores favoritos:', err);
     }
+  };
+
+  const handleRemoveEventLike = async (eventId: string) => {
+    if (!currentUser) return;
 
     try {
-      console.log('Removendo dos favoritos:', eventId);
-
-      // Construir query de deleção baseada no tipo de usuário
       let query = supabase.from('favoritos_eventos').delete().eq('evento_id', eventId);
 
       if (currentUser.type === 'user') {
@@ -201,21 +281,33 @@ export function FavoritesPage() {
 
       const { error } = await query;
 
-      if (error) {
-        console.error('Erro ao remover favorito:', error);
-        return;
-      }
+      if (error) throw error;
 
       // Atualizar estado local
-      const newLikedEvents = likedEvents.filter(id => id !== eventId);
-      setLikedEvents(newLikedEvents);
-      localStorage.setItem('cresceao_liked', JSON.stringify(newLikedEvents));
-
-      // Remover evento da lista
-      setEvents(prevEvents => prevEvents.filter(event => event.id !== eventId));
-
+      setLikedEvents(prev => prev.filter(id => id !== eventId));
+      setEvents(prev => prev.filter(event => event.id !== eventId));
     } catch (err) {
-      console.error('Erro ao alternar like:', err);
+      console.error('Erro ao remover evento favorito:', err);
+    }
+  };
+
+  const handleRemoveOrganizerLike = async (organizerId: string) => {
+    if (!currentUser || !isNormalUser) return;
+
+    try {
+      const { error } = await supabase
+        .from('favoritos_organizadores')
+        .delete()
+        .eq('organizador_favoritado_id', organizerId)
+        .eq('usuario_normal_id', currentUser.id);
+
+      if (error) throw error;
+
+      // Atualizar estado local
+      setLikedOrganizers(prev => prev.filter(id => id !== organizerId));
+      setOrganizers(prev => prev.filter(org => org.organizerId !== organizerId));
+    } catch (err) {
+      console.error('Erro ao remover organizador favorito:', err);
     }
   };
 
@@ -223,15 +315,26 @@ export function FavoritesPage() {
     navigate(`/event/${eventId}`);
   };
 
+  const handleOrganizerClick = (organizerId: string) => {
+    navigate(`/organizer/${organizerId}`);
+  };
+
   const categories = ['Todas', 'Palestras', 'Workshops', 'Feiras', 'Masterclasses'];
 
   // Filtrar eventos
-  const filtered = events.filter(event => {
-    const matchesSearch =
+  const filteredEvents = events.filter(event => {
+    const matchesSearch = searchQuery === '' ||
       event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       event.location.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'Todas' || event.category === selectedCategory;
     return matchesSearch && matchesCategory;
+  });
+
+  // Filtrar organizadores (apenas para usuários normais)
+  const filteredOrganizers = organizers.filter(org => {
+    return searchQuery === '' ||
+      org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      org.location?.toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   const categoryColor: Record<string, string> = {
@@ -245,16 +348,16 @@ export function FavoritesPage() {
     new Date(dateStr).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
 
   // Loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando favoritos...</p>
-        </div>
-      </div>
-    );
-  }
+  // if (isLoading) {
+  //   return (
+  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+  //       <div className="text-center">
+  //         <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+  //         <p className="text-gray-600">Carregando favoritos...</p>
+  //       </div>
+  //     </div>
+  //   );
+  // }
 
   // Error state
   if (error) {
@@ -274,6 +377,9 @@ export function FavoritesPage() {
     );
   }
 
+  const hasEvents = activeTab === 'events' && events.length > 0;
+  const hasOrganizers = activeTab === 'organizers' && organizers.length > 0;
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50/20 to-gray-50">
       {/* Header */}
@@ -286,15 +392,8 @@ export function FavoritesPage() {
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Voltar</span>
           </button>
-          <div
-            className="flex items-center"
-          >
-            <img
-              src={logo}
-              alt="Cresce.AO Logo"
-              className="h-10 w-auto object-contain"
-            />
-
+          <div className="flex items-center">
+            <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
             <span className="text-xl font-bold text-gray-900 tracking-tight">
               Cresce<span className="text-orange-600">.AO</span>
             </span>
@@ -316,9 +415,9 @@ export function FavoritesPage() {
               <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Colecção Pessoal</p>
               <h1 className="text-4xl md:text-5xl font-bold mb-2">Favoritos</h1>
               <p className="text-orange-100">
-                {events.length === 0
-                  ? 'Ainda não marcou nenhum evento'
-                  : `${events.length} ${events.length === 1 ? 'evento guardado' : 'eventos guardados'}`}
+                {activeTab === 'events'
+                  ? `${events.length} ${events.length === 1 ? 'evento' : 'eventos'} guardados`
+                  : `${organizers.length} ${organizers.length === 1 ? 'organizador' : 'organizadores'} guardados`}
               </p>
             </div>
             <div className="hidden md:flex w-20 h-20 rounded-2xl bg-white/20 backdrop-blur items-center justify-center shadow-lg">
@@ -327,137 +426,242 @@ export function FavoritesPage() {
           </div>
         </motion.div>
 
-        {/* Search and Filters - só mostrar se houver eventos */}
-        {events.length > 0 && (
-          <>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="flex flex-col sm:flex-row gap-4"
+        {/* Tabs - Mostrar apenas a aba de organizadores para usuários normais */}
+        <div className="flex gap-2 border-b border-gray-200 pb-2">
+          <button
+            onClick={() => setActiveTab('events')}
+            className={`flex items-center gap-2 px-6 py-3 rounded-xl border cursor-pointer text-sm font-semibold rounded-t-lg transition-all ${
+              activeTab === 'events'
+                ? 'bg-orange-600 text-white'
+                : 'text-gray-600 hover:text-orange-600 hover:bg-orange-50'
+            }`}
+          >
+            <CalendarDays className="w-4 h-4" />
+            Eventos Favoritos ({events.length})
+          </button>
+          
+          {/* Só mostrar a aba de organizadores se for usuário normal */}
+          {isNormalUser && (
+            <button
+              onClick={() => setActiveTab('organizers')}
+              className={`flex items-center gap-2 px-6 py-3 rounded-xl border cursor-pointer text-sm font-semibold rounded-t-lg transition-all ${
+                activeTab === 'organizers'
+                  ? 'bg-orange-600 text-white'
+                  : 'text-gray-600 hover:text-orange-600 hover:bg-orange-50'
+              }`}
             >
-              <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <input
-                  type="text"
-                  placeholder="Pesquisar nos favoritos..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-4xl pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
-                />
-              </div>
-            </motion.div>
-          </>
+              <Building2 className="w-4 h-4" />
+              Organizadores Favoritos ({organizers.length})
+            </button>
+          )}
+        </div>
+
+        {/* Search - só mostrar se houver itens na aba atual */}
+        {(hasEvents || (isNormalUser && hasOrganizers)) && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="flex flex-col sm:flex-row gap-4"
+          >
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder={`Pesquisar ${activeTab === 'events' ? 'eventos' : 'organizadores'} favoritos...`}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-4xl pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+              />
+            </div>
+          </motion.div>
         )}
 
-        {/* Events Grid */}
+        {/* Content based on active tab */}
         <AnimatePresence mode="wait">
-          {events.length === 0 ? (
+          {activeTab === 'events' ? (
+            // Eventos Favoritos (disponível para todos)
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="flex flex-col items-center justify-center py-24 text-center"
+              key="events"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: 20 }}
             >
-              <div className="w-24 h-24 bg-orange-100 rounded-full flex items-center justify-center mb-6">
-                <Bookmark className="w-12 h-12 text-orange-400" />
-              </div>
-              <h3 className="text-2xl font-bold text-gray-800 mb-2">Sem favoritos ainda</h3>
-              <p className="text-gray-500 max-w-sm">
-                Explore os eventos e clique no ícone de coração para guardar os que mais lhe interessam.
-              </p>
-              <button onClick={() => navigate('/events')}
-                className="mt-6 px-6 py-3 bg-orange-600 text-white cursor-pointer rounded-xl hover:bg-orange-700 transition-all font-medium shadow-lg"
-              >
-                Explorar Eventos
-              </button>
-            </motion.div>
-          ) : filtered.length === 0 ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center py-16 text-gray-500"
-            >
-              <p>Nenhum favorito encontrado com esses filtros.</p>
+              {events.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                    <CalendarDays className="w-10 h-10 text-orange-400" />
+                  </div>
+                  <h3 className="text-xl font-bold text-gray-800 mb-2">Sem eventos favoritos</h3>
+                  <p className="text-gray-500 max-w-sm">
+                    Explore os eventos e clique no coração para guardar os que mais lhe interessam.
+                  </p>
+                </div>
+              ) : filteredEvents.length === 0 ? (
+                <div className="text-center py-12 text-gray-500">
+                  Nenhum evento encontrado com esses filtros.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {filteredEvents.map((event, index) => (
+                    <motion.div
+                      key={event.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.04 }}
+                      className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all border border-gray-100 hover:border-orange-200 cursor-pointer"
+                      onClick={() => handleEventClick(event.id)}
+                    >
+                      {/* Image */}
+                      <div className="relative overflow-hidden aspect-video">
+                        <img
+                          src={event.image}
+                          alt={event.name}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          onError={(e) => {
+                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+                          }}
+                        />
+                        <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold ${categoryColor[event.category] || 'bg-gray-100 text-gray-700'}`}>
+                          {event.category}
+                        </span>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleRemoveEventLike(event.id); }}
+                          className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                          title="Remover dos favoritos"
+                        >
+                          <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                        </button>
+                        {event.price ? (
+                          <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/70 text-white text-xs font-semibold rounded-lg backdrop-blur-sm">
+                            {event.price.toLocaleString('pt-AO')} Kz
+                          </div>
+                        ) : (
+                          <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-green-600/90 text-white text-xs font-semibold rounded-lg backdrop-blur-sm">
+                            Gratuito
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Content */}
+                      <div className="p-4">
+                        <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-orange-600">
+                          {event.name}
+                        </h3>
+                        <div className="space-y-1.5 text-sm text-gray-500">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-orange-500" />
+                            <span>{formatDate(event.date)}</span>
+                            <Clock className="w-3.5 h-3.5 text-orange-500 ml-1" />
+                            <span>{event.time}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                            <span className="truncate">{event.eventType === 'online' ? 'Online' : event.location}</span>
+                          </div>
+                        </div>
+                        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
+                          <span className="text-xs text-gray-500">{event.organizerName}</span>
+                          <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                            event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
+                            event.eventType === 'híbrido' ? 'bg-purple-100 text-purple-700' :
+                            'bg-orange-100 text-orange-700'
+                          }`}>
+                            {event.eventType}
+                          </span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
             </motion.div>
           ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"
-            >
-              {filtered.map((event, index) => (
-                <motion.div
-                  key={event.id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: index * 0.04 }}
-                  className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 border border-gray-100 hover:border-orange-200 cursor-pointer"
-                  onClick={() => handleEventClick(event.id)}
-                >
-                  {/* Image */}
-                  <div className="relative overflow-hidden aspect-video">
-                    <img
-                      src={event.image}
-                      alt={event.name}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      onError={(e) => {
-                        (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
-                      }}
-                    />
-                    {/* Category badge */}
-                    <span className={`absolute top-3 left-3 px-2.5 py-1 rounded-full text-xs font-semibold ${categoryColor[event.category] || 'bg-gray-100 text-gray-700'}`}>
-                      {event.category}
-                    </span>
-                    {/* Remove from favorites */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); handleLikeToggle(event.id); }}
-                      className="absolute top-3 right-3 w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
-                      title="Remover dos favoritos"
-                    >
-                      <Heart className="w-4 h-4 fill-red-500 text-red-500" />
-                    </button>
-                    {/* Price */}
-                    {event.price ? (
-                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-black/70 text-white text-xs font-semibold rounded-lg backdrop-blur-sm">
-                        {event.price.toLocaleString('pt-AO')} Kz
-                      </div>
-                    ) : (
-                      <div className="absolute bottom-3 right-3 px-2.5 py-1 bg-green-600/90 text-white text-xs font-semibold rounded-lg backdrop-blur-sm">
-                        Gratuito
-                      </div>
-                    )}
+            // Organizadores Favoritos (apenas para usuários normais)
+            isNormalUser && (
+              <motion.div
+                key="organizers"
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 20 }}
+              >
+                {organizers.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-16 text-center">
+                    <div className="w-20 h-20 bg-orange-100 rounded-full flex items-center justify-center mb-4">
+                      <Building2 className="w-10 h-10 text-orange-400" />
+                    </div>
+                    <h3 className="text-xl font-bold text-gray-800 mb-2">Sem organizadores favoritos</h3>
+                    <p className="text-gray-500 max-w-sm">
+                      Explore os organizadores e clique no coração para guardar os que mais gosta.
+                    </p>
                   </div>
+                ) : filteredOrganizers.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    Nenhum organizador encontrado com esses filtros.
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {filteredOrganizers.map((org, index) => (
+                      <motion.div
+                        key={org.id}
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: index * 0.04 }}
+                        className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all border border-gray-100 hover:border-orange-200 cursor-pointer"
+                        onClick={() => handleOrganizerClick(org.organizerId)}
+                      >
+                        <div className="p-6">
+                          <div className="flex items-center gap-4 mb-4">
+                            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                              {org.logo ? (
+                                <img src={org.logo} alt={org.name} className="w-full h-full rounded-full object-cover" />
+                              ) : (
+                                org.name.charAt(0).toUpperCase()
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-gray-900 text-lg truncate group-hover:text-orange-600">
+                                {org.name}
+                              </h3>
+                              <p className="text-sm text-gray-500 truncate">{org.email}</p>
+                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); handleRemoveOrganizerLike(org.organizerId); }}
+                              className="w-8 h-8 bg-white rounded-full flex items-center justify-center shadow-md hover:scale-110 transition-transform"
+                              title="Remover dos favoritos"
+                            >
+                              <Heart className="w-4 h-4 fill-red-500 text-red-500" />
+                            </button>
+                          </div>
 
-                  {/* Content */}
-                  <div className="p-4">
-                    <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-orange-600 transition-colors">
-                      {event.name}
-                    </h3>
-                    <div className="space-y-1.5 text-sm text-gray-500">
-                      <div className="flex items-center gap-1.5">
-                        <Calendar className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
-                        <span>{formatDate(event.date)}</span>
-                        <Clock className="w-3.5 h-3.5 text-orange-500 flex-shrink-0 ml-1" />
-                        <span>{event.time}</span>
-                      </div>
-                      <div className="flex items-center gap-1.5">
-                        <MapPin className="w-3.5 h-3.5 text-orange-500 flex-shrink-0" />
-                        <span className="truncate">{event.eventType === 'online' ? 'Online' : event.location}</span>
-                      </div>
-                    </div>
-                    <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                      <span className="text-xs text-gray-500">{event.organizerName}</span>
-                      <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${event.eventType === 'online' ? 'bg-blue-100 text-blue-700' :
-                          event.eventType === 'híbrido' ? 'bg-purple-100 text-purple-700' :
-                            'bg-orange-100 text-orange-700'
-                        }`}>
-                        {event.eventType}
-                      </span>
-                    </div>
+                          {org.location && (
+                            <div className="flex items-center gap-1.5 text-sm text-gray-500 mb-2">
+                              <MapPin className="w-3.5 h-3.5 text-orange-500" />
+                              <span className="truncate">{org.location}</span>
+                            </div>
+                          )}
+
+                          <p className="text-sm text-gray-600 line-clamp-2 mb-4">
+                            {org.description || 'Organizador de eventos na plataforma Cresce.AO'}
+                          </p>
+
+                          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+                            <div className="flex items-center gap-2">
+                              <CalendarDays className="w-4 h-4 text-orange-500" />
+                              <span className="text-xs text-gray-600">{org.eventosCount} eventos</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Heart className="w-4 h-4 text-red-500 fill-red-500" />
+                              <span className="text-xs font-medium text-gray-600">{org.likes}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))}
                   </div>
-                </motion.div>
-              ))}
-            </motion.div>
+                )}
+              </motion.div>
+            )
           )}
         </AnimatePresence>
       </main>

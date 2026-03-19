@@ -489,7 +489,8 @@ export function EventsPage() {
             )}
             <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
               <Heart className="w-5 h-5" />
-              Favoritos {likedEvents.length > 0 && <span className="ml-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{likedEvents.length}</span>}
+              Favoritos 
+              {/* {likedEvents.length > 0 && <span className="ml-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{likedEvents.length}</span>} */}
             </Button>
 
             <DropdownMenu>

@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2 } from "lucide-react";
+import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EventCardSkeleton } from "./EventCardSkeleton";
 import logo from "../assets/logo.png";
@@ -14,6 +14,20 @@ export default function OrganizerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [organizerName, setOrganizerName] = useState("");
   const [organizerInfo, setOrganizerInfo] = useState<any>(null);
+
+  // Estados para favoritar organizador
+  const [isFavorite, setIsFavorite] = useState(false);
+  const [favoriteCount, setFavoriteCount] = useState(0);
+  const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Buscar usuário logado
+  useEffect(() => {
+    const userFromStorage = localStorage.getItem('user');
+    if (userFromStorage) {
+      setCurrentUser(JSON.parse(userFromStorage));
+    }
+  }, []);
 
   const formatTime = (time: string) => {
     if (!time) return "";
@@ -41,7 +55,7 @@ export default function OrganizerProfilePage() {
       // Buscar informações do organizador
       const { data: organizer, error: orgError } = await supabase
         .from("organizadores")
-        .select("nome_empresa, email_empresa, nif")
+        .select("*")
         .eq("id", id)
         .is("deleted_at", null)
         .single();
@@ -110,6 +124,9 @@ export default function OrganizerProfilePage() {
 
       setEvents(eventosComLikes);
 
+      // Buscar informações de favoritos do organizador
+      await fetchFavoriteInfo(organizer?.id);
+
     } catch (err) {
       console.error("Erro inesperado:", err);
       setError("Ocorreu um erro ao carregar eventos");
@@ -118,9 +135,87 @@ export default function OrganizerProfilePage() {
     }
   };
 
+  const fetchFavoriteInfo = async (organizerId: string) => {
+    try {
+      // Buscar contagem de favoritos do organizador
+      const { count } = await supabase
+        .from("favoritos_organizadores")
+        .select("*", { count: "exact", head: true })
+        .eq("organizador_favoritado_id", organizerId);
+
+      setFavoriteCount(count || 0);
+
+      // Verificar se o usuário atual já favoritou este organizador
+      if (currentUser && currentUser.type === 'user') {
+        const { data: favorite } = await supabase
+          .from("favoritos_organizadores")
+          .select("id")
+          .eq("organizador_favoritado_id", organizerId)
+          .eq("usuario_normal_id", currentUser.id)
+          .maybeSingle();
+
+        setIsFavorite(!!favorite);
+      }
+    } catch (err) {
+      console.error("Erro ao buscar informações de favoritos:", err);
+    }
+  };
+
+  const handleFavoriteToggle = async () => {
+    if (!currentUser) {
+      alert("Faça login para favoritar organizadores");
+      navigate('/login');
+      return;
+    }
+
+    if (currentUser.type !== 'user') {
+      alert("Apenas usuários podem favoritar organizadores");
+      return;
+    }
+
+    if (!id) return;
+
+    setIsFavoriteLoading(true);
+
+    try {
+      if (isFavorite) {
+        // Remover dos favoritos
+        const { error } = await supabase
+          .from("favoritos_organizadores")
+          .delete()
+          .eq("organizador_favoritado_id", id)
+          .eq("usuario_normal_id", currentUser.id);
+
+        if (error) throw error;
+
+        setIsFavorite(false);
+        setFavoriteCount(prev => prev - 1);
+      } else {
+        // Adicionar aos favoritos
+        const { error } = await supabase
+          .from("favoritos_organizadores")
+          .insert({
+            organizador_favoritado_id: id,
+            usuario_normal_id: currentUser.id,
+            created_at: new Date().toISOString()
+          });
+
+        if (error) throw error;
+
+        setIsFavorite(true);
+        setFavoriteCount(prev => prev + 1);
+      }
+    } catch (err) {
+      console.error("Erro ao alternar favorito:", err);
+      alert("Erro ao favoritar organizador");
+    } finally {
+      setIsFavoriteLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchOrganizerEvents();
-  }, [id]);
+  }, [id, currentUser]);
 
   const categoryColor: Record<string, string> = {
     Palestras: 'bg-blue-100 text-blue-700',
@@ -141,15 +236,12 @@ export default function OrganizerProfilePage() {
             <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
             <span className="font-medium">Voltar</span>
           </button>
-          <div
-            className="flex items-center"
-          >
+          <div className="flex items-center">
             <img
               src={logo}
               alt="Cresce.AO Logo"
               className="h-10 w-auto object-contain"
             />
-
             <span className="text-xl font-bold text-gray-900 tracking-tight">
               Cresce<span className="text-orange-600">.AO</span>
             </span>
@@ -163,29 +255,85 @@ export default function OrganizerProfilePage() {
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
-          <div className="relative z-10 flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
-              <h1 className="text-4xl md:text-5xl font-bold mb-3">{organizerName || "Organizador"}</h1>
+          <div className="relative z-10">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
+                <h1 className="text-4xl md:text-5xl font-bold mb-3">{organizerName || "Organizador"}</h1>
 
-              {organizerInfo && (
-                <div className="flex items-center gap-4 mt-4 text-orange-50">
-                  <div className="flex items-center gap-2">
-                    <Building2 className="w-5 h-5" />
-                    <span>{organizerInfo.email_empresa}</span>
-                  </div>
-                  {organizerInfo.nif && (
+                {organizerInfo && (
+                  <div className="flex flex-col gap-2 mt-4 text-orange-50">
                     <div className="flex items-center gap-2">
-                      <span className="text-sm opacity-80">NIF: {organizerInfo.nif}</span>
+                      <Building2 className="w-5 h-5" />
+                      <span>{organizerInfo.email_empresa}</span>
                     </div>
+                    {organizerInfo.nif && (
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm opacity-80">NIF: {organizerInfo.nif}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Botão de Favoritar Organizador */}
+              {currentUser?.type === 'user' && (
+                <button
+                  onClick={handleFavoriteToggle}
+                  disabled={isFavoriteLoading}
+                  className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 ${isFavorite
+                      ? 'bg-white text-red-600 hover:bg-red-50'
+                      : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
+                    }`}
+                >
+                  {isFavorite ? (
+                    <>
+                      <Heart className="w-6 h-6 fill-current" />
+                      <span>Favoritado</span>
+                    </>
+                  ) : (
+                    <>
+                      <Heart className="w-6 h-6" />
+                      <span>Favoritar</span>
+                    </>
                   )}
+                </button>
+              )}
+
+              {/* Mostrar apenas contagem para não-usuários */}
+              {(!currentUser || currentUser.type !== 'user') && (
+                <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3">
+                  <Heart className="w-6 h-6" />
+                  <div className="text-left">
+                    <span className="text-2xl font-bold block">{favoriteCount}</span>
+                    <span className="text-xs opacity-90">favoritos</span>
+                  </div>
                 </div>
               )}
             </div>
 
-            <div className="hidden md:flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3">
-              <span className="text-2xl font-bold">{events.length}</span>
-              <span className="text-sm opacity-90">eventos</span>
+            {/* Estatísticas rápidas */}
+            <div className="flex gap-6 mt-6 pt-6 border-t border-white/20">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">{events.length}</p>
+                  <p className="text-xs opacity-90">eventos</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <Heart className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-2xl font-bold">
+                    {events.reduce((acc, e) => acc + e.likes, 0)}
+                  </p>
+                  <p className="text-xs opacity-90">likes em eventos</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -229,10 +377,16 @@ export default function OrganizerProfilePage() {
             ) : (
               <>
                 {/* Results Count */}
-                <div className="mb-6">
+                <div className="mb-6 flex items-center justify-between">
                   <h2 className="text-lg font-medium text-gray-600">
                     {events.length} {events.length === 1 ? 'evento encontrado' : 'eventos encontrados'}
                   </h2>
+
+                  {/* Mini estatística de total de likes */}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <Heart className="w-4 h-4 text-red-500" />
+                    <span>{events.reduce((acc, e) => acc + e.likes, 0)} likes totais</span>
+                  </div>
                 </div>
 
                 {/* Grid de Eventos */}
