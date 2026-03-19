@@ -23,7 +23,8 @@ import {
   Eye,
   EyeOff,
   HelpCircle,
-  Tag
+  Tag,
+  Camera
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -653,6 +654,7 @@ export function OrganizerProfile() {
   const [isEditing, setIsEditing] = useState(false);
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -663,6 +665,7 @@ export function OrganizerProfile() {
   const [editSobre, setEditSobre] = useState('');
   const [editTags, setEditTags] = useState<string[]>([]);
   const [newTag, setNewTag] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
 
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
@@ -688,6 +691,7 @@ export function OrganizerProfile() {
       }
 
       setOrganizerData(data);
+      setAvatarUrl(data?.avatar_url || null);
       setEditName(data?.nome_empresa || '');
       setEditLocalizacao(data?.localizacao || '');
       setEditContacto(data?.contacto || '');
@@ -773,6 +777,66 @@ export function OrganizerProfile() {
       console.error('Erro ao calcular estatísticas:', err);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    try {
+      setIsUploadingAvatar(true);
+      setError(null);
+
+      // Validar tipo de arquivo
+      if (!file.type.startsWith('image/')) {
+        setError('Por favor, selecione uma imagem válida');
+        return;
+      }
+
+      // Validar tamanho (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        setError('A imagem deve ter no máximo 2MB');
+        return;
+      }
+
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `avatars/${fileName}`;
+
+      // Fazer upload para o Storage
+      const { error: uploadError } = await supabase.storage
+        .from('organizador-avatars')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      // Obter URL pública
+      const { data: { publicUrl } } = supabase.storage
+        .from('organizador-avatars')
+        .getPublicUrl(filePath);
+
+      // Atualizar banco de dados com a nova URL
+      const { error: updateError } = await supabase
+        .from('organizadores')
+        .update({ avatar_url: publicUrl })
+        .eq('id', user.id);
+
+      if (updateError) throw updateError;
+
+      setAvatarUrl(publicUrl);
+      setOrganizerData({ ...organizerData, avatar_url: publicUrl });
+      setSuccessMessage('Foto de perfil atualizada com sucesso!');
+      setTimeout(() => setSuccessMessage(null), 3000);
+
+    } catch (err) {
+      console.error('Erro ao fazer upload da foto:', err);
+      setError('Erro ao atualizar foto de perfil');
+    } finally {
+      setIsUploadingAvatar(false);
     }
   };
 
@@ -928,8 +992,41 @@ export function OrganizerProfile() {
 
           <div className="px-8 pb-8">
             <div className="-mt-12 flex items-end justify-between mb-6">
-              <div className="w-24 h-24 bg-white rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-orange-600 text-4xl font-bold">
-                {(user.name || '').charAt(0).toUpperCase()}
+              <div className="relative group">
+                <div className="w-24 h-24 bg-white rounded-2xl border-4 border-white shadow-xl overflow-hidden">
+                  {avatarUrl ? (
+                    <img 
+                      src={avatarUrl} 
+                      alt={user.name} 
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-4xl font-bold">
+                      {(user.name || '').charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  
+                  {/* Botão de upload de foto - só aparece quando não está editando */}
+                  {!isEditing && (
+                    <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                      <Camera className="w-6 h-6 text-white" />
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarUpload}
+                        disabled={isUploadingAvatar}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  
+                  {/* Loading indicator */}
+                  {isUploadingAvatar && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl">
+                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    </div>
+                  )}
+                </div>
               </div>
               
               {!isEditing ? (

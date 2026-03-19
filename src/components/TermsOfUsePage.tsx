@@ -1,5 +1,6 @@
 import { ArrowLeft, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import logo from "../assets/logo.png";
 
 interface TermsOfUsePageProps {
   onBack: () => void;
@@ -13,19 +14,23 @@ export function TermsOfUsePage({ onBack }: TermsOfUsePageProps) {
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
       <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-          <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 cursor-pointer text-gray-600 hover:text-gray-900 transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5" />
-              <span>Voltar</span>
-            </button>
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-6 h-6 text-orange-600" />
-              <span className="font-bold text-gray-900">Cresce.AO</span>
-            </div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
+          <button
+            onClick={() => navigate(-1)}
+            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
+          >
+            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+            <span className="font-medium">Voltar</span>
+          </button>
+          <div className="flex items-center">
+            <img
+              src={logo}
+              alt="Cresce.AO Logo"
+              className="h-10 w-auto object-contain"
+            />
+            <span className="text-xl font-bold text-gray-900 tracking-tight">
+              Cresce<span className="text-orange-600">.AO</span>
+            </span>
           </div>
         </div>
       </header>
@@ -75,7 +80,7 @@ export function TermsOfUsePage({ onBack }: TermsOfUsePageProps) {
                 <li>Notificar-nos imediatamente sobre qualquer uso não autorizado da sua conta</li>
                 <li>Ser responsável por todas as atividades realizadas na sua conta</li>
               </ul>
-              
+
               <h3 className="text-xl font-medium text-gray-800 mb-3">3.2 Elegibilidade</h3>
               <p className="leading-relaxed">
                 Você deve ter pelo menos 18 anos de idade para criar uma conta e utilizar a plataforma.

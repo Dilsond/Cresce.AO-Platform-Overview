@@ -34,6 +34,7 @@ export interface Event {
   status: string;
   organizerId: string;
   organizerName: string;
+  logo: string;
   likes: number;
   price?: number;
 }
@@ -286,7 +287,7 @@ export function EventsPage() {
         // Buscar organizador e verificar se não está deletado
         const { data: organizador, error: orgError } = await supabase
           .from('organizadores')
-          .select('nome_empresa, id, deleted_at')
+          .select('nome_empresa, id, deleted_at, avatar_url')
           .eq('id', evento.organizador_id)
           .single();
 
@@ -334,6 +335,7 @@ export function EventsPage() {
           image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
           status,
           organizerId: organizador.id,
+          logo: organizador.avatar_url,
           organizerName: organizador.nome_empresa || 'Organizador não identificado',
           likes: likesCount || 0
         });
@@ -489,7 +491,7 @@ export function EventsPage() {
             )}
             <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
               <Heart className="w-5 h-5" />
-              Favoritos 
+              Favoritos
               {/* {likedEvents.length > 0 && <span className="ml-1 bg-orange-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">{likedEvents.length}</span>} */}
             </Button>
 
@@ -764,9 +766,15 @@ export function EventsPage() {
 
                   <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
                     <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-orange-100 flex items-center justify-center text-xs font-bold text-gray-600 group-hover:text-orange-600 transition-all duration-300">
-                        {event.organizerName.charAt(0)}
+                      
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-1xl font-bold flex-shrink-0">
+                        {event.logo ? (
+                          <img src={event.logo} alt={event.name} className="w-6 h-6 rounded-full object-cover" />
+                        ) : (
+                          event.name.charAt(0).toUpperCase()
+                        )}
                       </div>
+
                       <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">{event.organizerName}</span>
                     </div>
                     <span className="text-sm font-bold text-green-600 group-hover:text-orange-600 group-hover:scale-110 transition-all duration-300">
