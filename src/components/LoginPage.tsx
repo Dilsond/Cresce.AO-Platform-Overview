@@ -47,7 +47,7 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
       }
 
       if (userData.deleted_at) {
-        setError('Esta conta foi desativada.');
+        setError('Esta conta está suspensa.');
         setIsLoading(false);
         return;
       }

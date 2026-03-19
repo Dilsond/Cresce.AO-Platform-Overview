@@ -49,7 +49,7 @@ export function OrganizerLoginPage({ onBack }: { onBack: () => void }) {
             }
 
             if (userData.deleted_at) {
-                setError('Esta conta foi desativada.');
+                setError('Esta conta está suspensa.');
                 setIsLoading(false);
                 return;
             }

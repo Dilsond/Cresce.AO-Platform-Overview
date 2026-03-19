@@ -682,11 +682,10 @@ export function OrganizerDashboard() {
                             <motion.button
                                 whileHover={{ scale: 1.05 }}
                                 whileTap={{ scale: 0.95 }}
-                                onClick={() => setShowAddForm(!showAddForm)}
-                                className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-all shadow-lg font-semibold"
+                                onClick={() => navigate('/create-event')}
+                                className="inline-flex items-center gap-2 px-6 py-3 bg-orange-600 text-white cursor-pointer rounded-xl hover:bg-orange-700 transition-all shadow-lg font-semibold"
                             >
-                                {showAddForm ? <X className="w-5 h-5" /> : <Plus className="w-5 h-5" />}
-                                {showAddForm ? 'Cancelar' : 'Criar Primeiro Evento'}
+                                Criar Primeiro Evento
                             </motion.button>
                         </div>
                     ) : (
