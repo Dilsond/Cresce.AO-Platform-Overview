@@ -1,8 +1,11 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff } from "lucide-react";
+import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff, UserCheck, UserPlus } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EventCardSkeleton } from "./EventCardSkeleton";
+import { notificationService } from "../services/notificationService";
+import { showLocalNotification } from "../lib/pushNotifications";
+import { emailService } from "../services/emailService";
 import logo from "../assets/logo.png";
 
 export default function OrganizerProfilePage() {
@@ -204,6 +207,39 @@ export default function OrganizerProfilePage() {
 
         setIsFavorite(true);
         setFavoriteCount(prev => prev + 1);
+
+        // 🔔 NOTIFICAÇÃO: Enviar email para o organizador
+        const isDifferentUser = organizerInfo && currentUser.id !== organizerInfo.id;
+
+        // Dentro do handleFavoriteToggle, após adicionar o favorito
+        if (isDifferentUser && organizerInfo?.email_empresa) {
+          console.log('📧 Enviando email de notificação para:', organizerInfo.email_empresa);
+
+          try {
+            // Enviar email via EmailJS
+            const emailResult = await emailService.sendNotification({
+              to_email: organizerInfo.email_empresa,
+              to_name: organizerInfo.nome_empresa,
+              assunto: '👥 Novo Seguidor!',
+              titulo: 'Você ganhou um novo seguidor!',
+              mensagem: `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir sua organização na plataforma Cresce.AO.\n\nAcesse seu perfil para ver mais detalhes.`
+            });
+
+            if (emailResult.success) {
+              console.log('✅ Email de notificação enviado com sucesso');
+            } else {
+              console.error('❌ Falha ao enviar email:', emailResult.message);
+            }
+          } catch (emailError) {
+            console.error('Erro ao enviar email de notificação:', emailError);
+          }
+
+          // Mostrar notificação local
+          showLocalNotification(
+            '👥 Novo Seguidor!',
+            `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir o seu perfil`
+          );
+        }
       }
     } catch (err) {
       console.error("Erro ao alternar favorito:", err);
@@ -281,20 +317,20 @@ export default function OrganizerProfilePage() {
                 <button
                   onClick={handleFavoriteToggle}
                   disabled={isFavoriteLoading}
-                  className={`flex items-center gap-3 px-6 py-3 rounded-xl font-semibold transition-all transform hover:scale-105 ${isFavorite
+                  className={`flex items-center gap-3 px-6 py-3 rounded-xl cursor-pointer font-semibold transition-all transform hover:scale-105 ${isFavorite
                       ? 'bg-white text-red-600 hover:bg-red-50'
                       : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
                     }`}
                 >
                   {isFavorite ? (
                     <>
-                      <Heart className="w-6 h-6 fill-current" />
-                      <span>Favoritado</span>
+                      <UserCheck className="w-6 h-6" />
+                      <span>Seguindo ({favoriteCount})</span>
                     </>
                   ) : (
                     <>
-                      <Heart className="w-6 h-6" />
-                      <span>Favoritar</span>
+                      <UserPlus className="w-6 h-6" />
+                      <span>Seguir ({favoriteCount})</span>
                     </>
                   )}
                 </button>
@@ -306,7 +342,7 @@ export default function OrganizerProfilePage() {
                   <Heart className="w-6 h-6" />
                   <div className="text-left">
                     <span className="text-2xl font-bold block">{favoriteCount}</span>
-                    <span className="text-xs opacity-90">favoritos</span>
+                    <span className="text-xs opacity-90">seguidores</span>
                   </div>
                 </div>
               )}

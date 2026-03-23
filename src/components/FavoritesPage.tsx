@@ -3,6 +3,8 @@ import { Heart, ArrowLeft, MapPin, Calendar, Clock, Search, Bookmark, Sparkles, 
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { emailService } from '../services/emailService';
+import { showLocalNotification } from '../lib/pushNotifications';
 import logo from "../assets/logo.png";
 
 export type UserType = 'user' | 'organizer' | null;
@@ -92,7 +94,6 @@ export function FavoritesPage() {
       if (activeTab === 'events') {
         await fetchFavoriteEvents();
       } else if (isNormalUser) {
-        // Só busca organizadores se for usuário normal
         await fetchFavoriteOrganizers();
       }
 
@@ -108,7 +109,6 @@ export function FavoritesPage() {
     try {
       console.log('Buscando eventos favoritos do usuário:', currentUser?.id);
 
-      // Construir query baseada no tipo de usuário
       let query = supabase.from('favoritos_eventos').select('evento_id');
 
       if (currentUser?.type === 'user') {
@@ -134,7 +134,6 @@ export function FavoritesPage() {
         return;
       }
 
-      // Buscar os eventos completos baseado nos IDs
       const { data: eventos, error: eventosError } = await supabase
         .from('eventos')
         .select('*')
@@ -148,13 +147,12 @@ export function FavoritesPage() {
         return;
       }
 
-      // Filtrar apenas eventos cujo organizador NÃO está deletado
       const eventosValidos = [];
 
       for (const evento of eventos || []) {
         const { data: organizador, error: orgError } = await supabase
           .from('organizadores')
-          .select('nome_empresa, id, deleted_at')
+          .select('nome_empresa, id, deleted_at, email_empresa')
           .eq('id', evento.organizador_id)
           .single();
 
@@ -163,7 +161,6 @@ export function FavoritesPage() {
           continue;
         }
 
-        // Buscar contagem de likes para este evento
         const { count: likesCount } = await supabase
           .from('favoritos_eventos')
           .select('*', { count: 'exact', head: true })
@@ -182,6 +179,7 @@ export function FavoritesPage() {
           image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
           status: 'A decorrer',
           organizerId: organizador.id,
+          organizerEmail: organizador.email_empresa,
           organizerName: organizador.nome_empresa || 'Organizador',
           likes: likesCount || 0
         });
@@ -197,7 +195,6 @@ export function FavoritesPage() {
     try {
       console.log('Buscando organizadores favoritos do usuário normal:', currentUser?.id);
 
-      // Buscar IDs dos organizadores favoritados (apenas para usuários normais)
       const { data: favorites, error: favError } = await supabase
         .from('favoritos_organizadores')
         .select('organizador_favoritado_id')
@@ -217,7 +214,6 @@ export function FavoritesPage() {
         return;
       }
 
-      // Buscar detalhes dos organizadores
       const { data: organizadores, error: orgError } = await supabase
         .from('organizadores')
         .select('*')
@@ -230,17 +226,14 @@ export function FavoritesPage() {
         return;
       }
 
-      // Para cada organizador, buscar contagem de eventos e likes
       const organizadoresCompletos = await Promise.all(
         organizadores.map(async (org) => {
-          // Contar eventos deste organizador
           const { count: eventosCount } = await supabase
             .from('eventos')
             .select('*', { count: 'exact', head: true })
             .eq('organizador_id', org.id)
             .is('deleted_at', null);
 
-          // Contar quantas vezes este organizador foi favoritado
           const { count: likesCount } = await supabase
             .from('favoritos_organizadores')
             .select('*', { count: 'exact', head: true })
@@ -280,10 +273,8 @@ export function FavoritesPage() {
       }
 
       const { error } = await query;
-
       if (error) throw error;
 
-      // Atualizar estado local
       setLikedEvents(prev => prev.filter(id => id !== eventId));
       setEvents(prev => prev.filter(event => event.id !== eventId));
     } catch (err) {
@@ -303,7 +294,6 @@ export function FavoritesPage() {
 
       if (error) throw error;
 
-      // Atualizar estado local
       setLikedOrganizers(prev => prev.filter(id => id !== organizerId));
       setOrganizers(prev => prev.filter(org => org.organizerId !== organizerId));
     } catch (err) {
@@ -321,7 +311,6 @@ export function FavoritesPage() {
 
   const categories = ['Todas', 'Palestras', 'Workshops', 'Feiras', 'Masterclasses'];
 
-  // Filtrar eventos
   const filteredEvents = events.filter(event => {
     const matchesSearch = searchQuery === '' ||
       event.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -330,7 +319,6 @@ export function FavoritesPage() {
     return matchesSearch && matchesCategory;
   });
 
-  // Filtrar organizadores (apenas para usuários normais)
   const filteredOrganizers = organizers.filter(org => {
     return searchQuery === '' ||
       org.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -347,19 +335,6 @@ export function FavoritesPage() {
   const formatDate = (dateStr: string) =>
     new Date(dateStr).toLocaleDateString('pt-PT', { day: 'numeric', month: 'short', year: 'numeric' });
 
-  // Loading state
-  // if (isLoading) {
-  //   return (
-  //     <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-  //       <div className="text-center">
-  //         <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-  //         <p className="text-gray-600">Carregando favoritos...</p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
-
-  // Error state
   if (error) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center p-4">
@@ -426,7 +401,7 @@ export function FavoritesPage() {
           </div>
         </motion.div>
 
-        {/* Tabs - Mostrar apenas a aba de organizadores para usuários normais */}
+        {/* Tabs */}
         <div className="flex gap-2 border-b border-gray-200 pb-2">
           <button
             onClick={() => setActiveTab('events')}
@@ -440,7 +415,6 @@ export function FavoritesPage() {
             Eventos Favoritos ({events.length})
           </button>
           
-          {/* Só mostrar a aba de organizadores se for usuário normal */}
           {isNormalUser && (
             <button
               onClick={() => setActiveTab('organizers')}
@@ -456,7 +430,7 @@ export function FavoritesPage() {
           )}
         </div>
 
-        {/* Search - só mostrar se houver itens na aba atual */}
+        {/* Search */}
         {(hasEvents || (isNormalUser && hasOrganizers)) && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -477,10 +451,9 @@ export function FavoritesPage() {
           </motion.div>
         )}
 
-        {/* Content based on active tab */}
+        {/* Content */}
         <AnimatePresence mode="wait">
           {activeTab === 'events' ? (
-            // Eventos Favoritos (disponível para todos)
             <motion.div
               key="events"
               initial={{ opacity: 0, x: -20 }}
@@ -512,7 +485,6 @@ export function FavoritesPage() {
                       className="group bg-white rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all border border-gray-100 hover:border-orange-200 cursor-pointer"
                       onClick={() => handleEventClick(event.id)}
                     >
-                      {/* Image */}
                       <div className="relative overflow-hidden aspect-video">
                         <img
                           src={event.image}
@@ -543,7 +515,6 @@ export function FavoritesPage() {
                         )}
                       </div>
 
-                      {/* Content */}
                       <div className="p-4">
                         <h3 className="font-semibold text-gray-900 mb-2 line-clamp-2 group-hover:text-orange-600">
                           {event.name}
@@ -577,7 +548,6 @@ export function FavoritesPage() {
               )}
             </motion.div>
           ) : (
-            // Organizadores Favoritos (apenas para usuários normais)
             isNormalUser && (
               <motion.div
                 key="organizers"

@@ -10,6 +10,8 @@ import { Footer } from './Footer';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { PushNotificationPrompt } from '../components/PushotificationsPrompt';
+import { notificationService } from '../services/notificationService';
+import { showLocalNotification } from '../lib/pushNotifications';
 
 export type UserType = 'user' | 'organizer';
 
@@ -35,6 +37,7 @@ export interface Event {
   status: string;
   organizerId: string;
   organizerName: string;
+  organizerEmail?: string;
   logo: string;
   likes: number;
   price?: number;
@@ -45,12 +48,12 @@ export function EventsPage() {
   const [events, setEvents] = useState<Event[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // pegar usuário do localStorage
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const u = localStorage.getItem('user');
-      // console.log('Usuário do localStorage:', u);
       return u ? JSON.parse(u) : null;
     } catch (err) {
       console.error('Erro ao parsear usuário:', err);
@@ -63,7 +66,6 @@ export function EventsPage() {
 
   // Buscar eventos e favoritos do usuário
   useEffect(() => {
-    // console.log('useEffect - currentUser:', currentUser);
     if (currentUser) {
       fetchEvents();
       fetchUserLikes();
@@ -72,17 +74,11 @@ export function EventsPage() {
 
   // Buscar eventos favoritos do usuário
   const fetchUserLikes = async () => {
-    if (!currentUser) {
-      // console.log('fetchUserLikes: usuário não logado');
-      return;
-    }
-
-    // console.log('fetchUserLikes - currentUser:', currentUser);
+    if (!currentUser) return;
 
     try {
       let query = supabase.from('favoritos_eventos').select('evento_id');
 
-      // Filtrar baseado no tipo de usuário
       if (currentUser.type === 'user') {
         query = query.eq('usuario_normal_id', currentUser.id);
       } else if (currentUser.type === 'organizer') {
@@ -96,12 +92,8 @@ export function EventsPage() {
         return;
       }
 
-      // console.log('Favoritos encontrados:', favorites);
-
-      // Obter os IDs dos favoritos
       const likedIds = favorites.map(fav => fav.evento_id);
 
-      // Verificar quais destes eventos ainda existem e são válidos
       if (likedIds.length > 0) {
         const { data: eventosValidos, error: eventosError } = await supabase
           .from('eventos')
@@ -112,20 +104,13 @@ export function EventsPage() {
         if (eventosError) {
           console.error('Erro ao verificar eventos válidos:', eventosError);
         } else {
-          // Filtrar apenas os IDs que correspondem a eventos válidos
           const idsValidos = eventosValidos.map(e => e.id);
-
-          // Opcionalmente, podes também verificar os organizadores
-          // Mas isso seria mais complexo e poderia ser feito na página de favoritos
-
-          // console.log('IDs válidos:', idsValidos);
           setLikedEvents(idsValidos);
           localStorage.setItem('cresceao_liked', JSON.stringify(idsValidos));
           return;
         }
       }
 
-      // Se não houver eventos para verificar ou se houver erro, usar os IDs originais
       setLikedEvents(likedIds);
       localStorage.setItem('cresceao_liked', JSON.stringify(likedIds));
 
@@ -139,25 +124,20 @@ export function EventsPage() {
     e.stopPropagation();
     e.preventDefault();
 
-    // console.log('handleLikeToggle - eventId:', eventId);
-    // console.log('handleLikeToggle - currentUser:', currentUser);
-
     if (!currentUser) {
-      // console.log('Usuário não logado, redirecionando para login');
       navigate('/login');
       return;
     }
 
+    // Buscar informações do evento para notificação
+    const evento = events.find(e => e.id === eventId);
+
     try {
       const isLiked = likedEvents.includes(eventId);
-      // console.log('Evento já é favorito?', isLiked);
-
       let query = supabase.from('favoritos_eventos');
 
       if (isLiked) {
-        // console.log('Removendo dos favoritos...');
-
-        // Construir query de deleção baseada no tipo de usuário
+        // Remover like
         if (currentUser.type === 'user') {
           query = query.delete()
             .eq('evento_id', eventId)
@@ -172,15 +152,8 @@ export function EventsPage() {
 
         if (error) {
           console.error('Erro ao remover favorito:', error);
-          console.error('Detalhes do erro:', {
-            code: error.code,
-            message: error.message,
-            details: error.details
-          });
           return;
         }
-
-        // console.log('Removido com sucesso');
 
         // Atualizar estado local
         const newLikedEvents = likedEvents.filter(id => id !== eventId);
@@ -197,9 +170,7 @@ export function EventsPage() {
         );
 
       } else {
-        // console.log('Adicionando aos favoritos...');
-
-        // Construir objeto de inserção baseado no tipo de usuário
+        // Adicionar like
         const insertData: any = {
           evento_id: eventId,
           created_at: new Date().toISOString()
@@ -217,15 +188,8 @@ export function EventsPage() {
 
         if (error) {
           console.error('Erro ao adicionar favorito:', error);
-          console.error('Detalhes do erro:', {
-            code: error.code,
-            message: error.message,
-            details: error.details
-          });
           return;
         }
-
-        // console.log('Adicionado com sucesso');
 
         // Atualizar estado local
         const newLikedEvents = [...likedEvents, eventId];
@@ -240,16 +204,49 @@ export function EventsPage() {
               : event
           )
         );
+
+        // 🔔 NOTIFICAÇÃO: Enviar notificação para o organizador quando receber um like
+        if (evento && currentUser.id !== evento.organizerId) {
+          // Verificar se o organizador é diferente do usuário atual
+          const { data: organizer } = await supabase
+            .from('organizadores')
+            .select('email_empresa, nome_empresa')
+            .eq('id', evento.organizerId)
+            .single();
+
+          if (organizer) {
+            // Mostrar notificação local (se o organizador estiver logado no mesmo navegador)
+            showLocalNotification(
+              '❤️ Novo Like!',
+              `${currentUser.name || currentUser.username || 'Alguém'} curtiu seu evento: ${evento.name}`
+            );
+
+            // Enviar email de notificação
+            await notificationService.sendEmailNotification(
+              {
+                id: `temp-${Date.now()}`,
+                usuario_id: evento.organizerId,
+                tipo_usuario: 'organizer',
+                titulo: 'Novo Like!',
+                mensagem: `${currentUser.name || currentUser.username || 'Um usuário'} curtiu seu evento: ${evento.name}`,
+                tipo: 'novo_like',
+                lida: false,
+                created_at: new Date().toISOString()
+              },
+              organizer.email_empresa,
+              organizer.nome_empresa
+            );
+          }
+        }
       }
     } catch (err) {
       console.error('Erro ao alternar like:', err);
     }
   };
 
-  // Função para formatar hora (remover segundos)
+  // Função para formatar hora
   const formatTime = (time: string) => {
     if (!time) return '';
-    // Se tiver no formato HH:MM:SS, pegar apenas HH:MM
     return time.split(':').slice(0, 2).join(':');
   };
 
@@ -259,9 +256,6 @@ export function EventsPage() {
       setIsLoading(true);
       setError(null);
 
-      // console.log('Buscando eventos...');
-
-      // Primeiro, buscar todos os eventos não deletados
       const { data: eventos, error: eventosError } = await supabase
         .from('eventos')
         .select('*')
@@ -274,54 +268,32 @@ export function EventsPage() {
         return;
       }
 
-      // console.log('Eventos encontrados:', eventos);
-
       if (!eventos || eventos.length === 0) {
         setEvents([]);
         return;
       }
 
-      // Filtrar apenas eventos cujo organizador não está deletado
       const eventosValidos = [];
 
       for (const evento of eventos) {
-        // Buscar organizador e verificar se não está deletado
         const { data: organizador, error: orgError } = await supabase
           .from('organizadores')
-          .select('nome_empresa, id, deleted_at, avatar_url')
+          .select('nome_empresa, id, deleted_at, avatar_url, email_empresa')
           .eq('id', evento.organizador_id)
           .single();
 
-        if (orgError) {
-          console.error(`Erro ao buscar organizador para evento ${evento.id}:`, orgError);
-          continue; // Pular este evento se não encontrar organizador
+        if (orgError || organizador?.deleted_at) {
+          continue;
         }
 
-        // Verificar se organizador está deletado
-        if (organizador.deleted_at) {
-          // console.log(`Evento ${evento.id} ignorado: organizador deletado`);
-          continue; // Pular este evento se organizador estiver deletado
-        }
-
-        // Buscar contagem de likes para este evento
-        const { count: likesCount, error: likesError } = await supabase
+        const { count: likesCount } = await supabase
           .from('favoritos_eventos')
           .select('*', { count: 'exact', head: true })
           .eq('evento_id', evento.id);
 
-        if (likesError) {
-          console.error(`Erro ao buscar likes para evento ${evento.id}:`, likesError);
-        }
-
         const hoje = new Date();
         const dataEvento = new Date(evento.data_evento);
-
-
-        let status = "A decorrer";
-
-        if (dataEvento < hoje) {
-          status = "Finalizado";
-        }
+        let status = dataEvento < hoje ? "Finalizado" : "A decorrer";
 
         eventosValidos.push({
           id: evento.id,
@@ -336,13 +308,13 @@ export function EventsPage() {
           image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
           status,
           organizerId: organizador.id,
+          organizerEmail: organizador.email_empresa,
           logo: organizador.avatar_url,
-          organizerName: organizador.nome_empresa || 'Organizador não identificado',
+          organizerName: organizador.nome_empresa || 'Organizador',
           likes: likesCount || 0
         });
       }
 
-      // console.log('Eventos válidos encontrados:', eventosValidos);
       setEvents(eventosValidos);
 
     } catch (err) {
@@ -355,9 +327,7 @@ export function EventsPage() {
 
   // redirecionar se não estiver logado
   useEffect(() => {
-    // console.log('Verificando autenticação - currentUser:', currentUser);
     if (!currentUser) {
-      // console.log('Usuário não logado, redirecionando para login');
       navigate('/login');
     }
   }, [currentUser, navigate]);
@@ -374,7 +344,6 @@ export function EventsPage() {
   const [selectedEventType, setSelectedEventType] = useState<string>('Todos');
   const [selectedPriceFilter, setSelectedPriceFilter] = useState<string>('Todos');
   const [sortBy, setSortBy] = useState<string>('Relevância');
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const onNavigateToProfile = () => {
     if (!currentUser) return;
@@ -450,46 +419,49 @@ export function EventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* Navbar */}
+      {/* Navbar com responsividade */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-6 flex-1">
-            <div
-              className="flex items-center"
-            >
-              <img
-                src={logo}
-                alt="Cresce.AO Logo"
-                className="h-10 w-auto object-contain"
-              />
+          {/* Logo */}
+          <div
+            className="flex items-center"
+          >
+            <img
+              src={logo}
+              alt="Cresce.AO Logo"
+              className="h-10 w-auto object-contain"
+            />
 
-              <span className="text-xl font-bold text-gray-900 tracking-tight">
-                Cresce<span className="text-orange-600">.AO</span>
-              </span>
-            </div>
-            <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
-              <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input
-                type="text"
-                placeholder="Buscar experiências"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none border-gray-200 py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
-              />
-            </div>
+            <span className="text-xl font-bold text-gray-900 tracking-tight">
+              Cresce<span className="text-orange-600">.AO</span>
+            </span>
           </div>
 
+          {/* Search Bar - Desktop */}
+          <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
+            <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
+            <input
+              type="text"
+              placeholder="Buscar experiências"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="flex-1 bg-transparent border-none border-gray-200 py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
+            />
+          </div>
+
+          {/* Desktop Actions */}
           <div className="hidden lg:flex items-center gap-4">
             {currentUser.type === 'organizer' && (
               <>
-                <Button variant="ghost" onClick={() => navigate('/create-event')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
+                <Button variant="ghost" onClick={() => navigate('/create-event')} className="text-gray-600 hover:text-orange-600 flex gap-2 text-sm">
                   <PlusCircle className="w-5 h-5" /> Criar evento
                 </Button>
-                <Button variant="ghost" onClick={() => navigate('/organizer-dashboard')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
+                <Button variant="ghost" onClick={() => navigate('/organizer-dashboard')} className="text-gray-600 hover:text-orange-600 flex gap-2 text-sm">
                   <LayoutDashboard className="w-5 h-5" /> Meus eventos
                 </Button>
               </>
             )}
+
             <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
               <Heart className="w-5 h-5" />
               Favoritos
@@ -498,29 +470,122 @@ export function EventsPage() {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button variant="ghost" className="rounded-full w-10 h-10 cursor-pointer p-0 border border-gray-200">
-                  <User className="w-5 h-5 text-gray-600" />
+                <Button variant="ghost" className="rounded-full w-8 h-8 sm:w-10 sm:h-10 p-0 border border-gray-200">
+                  <User className="w-4 h-4 sm:w-5 sm:h-5 text-gray-600" />
                 </Button>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-56">
-                <DropdownMenuItem className="text-sm font-medium">
+              <DropdownMenuContent align="end" className="w-48 sm:w-56">
+                <DropdownMenuItem className="text-sm font-medium truncate">
                   {currentUser.type === "organizer" ? currentUser.name : currentUser.username}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onNavigateToProfile} className="cursor-pointer">Perfil</DropdownMenuItem>
+                <DropdownMenuItem onClick={onNavigateToProfile}>Perfil</DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onLogout} className="cursor-pointer text-red-600">
-                  <LogOut className="w-5 h-5 mr-2" />
+                <DropdownMenuItem onClick={onLogout} className="text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
                   Sair
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="lg:hidden p-2 text-gray-600 hover:text-orange-600"
+          >
+            {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          </button>
         </div>
+
+        {/* Mobile Menu */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-t border-gray-200 bg-white shadow-lg">
+            {/* Mobile Search */}
+            <div className="p-4 border-b border-gray-100">
+              <div className="flex items-center bg-gray-100 rounded-lg border border-gray-200">
+                <div className="pl-3 text-gray-400">
+                  <Search className="w-5 h-5" />
+                </div>
+                <input
+                  type="text"
+                  placeholder="Buscar experiências"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Mobile Actions */}
+            <div className="p-4 space-y-2">
+              {currentUser.type === 'organizer' && (
+                <>
+                  <button
+                    onClick={() => {
+                      navigate('/create-event');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg"
+                  >
+                    <PlusCircle className="w-5 h-5 text-orange-600" />
+                    <span>Criar evento</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      navigate('/organizer-dashboard');
+                      setMobileMenuOpen(false);
+                    }}
+                    className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg"
+                  >
+                    <LayoutDashboard className="w-5 h-5 text-orange-600" />
+                    <span>Meus eventos</span>
+                  </button>
+                </>
+              )}
+
+              <button
+                onClick={() => {
+                  navigate('/favorites');
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg"
+              >
+                <Heart className="w-5 h-5 text-red-500" />
+                <span>Favoritos</span>
+              </button>
+
+              <Separator className="my-2" />
+
+              <button
+                onClick={() => {
+                  onNavigateToProfile();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg"
+              >
+                <User className="w-5 h-5 text-orange-600" />
+                <span>Perfil</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  onLogout();
+                  setMobileMenuOpen(false);
+                }}
+                className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg"
+              >
+                <LogOut className="w-5 h-5" />
+                <span>Sair</span>
+              </button>
+            </div>
+          </div>
+        )}
       </header>
 
-      {/* Main Content */}
+      {/* Main Content (restante do código permanece igual) */}
       <main className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* ... resto do conteúdo ... */}
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
           <span className="hover:text-orange-600 cursor-pointer">Página inicial</span>
           <ChevronRight className="w-4 h-4" />
@@ -533,26 +598,22 @@ export function EventsPage() {
             <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Encontre eventos</h1>
           </div>
 
-          {/* Filters Bar */}
+          {/* Filters Bar - Scroll horizontal em mobile */}
           <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-            {/* Filter Groups */}
             <div className="flex items-center gap-2 md:gap-4 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
               <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filtrar por</span>
 
               {/* Category Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-9 sm:h-10 text-sm">
                     {selectedCategory === 'Todas' ? 'Categoria' : selectedCategory}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
                   {categories.map(cat => (
-                    <DropdownMenuItem
-                      key={cat}
-                      onClick={() => setSelectedCategory(cat)}
-                    >
+                    <DropdownMenuItem key={cat} onClick={() => setSelectedCategory(cat)}>
                       {cat === "Todas" ? "Todas" : categoryLabels[cat]}
                     </DropdownMenuItem>
                   ))}
@@ -562,7 +623,7 @@ export function EventsPage() {
               {/* Date Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-9 sm:h-10 text-sm">
                     {selectedDateFilter === 'Todas' ? 'Data' : selectedDateFilter}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -579,7 +640,7 @@ export function EventsPage() {
               {/* Price Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-9 sm:h-10 text-sm">
                     {selectedPriceFilter === 'Todos' ? 'Preço' : selectedPriceFilter}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -596,7 +657,7 @@ export function EventsPage() {
               {/* Type Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-10">
+                  <Button variant="outline" className="rounded-full border-gray-300 cursor-pointer text-gray-700 hover:border-orange-500 hover:text-orange-600 h-9 sm:h-10 text-sm">
                     {selectedEventType === 'Todos' ? 'Tipo Evento' : selectedEventType}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -616,7 +677,7 @@ export function EventsPage() {
               <span className="text-sm font-semibold text-gray-700">Ordenar por</span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 hover:border-orange-200 h-10 px-4">
+                  <Button variant="outline" className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 hover:border-orange-200 h-9 sm:h-10 px-3 sm:px-4 text-sm">
                     {sortBy}
                     <ChevronDown className="w-4 h-4 ml-2" />
                   </Button>
@@ -700,7 +761,6 @@ export function EventsPage() {
                     }}
                   />
 
-                  {/* Overlay gradient on hover */}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
                   {/* Category Badge */}
@@ -709,7 +769,6 @@ export function EventsPage() {
                       {categoryLabels[event.category]}
                     </Badge>
                   </div>
-
 
                   {/* Likes Badge */}
                   <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
@@ -726,22 +785,13 @@ export function EventsPage() {
                     </button>
                   </div>
 
+                  {/* Status Badge */}
                   <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
                     <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'
                       }`}>
                       {event.status}
                     </span>
                   </div>
-
-
-                  {/* Status/Type Badge */}
-                  {/* <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                    <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.eventType === 'presencial' ? 'text-blue-600' :
-                      event.eventType === 'online' ? 'text-green-600' : 'text-orange-600'
-                      }`}>
-                      {event.eventType}
-                    </span>
-                  </div> */}
                 </div>
 
                 {/* Event Details */}
@@ -767,16 +817,16 @@ export function EventsPage() {
 
                   <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
                     <div className="flex items-center gap-2">
-
-                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-1xl font-bold flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
                         {event.logo ? (
-                          <img src={event.logo} alt={event.name} className="w-6 h-6 rounded-full object-cover" />
+                          <img src={event.logo} alt={event.name} className="w-full h-full rounded-full object-cover" />
                         ) : (
-                          event.name.charAt(0).toUpperCase()
+                          event.organizerName.charAt(0).toUpperCase()
                         )}
                       </div>
-
-                      <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">{event.organizerName}</span>
+                      <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[100px] sm:max-w-[120px] transition-colors duration-300">
+                        {event.organizerName}
+                      </span>
                     </div>
                     <span className="text-sm font-bold text-green-600 group-hover:text-orange-600 group-hover:scale-110 transition-all duration-300">
                       {event.price ? `${event.price.toLocaleString()} Kz` : 'Grátis'}
