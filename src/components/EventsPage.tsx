@@ -9,6 +9,7 @@ import { EventCardSkeleton } from './EventCardSkeleton';
 import { Footer } from './Footer';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
+import { PushNotificationPrompt } from '../components/PushotificationsPrompt';
 
 export type UserType = 'user' | 'organizer';
 
@@ -49,7 +50,7 @@ export function EventsPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(() => {
     try {
       const u = localStorage.getItem('user');
-      console.log('Usuário do localStorage:', u);
+      // console.log('Usuário do localStorage:', u);
       return u ? JSON.parse(u) : null;
     } catch (err) {
       console.error('Erro ao parsear usuário:', err);
@@ -62,7 +63,7 @@ export function EventsPage() {
 
   // Buscar eventos e favoritos do usuário
   useEffect(() => {
-    console.log('useEffect - currentUser:', currentUser);
+    // console.log('useEffect - currentUser:', currentUser);
     if (currentUser) {
       fetchEvents();
       fetchUserLikes();
@@ -72,11 +73,11 @@ export function EventsPage() {
   // Buscar eventos favoritos do usuário
   const fetchUserLikes = async () => {
     if (!currentUser) {
-      console.log('fetchUserLikes: usuário não logado');
+      // console.log('fetchUserLikes: usuário não logado');
       return;
     }
 
-    console.log('fetchUserLikes - currentUser:', currentUser);
+    // console.log('fetchUserLikes - currentUser:', currentUser);
 
     try {
       let query = supabase.from('favoritos_eventos').select('evento_id');
@@ -95,7 +96,7 @@ export function EventsPage() {
         return;
       }
 
-      console.log('Favoritos encontrados:', favorites);
+      // console.log('Favoritos encontrados:', favorites);
 
       // Obter os IDs dos favoritos
       const likedIds = favorites.map(fav => fav.evento_id);
@@ -117,7 +118,7 @@ export function EventsPage() {
           // Opcionalmente, podes também verificar os organizadores
           // Mas isso seria mais complexo e poderia ser feito na página de favoritos
 
-          console.log('IDs válidos:', idsValidos);
+          // console.log('IDs válidos:', idsValidos);
           setLikedEvents(idsValidos);
           localStorage.setItem('cresceao_liked', JSON.stringify(idsValidos));
           return;
@@ -138,23 +139,23 @@ export function EventsPage() {
     e.stopPropagation();
     e.preventDefault();
 
-    console.log('handleLikeToggle - eventId:', eventId);
-    console.log('handleLikeToggle - currentUser:', currentUser);
+    // console.log('handleLikeToggle - eventId:', eventId);
+    // console.log('handleLikeToggle - currentUser:', currentUser);
 
     if (!currentUser) {
-      console.log('Usuário não logado, redirecionando para login');
+      // console.log('Usuário não logado, redirecionando para login');
       navigate('/login');
       return;
     }
 
     try {
       const isLiked = likedEvents.includes(eventId);
-      console.log('Evento já é favorito?', isLiked);
+      // console.log('Evento já é favorito?', isLiked);
 
       let query = supabase.from('favoritos_eventos');
 
       if (isLiked) {
-        console.log('Removendo dos favoritos...');
+        // console.log('Removendo dos favoritos...');
 
         // Construir query de deleção baseada no tipo de usuário
         if (currentUser.type === 'user') {
@@ -179,7 +180,7 @@ export function EventsPage() {
           return;
         }
 
-        console.log('Removido com sucesso');
+        // console.log('Removido com sucesso');
 
         // Atualizar estado local
         const newLikedEvents = likedEvents.filter(id => id !== eventId);
@@ -196,7 +197,7 @@ export function EventsPage() {
         );
 
       } else {
-        console.log('Adicionando aos favoritos...');
+        // console.log('Adicionando aos favoritos...');
 
         // Construir objeto de inserção baseado no tipo de usuário
         const insertData: any = {
@@ -224,7 +225,7 @@ export function EventsPage() {
           return;
         }
 
-        console.log('Adicionado com sucesso');
+        // console.log('Adicionado com sucesso');
 
         // Atualizar estado local
         const newLikedEvents = [...likedEvents, eventId];
@@ -258,7 +259,7 @@ export function EventsPage() {
       setIsLoading(true);
       setError(null);
 
-      console.log('Buscando eventos...');
+      // console.log('Buscando eventos...');
 
       // Primeiro, buscar todos os eventos não deletados
       const { data: eventos, error: eventosError } = await supabase
@@ -273,7 +274,7 @@ export function EventsPage() {
         return;
       }
 
-      console.log('Eventos encontrados:', eventos);
+      // console.log('Eventos encontrados:', eventos);
 
       if (!eventos || eventos.length === 0) {
         setEvents([]);
@@ -298,7 +299,7 @@ export function EventsPage() {
 
         // Verificar se organizador está deletado
         if (organizador.deleted_at) {
-          console.log(`Evento ${evento.id} ignorado: organizador deletado`);
+          // console.log(`Evento ${evento.id} ignorado: organizador deletado`);
           continue; // Pular este evento se organizador estiver deletado
         }
 
@@ -341,7 +342,7 @@ export function EventsPage() {
         });
       }
 
-      console.log('Eventos válidos encontrados:', eventosValidos);
+      // console.log('Eventos válidos encontrados:', eventosValidos);
       setEvents(eventosValidos);
 
     } catch (err) {
@@ -354,9 +355,9 @@ export function EventsPage() {
 
   // redirecionar se não estiver logado
   useEffect(() => {
-    console.log('Verificando autenticação - currentUser:', currentUser);
+    // console.log('Verificando autenticação - currentUser:', currentUser);
     if (!currentUser) {
-      console.log('Usuário não logado, redirecionando para login');
+      // console.log('Usuário não logado, redirecionando para login');
       navigate('/login');
     }
   }, [currentUser, navigate]);
@@ -766,7 +767,7 @@ export function EventsPage() {
 
                   <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
                     <div className="flex items-center gap-2">
-                      
+
                       <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-1xl font-bold flex-shrink-0">
                         {event.logo ? (
                           <img src={event.logo} alt={event.name} className="w-6 h-6 rounded-full object-cover" />
@@ -785,6 +786,13 @@ export function EventsPage() {
               </div>
             ))}
           </div>
+        )}
+
+        {currentUser && (
+          <PushNotificationPrompt
+            userId={currentUser.id}
+            userType={currentUser.type}
+          />
         )}
       </main>
 
