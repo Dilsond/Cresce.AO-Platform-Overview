@@ -160,6 +160,8 @@ export function CreateEvent() {
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
             const filePath = fileName;
 
+            console.log(`📤 Fazendo upload para ${bucket}:`, fileName);
+
             const { error: uploadError } = await supabase.storage
                 .from(bucket)
                 .upload(filePath, file, {
@@ -168,7 +170,14 @@ export function CreateEvent() {
                 });
 
             if (uploadError) {
-                console.error(`Erro ao fazer upload para ${bucket}:`, uploadError);
+                console.error(`❌ Erro ao fazer upload para ${bucket}:`, uploadError);
+
+                // Mensagem de erro mais amigável
+                if (uploadError.message.includes('row-level security')) {
+                    throw new Error(`Erro de permissão no bucket "${bucket}". Contacte o administrador.`);
+                } else if (uploadError.message.includes('duplicate')) {
+                    throw new Error('Arquivo já existe. Tente novamente.');
+                }
                 throw uploadError;
             }
 
@@ -176,6 +185,7 @@ export function CreateEvent() {
                 .from(bucket)
                 .getPublicUrl(filePath);
 
+            console.log(`✅ Upload concluído:`, publicUrl);
             return publicUrl;
         } catch (err) {
             console.error('Erro no upload:', err);
