@@ -61,6 +61,11 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "vite build"
+    "build": "vite build",
+    "preview": "vite preview",
+    "netlify:build": "npm run build"
+  },
+  "build": {
+    "outDir": "dist"
   }
 }
