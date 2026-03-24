@@ -1,7 +1,16 @@
 {
-  "name": "Cresce.AO Platform Overview",
+  "name": "cresceao-platform",
   "version": "0.1.0",
   "private": true,
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
     "@google/generative-ai": "^0.24.1",
@@ -31,41 +40,30 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-toggle-group": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
-    "@supabase/supabase-js": "^2.98.0",
+    "@supabase/supabase-js": "^2.49.1",
     "class-variance-authority": "^0.7.1",
-    "clsx": "*",
+    "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.487.0",
-    "motion": "*",
+    "motion": "^12.5.0",
     "next-themes": "^0.4.6",
-    "openai": "^6.27.0",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.55.0",
     "react-resizable-panels": "^2.1.7",
-    "react-router-dom": "^7.13.1",
+    "react-router-dom": "^6.22.0",
     "recharts": "^2.15.2",
     "sonner": "^2.0.3",
-    "tailwind-merge": "*",
+    "tailwind-merge": "^2.6.0",
     "vaul": "^1.1.2",
-    "vite-plugin-pwa": "^1.2.0",
-    "web-push": "^3.6.7"
+    "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.10.0",
     "@vitejs/plugin-react-swc": "^3.10.2",
-    "vite": "6.3.5"
-  },
-  "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview",
-    "netlify:build": "npm run build"
-  },
-  "build": {
-    "outDir": "dist"
+    "vite": "^5.4.0"
   }
 }
