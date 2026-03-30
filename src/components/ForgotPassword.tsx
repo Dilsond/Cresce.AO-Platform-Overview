@@ -537,10 +537,10 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 return;
             }
 
-            if (import.meta.env.DEV) {
-                console.log('⚠️ MODO DESENVOLVIMENTO - Novo código:', codigoGerado);
-                alert(`NOVO CÓDIGO (DEV): ${codigoGerado}`);
-            }
+            // if (import.meta.env.DEV) {
+            //     console.log('⚠️ MODO DESENVOLVIMENTO - Novo código:', codigoGerado);
+            //     alert(`NOVO CÓDIGO (DEV): ${codigoGerado}`);
+            // }
 
             setSuccess('Novo código enviado! Verifique seu email.');
             startCountdown();
@@ -818,7 +818,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                             Lembrou sua senha?{' '}
                             <button
                                 onClick={onBack}
-                                className="text-orange-600 hover:text-orange-700 font-semibold transition-colors"
+                                className="text-orange-600 cursor-pointer hover:text-orange-700 font-semibold transition-colors"
                             >
                                 Voltar ao login
                             </button>

@@ -87,7 +87,7 @@ export default defineConfig({
   // Configuração importante para SPA no Netlify
   base: "./",
   server: {
-    host: '0.0.0.0',
+    // host: '0.0.0.0',
     port: 3000,
     open: true,
     strictPort: false,

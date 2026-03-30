@@ -12,12 +12,28 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Função auxiliar para gerar hash SHA-256 (igual ao mock_hash_password)
-  async function sha256(message: string) {
-    const msgBuffer = new TextEncoder().encode(message);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  // Função auxiliar para gerar hash SHA-256 (compatível com todos os navegadores)
+  async function sha256(message: string): Promise<string> {
+    // Verificar se a API Crypto está disponível
+    if (!window.crypto || !window.crypto.subtle) {
+      console.error('❌ Crypto API não disponível neste ambiente');
+      // Fallback para desenvolvimento (NÃO USAR EM PRODUÇÃO)
+      if (import.meta.env.DEV) {
+        console.warn('⚠️ Usando fallback inseguro para hash');
+        return message;
+      }
+      throw new Error('Ambiente não seguro para autenticação');
+    }
+
+    try {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    } catch (err) {
+      console.error('❌ Erro ao gerar hash:', err);
+      throw new Error('Erro ao processar senha');
+    }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,17 +41,26 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
     setIsLoading(true);
     setError(null);
 
+    // Validação básica
+    if (!email || !password) {
+      setError('Por favor, preencha todos os campos');
+      setIsLoading(false);
+      return;
+    }
+
     try {
+      console.log('🔍 Buscando usuário normal:', email);
+
       // Buscar usuário na tabela pelo email
       const { data: userData, error: userError } = await supabase
         .from('usuarios_normais')
         .select('*')
         .eq('email', email)
-        .maybeSingle(); // NÃO filtramos por senha diretamente, porque agora é hash
+        .maybeSingle();
 
       if (userError) {
-        console.error(userError);
-        setError('Erro ao consultar usuário.');
+        console.error('❌ Erro ao buscar usuário:', userError);
+        setError('Erro ao consultar usuário. Tente novamente.');
         setIsLoading(false);
         return;
       }
@@ -52,12 +77,21 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
         return;
       }
 
-      // Gerar hash da senha digitada
-      const hashedInputPassword = '$2a$10$' + await sha256(password); // ou use bcrypt
+      console.log('✅ Usuário encontrado, verificando senha...');
 
-      // Comparar com o hash armazenado no banco
-      if (userData.senha !== hashedInputPassword) {
-        setError('Email ou senha incorretos.');
+      try {
+        // Gerar hash da senha digitada
+        const hashedInputPassword = '$2a$10$' + await sha256(password);
+        
+        // Comparar com o hash armazenado no banco
+        if (userData.senha !== hashedInputPassword) {
+          setError('Email ou senha incorretos.');
+          setIsLoading(false);
+          return;
+        }
+      } catch (hashError) {
+        console.error('❌ Erro ao verificar senha:', hashError);
+        setError('Erro ao processar senha. Tente novamente.');
         setIsLoading(false);
         return;
       }
@@ -68,15 +102,16 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
         name: userData.nome_completo,
         email: userData.email,
         username: userData.nome_utilizador,
-        type: 'user'
+        type: 'user' as const
       };
 
+      console.log('✅ Login bem-sucedido:', user.email);
       localStorage.setItem('user', JSON.stringify(user));
       onLogin(user);
 
     } catch (err) {
-      console.error(err);
-      setError('Erro inesperado. Tente novamente.');
+      console.error('❌ Erro inesperado:', err);
+      setError('Ocorreu um erro inesperado. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
