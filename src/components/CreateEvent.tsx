@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart } from 'lucide-react';
+import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart, Bell } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
+import { emailService } from '../services/emailService';
+import { showLocalNotification } from '../lib/pushNotifications';
 import logo from "../assets/logo.png";
 
 interface User {
@@ -17,6 +19,8 @@ export function CreateEvent() {
     const [user, setUser] = useState<User | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [seguidoresCount, setSeguidoresCount] = useState(0);
+    const [notificacaoEnviada, setNotificacaoEnviada] = useState(false);
 
     // Form state
     const [formData, setFormData] = useState({
@@ -37,13 +41,37 @@ export function CreateEvent() {
     const [videoFile, setVideoFile] = useState<File | null>(null);
     const [pdfFile, setPdfFile] = useState<File | null>(null);
 
+    // Buscar número de seguidores
+    useEffect(() => {
+        if (user) {
+            fetchSeguidoresCount();
+        }
+    }, [user]);
+
+    const fetchSeguidoresCount = async () => {
+        if (!user) return;
+
+        try {
+            const { count, error } = await supabase
+                .from('favoritos_organizadores')
+                .select('*', { count: 'exact', head: true })
+                .eq('organizador_favoritado_id', user.id);
+
+            if (!error && count !== null) {
+                setSeguidoresCount(count);
+            }
+        } catch (err) {
+            console.error('Erro ao buscar seguidores:', err);
+        }
+    };
+
     // Verificar usuário logado
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
-                console.log('Usuário carregado:', parsedUser);
+                // console.log('Usuário carregado:', parsedUser);
 
                 // Verificar se é organizador
                 if (parsedUser.type !== 'organizer') {
@@ -160,7 +188,7 @@ export function CreateEvent() {
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
             const filePath = fileName;
 
-            console.log(`📤 Fazendo upload para ${bucket}:`, fileName);
+            // console.log(`📤 Fazendo upload para ${bucket}:`, fileName);
 
             const { error: uploadError } = await supabase.storage
                 .from(bucket)
@@ -172,7 +200,6 @@ export function CreateEvent() {
             if (uploadError) {
                 console.error(`❌ Erro ao fazer upload para ${bucket}:`, uploadError);
 
-                // Mensagem de erro mais amigável
                 if (uploadError.message.includes('row-level security')) {
                     throw new Error(`Erro de permissão no bucket "${bucket}". Contacte o administrador.`);
                 } else if (uploadError.message.includes('duplicate')) {
@@ -185,11 +212,72 @@ export function CreateEvent() {
                 .from(bucket)
                 .getPublicUrl(filePath);
 
-            console.log(`✅ Upload concluído:`, publicUrl);
+            // console.log(`✅ Upload concluído:`, publicUrl);
             return publicUrl;
         } catch (err) {
             console.error('Erro no upload:', err);
             return null;
+        }
+    };
+
+    // Função para enviar notificações manualmente (fallback)
+    const enviarNotificacoesManualmente = async (eventoId: string, eventoNome: string) => {
+        try {
+            // Buscar seguidores
+            const { data: seguidores, error } = await supabase
+                .from('favoritos_organizadores')
+                .select(`
+                    usuario_normal_id,
+                    usuarios_normais (
+                        nome_completo,
+                        email
+                    )
+                `)
+                .eq('organizador_favoritado_id', user!.id);
+
+            if (error) throw error;
+
+            // console.log(`📢 Enviando notificações para ${seguidores?.length || 0} seguidores`);
+
+            // Para cada seguidor, criar notificação
+            for (const seguidor of seguidores || []) {
+                const seguidorData = seguidor.usuarios_normais;
+                if (!seguidorData) continue;
+
+                // Inserir notificação no banco
+                await supabase
+                    .from('notificacoes')
+                    .insert({
+                        usuario_id: seguidor.usuario_normal_id,
+                        tipo_usuario: 'user',
+                        titulo: '📢 Novo Evento!',
+                        mensagem: `${user?.name} criou um novo evento: ${eventoNome}`,
+                        tipo: 'novo_evento'
+                    });
+
+                // Tentar enviar email (fallback)
+                try {
+                    await emailService.sendNotification({
+                        to_email: seguidorData.email,
+                        to_name: seguidorData.nome_completo,
+                        assunto: `📢 Novo Evento: ${eventoNome}`,
+                        titulo: 'Novo Evento Disponível!',
+                        mensagem: `${user?.name} acabou de criar um novo evento: ${eventoNome}. Não perca!`
+                    });
+                } catch (emailErr) {
+                    console.error('Erro ao enviar email:', emailErr);
+                }
+
+                // Mostrar notificação local (se o seguidor estiver logado)
+                // showLocalNotification(
+                //     '📢 Novo Evento!',
+                //     `${user?.name} criou um novo evento: ${eventoNome}`
+                // );
+            }
+
+            setNotificacaoEnviada(true);
+        } catch (err) {
+            console.error('Erro ao enviar notificações manualmente:', err);
         }
     };
 
@@ -203,64 +291,40 @@ export function CreateEvent() {
 
         setIsLoading(true);
         setError(null);
+        setNotificacaoEnviada(false);
 
         try {
             // Validações
-            if (!formData.nome_evento) {
-                throw new Error('O nome do evento é obrigatório');
-            }
-
-            if (!formData.data_evento) {
-                throw new Error('A data do evento é obrigatória');
-            }
-
-            if (!formData.hora_evento) {
-                throw new Error('A hora do evento é obrigatória');
-            }
-
+            if (!formData.nome_evento) throw new Error('O nome do evento é obrigatório');
+            if (!formData.data_evento) throw new Error('A data do evento é obrigatória');
+            if (!formData.hora_evento) throw new Error('A hora do evento é obrigatória');
             if (!formData.local && formData.tipo_evento !== 'online') {
                 throw new Error('O local do evento é obrigatório para eventos presenciais ou híbridos');
             }
+            if (!imageFile) throw new Error('A imagem do evento é obrigatória');
 
-            if (!imageFile) {
-                throw new Error('A imagem do evento é obrigatória');
-            }
+            // console.log('Iniciando criação do evento para organizador:', user.id);
+            // console.log(`📢 Este organizador tem ${seguidoresCount} seguidores que serão notificados!`);
 
-            console.log('Iniciando criação do evento para organizador:', user.id);
-
-            // Upload da imagem (obrigatório)
-            console.log('Fazendo upload da imagem...');
+            // Upload da imagem
             const imageUrl = await uploadFile(imageFile, 'event-images');
-            if (!imageUrl) {
-                throw new Error('Erro ao fazer upload da imagem');
-            }
-            console.log('Imagem enviada:', imageUrl);
+            if (!imageUrl) throw new Error('Erro ao fazer upload da imagem');
 
             // Upload do vídeo (opcional)
             let videoUrl = null;
             if (videoFile) {
-                console.log('Fazendo upload do vídeo...');
                 videoUrl = await uploadFile(videoFile, 'event-videos');
-                if (!videoUrl) {
-                    throw new Error('Erro ao fazer upload do vídeo');
-                }
-                console.log('Vídeo enviado:', videoUrl);
+                if (!videoUrl) throw new Error('Erro ao fazer upload do vídeo');
             }
 
             // Upload do PDF (opcional)
             let pdfUrl = null;
             if (pdfFile) {
-                console.log('Fazendo upload do PDF...');
                 pdfUrl = await uploadFile(pdfFile, 'event-pdfs');
-                if (!pdfUrl) {
-                    throw new Error('Erro ao fazer upload do PDF');
-                }
-                console.log('PDF enviado:', pdfUrl);
+                if (!pdfUrl) throw new Error('Erro ao fazer upload do PDF');
             }
 
-            console.log('Inserindo evento no banco de dados...');
-
-            // Inserir evento no banco
+            // Inserir evento no banco (O TRIGGER vai notificar os seguidores automaticamente)
             const { data: newEvent, error: insertError } = await supabase
                 .from('eventos')
                 .insert([
@@ -290,7 +354,13 @@ export function CreateEvent() {
                 throw new Error('Erro ao salvar evento no banco de dados: ' + insertError.message);
             }
 
-            console.log('Evento criado com sucesso:', newEvent);
+            // console.log('✅ Evento criado com sucesso:', newEvent);
+            // console.log('📢 Notificações serão enviadas para os seguidores via trigger do banco!');
+
+            // Fallback manual (caso o trigger não funcione)
+            if (seguidoresCount > 0) {
+                await enviarNotificacoesManualmente(newEvent.id, newEvent.nome_evento);
+            }
 
             // Redirecionar para a página do evento
             navigate(`/event/${newEvent.id}`);
@@ -327,15 +397,8 @@ export function CreateEvent() {
                         <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                         <span className="font-medium">Voltar</span>
                     </button>
-                    <div
-                        className="flex items-center"
-                    >
-                        <img
-                            src={logo}
-                            alt="Cresce.AO Logo"
-                            className="h-10 w-auto object-contain"
-                        />
-
+                    <div className="flex items-center">
+                        <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
                         <span className="text-xl font-bold text-gray-900 tracking-tight">
                             Cresce<span className="text-orange-600">.AO</span>
                         </span>
@@ -345,26 +408,41 @@ export function CreateEvent() {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-
+                {/* Banner com informação de seguidores */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white"
+                    className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white mb-8"
                 >
                     <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
                     <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-                    <div className="relative z-10 flex items-center justify-between">
-                        <div>
-                            <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Área de Eventos</p>
-                            <h1 className="text-4xl md:text-5xl font-bold mb-2">Criação de Eventos</h1>
+                    <div className="relative z-10">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Área de Eventos</p>
+                                <h1 className="text-4xl md:text-5xl font-bold mb-2">Criação de Eventos</h1>
+                                {seguidoresCount > 0 && (
+                                    <div className="flex items-center gap-2 mt-4 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 w-fit">
+                                        <Bell className="w-5 h-5" />
+                                        <span className="text-sm font-medium">
+                                            {seguidoresCount} {seguidoresCount === 1 ? 'seguidor' : 'seguidores'} serão notificados
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+                            {notificacaoEnviada && (
+                                <div className="bg-green-500/80 backdrop-blur-sm rounded-xl px-4 py-2">
+                                    <span className="text-sm font-medium">✅ Notificações enviadas!</span>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </motion.div>
 
-                <form onSubmit={handleSubmit} className="space-y-6 py-12">
+                <form onSubmit={handleSubmit} className="space-y-6">
                     {/* Mensagem de erro */}
                     {error && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg">
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
                             <p className="text-red-600 text-sm">{error}</p>
                         </div>
                     )}
@@ -377,7 +455,7 @@ export function CreateEvent() {
                             {/* Nome do Evento */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Nome do Evento *
+                                    Nome do Evento
                                 </label>
                                 <input
                                     type="text"
@@ -393,7 +471,7 @@ export function CreateEvent() {
                             {/* Categoria */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Categoria *
+                                    Categoria
                                 </label>
                                 <select
                                     name="categoria"
@@ -414,7 +492,7 @@ export function CreateEvent() {
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Data *
+                                        Data
                                     </label>
                                     <input
                                         type="date"
@@ -427,7 +505,7 @@ export function CreateEvent() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hora *
+                                        Hora
                                     </label>
                                     <input
                                         type="time"
@@ -443,7 +521,7 @@ export function CreateEvent() {
                             {/* Tipo de Evento */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tipo de Evento *
+                                    Tipo de Evento
                                 </label>
                                 <select
                                     name="tipo_evento"
@@ -460,11 +538,11 @@ export function CreateEvent() {
                                 </select>
                             </div>
 
-                            {/* Local (para eventos presenciais ou híbridos) */}
+                            {/* Local */}
                             {(formData.tipo_evento === 'presencial' || formData.tipo_evento === 'hibrido') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Local do Evento *
+                                        Local do Evento
                                     </label>
                                     <input
                                         type="text"
@@ -478,7 +556,6 @@ export function CreateEvent() {
                                 </div>
                             )}
 
-                            {/* Link para eventos online */}
                             {formData.tipo_evento === 'online' && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">

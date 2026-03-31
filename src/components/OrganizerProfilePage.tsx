@@ -1,10 +1,10 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff, UserCheck, UserPlus } from "lucide-react";
+import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff, UserCheck, UserPlus, User } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EventCardSkeleton } from "./EventCardSkeleton";
 import { notificationService } from "../services/notificationService";
-import { showLocalNotification } from "../lib/pushNotifications";
+import { showLocalNotification, sendPushNotification } from "../lib/pushNotifications";
 import { emailService } from "../services/emailService";
 import logo from "../assets/logo.png";
 
@@ -52,8 +52,6 @@ export default function OrganizerProfilePage() {
     try {
       setIsLoading(true);
       setError(null);
-
-      console.log("Buscando eventos do organizador:", id);
 
       // Buscar informações do organizador
       const { data: organizer, error: orgError } = await supabase
@@ -164,6 +162,44 @@ export default function OrganizerProfilePage() {
     }
   };
 
+  // Função para verificar se o organizador está logado no mesmo navegador
+  const isOrganizadorLogado = async (organizadorId: string): Promise<boolean> => {
+    try {
+      // Pegar usuário logado do localStorage
+      const loggedUser = localStorage.getItem('user');
+      if (!loggedUser) return false;
+
+      const user = JSON.parse(loggedUser);
+
+      // Verificar se o usuário logado é um organizador e se é o mesmo ID
+      if (user.type === 'organizer' && user.id === organizadorId) {
+        console.log('✅ Organizador está logado no mesmo navegador');
+        return true;
+      }
+
+      // Verificar também via Supabase se há sessão ativa (para garantir)
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data: organizador } = await supabase
+          .from('organizadores')
+          .select('id')
+          .eq('id', organizadorId)
+          .single();
+
+        if (organizador && session.user.id === organizador.id) {
+          console.log('✅ Organizador autenticado via Supabase');
+          return true;
+        }
+      }
+
+      console.log('❌ Organizador não está logado neste navegador');
+      return false;
+    } catch (error) {
+      console.error('Erro ao verificar se organizador está logado:', error);
+      return false;
+    }
+  };
+
   const handleFavoriteToggle = async () => {
     if (!currentUser) {
       alert("Faça login para favoritar organizadores");
@@ -208,37 +244,46 @@ export default function OrganizerProfilePage() {
         setIsFavorite(true);
         setFavoriteCount(prev => prev + 1);
 
-        // 🔔 NOTIFICAÇÃO: Enviar email para o organizador
+        // 🔔 NOTIFICAÇÕES
         const isDifferentUser = organizerInfo && currentUser.id !== organizerInfo.id;
 
-        // Dentro do handleFavoriteToggle, após adicionar o favorito
         if (isDifferentUser && organizerInfo?.email_empresa) {
-          console.log('📧 Enviando email de notificação para:', organizerInfo.email_empresa);
-
+          // 1. Enviar email
           try {
-            // Enviar email via EmailJS
-            const emailResult = await emailService.sendNotification({
+            await emailService.sendNotification({
               to_email: organizerInfo.email_empresa,
               to_name: organizerInfo.nome_empresa,
               assunto: '👥 Novo Seguidor!',
               titulo: 'Você ganhou um novo seguidor!',
-              mensagem: `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir sua organização na plataforma Cresce.AO.\n\nAcesse seu perfil para ver mais detalhes.`
+              mensagem: `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir sua organização na plataforma Cresce.AO.`
             });
-
-            if (emailResult.success) {
-              console.log('✅ Email de notificação enviado com sucesso');
-            } else {
-              console.error('❌ Falha ao enviar email:', emailResult.message);
-            }
           } catch (emailError) {
-            console.error('Erro ao enviar email de notificação:', emailError);
+            console.error('Erro ao enviar email:', emailError);
           }
 
-          // Mostrar notificação local
-          showLocalNotification(
+          // 2. Enviar PUSH NOTIFICATION para o organizador (funciona em qualquer navegador onde ele estiver logado)
+          const pushEnviado = await sendPushNotification(
+            organizerInfo.id,
+            'organizer',
             '👥 Novo Seguidor!',
-            `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir o seu perfil`
+            `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir o seu perfil`,
+            `/organizer/${organizerInfo.id}`
           );
+
+          if (pushEnviado) {
+            console.log('✅ Push notification enviada para o organizador');
+          } else {
+            console.log('⚠️ Organizador não tem push ativado, tentando notificação local');
+
+            // Fallback: verificar se está no mesmo navegador
+            const organizadorLogado = await isOrganizadorLogado(organizerInfo.id);
+            if (organizadorLogado) {
+              showLocalNotification(
+                '👥 Novo Seguidor!',
+                `${currentUser.name || currentUser.username || 'Um usuário'} começou a seguir o seu perfil`
+              );
+            }
+          }
         }
       }
     } catch (err) {
@@ -318,8 +363,8 @@ export default function OrganizerProfilePage() {
                   onClick={handleFavoriteToggle}
                   disabled={isFavoriteLoading}
                   className={`flex items-center gap-3 px-6 py-3 rounded-xl cursor-pointer font-semibold transition-all transform hover:scale-105 ${isFavorite
-                      ? 'bg-white text-red-600 hover:bg-red-50'
-                      : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
+                    ? 'bg-white text-red-600 hover:bg-red-50'
+                    : 'bg-white/20 backdrop-blur-sm text-white hover:bg-white/30'
                     }`}
                 >
                   {isFavorite ? (
@@ -339,10 +384,9 @@ export default function OrganizerProfilePage() {
               {/* Mostrar apenas contagem para não-usuários */}
               {(!currentUser || currentUser.type !== 'user') && (
                 <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-3">
-                  <Heart className="w-6 h-6" />
+                  <User className="w-6 h-6" />
                   <div className="text-left">
                     <span className="text-2xl font-bold block">{favoriteCount}</span>
-                    <span className="text-xs opacity-90">seguidores</span>
                   </div>
                 </div>
               )}
@@ -415,7 +459,7 @@ export default function OrganizerProfilePage() {
                 {/* Results Count */}
                 <div className="mb-6 flex items-center justify-between">
                   <h2 className="text-lg font-medium text-gray-600">
-                    {events.length} {events.length === 1 ? 'evento encontrado' : 'eventos encontrados'}
+                    {events.length} {events.length === 1 ? 'evento divulgado' : 'eventos divulgados'}
                   </h2>
 
                   {/* Mini estatística de total de likes */}

@@ -79,7 +79,7 @@ export function EventDetailPage() {
       setIsLoading(true);
       setError(null);
 
-      console.log('Buscando evento:', eventId);
+      // console.log('Buscando evento:', eventId);
 
       // Buscar evento pelo ID
       const { data: evento, error: eventoError } = await supabase
@@ -96,7 +96,7 @@ export function EventDetailPage() {
         return;
       }
 
-      console.log('Evento encontrado:', evento);
+      // console.log('Evento encontrado:', evento);
 
       // Buscar organizador
       const { data: organizador, error: orgError } = await supabase
@@ -202,7 +202,7 @@ export function EventDetailPage() {
         averageRating
       };
 
-      console.log('Evento formatado:', formattedEvent);
+      // console.log('Evento formatado:', formattedEvent);
       setEvent(formattedEvent);
 
     } catch (err) {
@@ -214,10 +214,10 @@ export function EventDetailPage() {
   };
 
   // No EventDetailPage, antes de renderizar o EventReviews:
-  console.log('EventDetailPage - event:', event);
-  console.log('EventDetailPage - currentUser:', currentUser);
-  console.log('EventDetailPage - eventId:', event?.id);
-  console.log('EventDetailPage - currentUserId:', currentUser?.id);
+  // console.log('EventDetailPage - event:', event);
+  // console.log('EventDetailPage - currentUser:', currentUser);
+  // console.log('EventDetailPage - eventId:', event?.id);
+  // console.log('EventDetailPage - currentUserId:', currentUser?.id);
 
   const onLikeToggle = async () => {
     if (!currentUser || !event) return;
@@ -277,7 +277,7 @@ export function EventDetailPage() {
     const shareData = {
       title: event?.name,
       text: `Confira este evento: ${event?.name}\n\n${event?.description}`,
-      url: window.location.href,
+      // url: window.location.href,
     };
 
     try {
@@ -316,7 +316,7 @@ export function EventDetailPage() {
         insertData.imagem_url = images[0];
       }
 
-      console.log('Adicionando review:', insertData);
+      // console.log('Adicionando review:', insertData);
 
       const { data, error } = await supabase
         .from('comentarios')
@@ -329,7 +329,7 @@ export function EventDetailPage() {
         return;
       }
 
-      console.log('Review adicionada:', data);
+      // console.log('Review adicionada:', data);
 
       // Recarregar evento para atualizar reviews
       // fetchEvent(event.id);
@@ -353,7 +353,7 @@ export function EventDetailPage() {
         updateData.imagem_url = images[0];
       }
 
-      console.log('Atualizando review:', reviewId, updateData);
+      // console.log('Atualizando review:', reviewId, updateData);
 
       let query = supabase
         .from('comentarios')
@@ -374,7 +374,7 @@ export function EventDetailPage() {
         return;
       }
 
-      console.log('Review atualizada com sucesso');
+      // console.log('Review atualizada com sucesso');
       // fetchEvent(event.id);
 
     } catch (err) {
@@ -386,7 +386,7 @@ export function EventDetailPage() {
     if (!currentUser || !event) return;
 
     try {
-      console.log('Deletando review:', reviewId);
+      // console.log('Deletando review:', reviewId);
 
       let query = supabase
         .from('comentarios')
@@ -407,7 +407,7 @@ export function EventDetailPage() {
         return;
       }
 
-      console.log('Review deletada com sucesso');
+      // console.log('Review deletada com sucesso');
       // fetchEvent(event.id);
 
     } catch (err) {

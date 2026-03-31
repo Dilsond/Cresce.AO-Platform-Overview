@@ -12,6 +12,7 @@ import { supabase } from '../lib/supabase';
 import { PushNotificationPrompt } from '../components/PushotificationsPrompt';
 import { notificationService } from '../services/notificationService';
 import { showLocalNotification } from '../lib/pushNotifications';
+import { NotificationPermissionPrompt } from './NotificationsPermissionPrompt';
 
 export type UserType = 'user' | 'organizer';
 
@@ -583,7 +584,7 @@ export function EventsPage() {
         )}
       </header>
 
-      {/* Main Content (restante do código permanece igual) */}
+      {/* Main Content */}
       <main className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ... resto do conteúdo ... */}
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
@@ -717,7 +718,7 @@ export function EventsPage() {
 
         {/* Events Grid */}
         {isLoading ? (
-          <div className="grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+          <div className="grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
             {Array.from({ length: 8 }).map((_, index) => (
               <EventCardSkeleton key={index} />
             ))}
@@ -839,7 +840,7 @@ export function EventsPage() {
         )}
 
         {currentUser && (
-          <PushNotificationPrompt
+          <NotificationPermissionPrompt
             userId={currentUser.id}
             userType={currentUser.type}
           />

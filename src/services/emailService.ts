@@ -89,10 +89,10 @@ class EmailService {
       if (!serviceId || !templateId || !publicKey) {
         console.warn('⚠️ EmailJS para notificações não configurado');
         
-        if (import.meta.env.DEV) {
-          console.log('📧 NOTIFICAÇÃO (DEV):', data);
-          alert(`🔔 NOTIFICAÇÃO (DEV)\n\nPara: ${data.to_name}\nAssunto: ${data.assunto}\n\n${data.titulo}\n${data.mensagem}`);
-        }
+        // if (import.meta.env.DEV) {
+        //   console.log('📧 NOTIFICAÇÃO (DEV):', data);
+        //   alert(`🔔 NOTIFICAÇÃO (DEV)\n\nPara: ${data.to_name}\nAssunto: ${data.assunto}\n\n${data.titulo}\n${data.mensagem}`);
+        // }
         
         return { success: true };
       }
@@ -112,12 +112,12 @@ class EmailService {
         reply_to: 'naoresponder@cresceao.com'
       };
 
-      console.log('📧 Enviando email de notificação:', {
-        serviceId,
-        templateId,
-        to: data.to_email,
-        subject: data.assunto
-      });
+      // console.log('📧 Enviando email de notificação:', {
+      //   serviceId,
+      //   templateId,
+      //   to: data.to_email,
+      //   subject: data.assunto
+      // });
 
       const response = await emailjs.send(
         serviceId,
@@ -125,18 +125,18 @@ class EmailService {
         templateParams
       );
 
-      console.log('✅ Notificação enviada com sucesso:', response);
+      // console.log('✅ Notificação enviada com sucesso:', response);
       return { success: true };
 
     } catch (error: any) {
       console.error('❌ Erro ao enviar notificação:', error);
       
       // Em desenvolvimento, mostrar o erro mas não bloquear
-      if (import.meta.env.DEV) {
-        console.log('📧 NOTIFICAÇÃO (DEV - fallback):', data);
-        alert(`🔔 NOTIFICAÇÃO (DEV)\n\nPara: ${data.to_name}\nAssunto: ${data.assunto}\n\n${data.titulo}\n${data.mensagem}`);
-        return { success: true };
-      }
+      // if (import.meta.env.DEV) {
+      //   console.log('📧 NOTIFICAÇÃO (DEV - fallback):', data);
+      //   alert(`🔔 NOTIFICAÇÃO (DEV)\n\nPara: ${data.to_name}\nAssunto: ${data.assunto}\n\n${data.titulo}\n${data.mensagem}`);
+      //   return { success: true };
+      // }
       
       return { success: false, message: error.message };
     }

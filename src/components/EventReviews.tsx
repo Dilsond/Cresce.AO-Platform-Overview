@@ -70,7 +70,7 @@ export function EventReviews({
       const pathParts = window.location.pathname.split('/');
       const lastPart = pathParts[pathParts.length - 1];
       if (lastPart && lastPart !== 'event-detail') {
-        console.log('EventReviews - obtendo eventId da URL:', lastPart);
+        // console.log('EventReviews - obtendo eventId da URL:', lastPart);
         setLocalEventId(lastPart);
       }
     }
@@ -78,11 +78,11 @@ export function EventReviews({
 
   // Log para debug
   useEffect(() => {
-    console.log('EventReviews - currentUserId:', currentUserId);
-    console.log('EventReviews - currentUserType:', currentUserType);
-    console.log('EventReviews - currentUserName:', currentUserName);
-    console.log('EventReviews - propEventId:', propEventId);
-    console.log('EventReviews - localEventId:', localEventId);
+    // console.log('EventReviews - currentUserId:', currentUserId);
+    // console.log('EventReviews - currentUserType:', currentUserType);
+    // console.log('EventReviews - currentUserName:', currentUserName);
+    // console.log('EventReviews - propEventId:', propEventId);
+    // console.log('EventReviews - localEventId:', localEventId);
   }, [currentUserId, currentUserType, currentUserName, propEventId, localEventId]);
 
   // Carregar reviews do banco
@@ -102,7 +102,7 @@ export function EventReviews({
 
     try {
       setIsLoading(true);
-      console.log('Buscando reviews para evento:', localEventId);
+      // console.log('Buscando reviews para evento:', localEventId);
 
       const { data: comentarios, error } = await supabase
         .from('comentarios')
@@ -132,7 +132,7 @@ export function EventReviews({
         return;
       }
 
-      console.log('Comentários encontrados:', comentarios);
+      // console.log('Comentários encontrados:', comentarios);
 
       // Formatar reviews
       const formattedReviews: EventReview[] = comentarios.map(com => {
@@ -174,7 +174,7 @@ export function EventReviews({
             prev.id === formattedReviews[index]?.id
           );
           if (allIdsMatch) {
-            console.log('Reviews já estão atualizadas, mantendo estado atual');
+            // console.log('Reviews já estão atualizadas, mantendo estado atual');
             return prevReviews;
           }
         }
@@ -345,7 +345,7 @@ export function EventReviews({
         insertData.imagem_url = imageUrls[0];
       }
 
-      console.log('Inserindo comentário:', insertData);
+      // console.log('Inserindo comentário:', insertData);
 
       const { data, error } = await supabase
         .from('comentarios')
@@ -359,7 +359,7 @@ export function EventReviews({
         return;
       }
 
-      console.log('Comentário adicionado:', data);
+      // console.log('Comentário adicionado:', data);
 
       setNewComment('');
       setNewRating(5);
