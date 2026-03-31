@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart, Bell } from 'lucide-react';
+import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart, Bell, Plus, Trash2, Ticket, DollarSign, Users } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../services/emailService';
@@ -12,6 +12,14 @@ interface User {
     name: string;
     type: 'user' | 'organizer';
     company?: string;
+}
+
+interface Estacao {
+    id: string;
+    nome: string;
+    quantidade: number;
+    preco: number;
+    vantagens: string[];
 }
 
 export function CreateEvent() {
@@ -31,9 +39,21 @@ export function CreateEvent() {
         tipo_evento: 'presencial' as 'presencial' | 'online' | 'hibrido',
         local: '',
         descricao: '',
-        valor: '',
         contacto_whatsapp: '',
     });
+
+    // Estações (ingressos)
+    const [estacoes, setEstacoes] = useState<Estacao[]>([
+        {
+            id: crypto.randomUUID(),
+            nome: 'Normal',
+            quantidade: 100,
+            preco: 0,
+            vantagens: ['Acesso geral']
+        }
+    ]);
+    const [vantagemInput, setVantagemInput] = useState<Record<string, string>>({});
+    const [novaVantagem, setNovaVantagem] = useState('');
 
     // File states
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -71,9 +91,7 @@ export function CreateEvent() {
         if (storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
-                // console.log('Usuário carregado:', parsedUser);
 
-                // Verificar se é organizador
                 if (parsedUser.type !== 'organizer') {
                     setError('Apenas organizadores podem criar eventos');
                     setTimeout(() => navigate('/events'), 3000);
@@ -87,10 +105,65 @@ export function CreateEvent() {
                 navigate('/login');
             }
         } else {
-            console.log('Usuário não encontrado, redirecionando para login');
             navigate('/login');
         }
     }, [navigate]);
+
+    // Funções para gerenciar estações
+    const adicionarEstacao = () => {
+        setEstacoes([
+            ...estacoes,
+            {
+                id: crypto.randomUUID(),
+                nome: `Estação ${estacoes.length + 1}`,
+                quantidade: 50,
+                preco: 0,
+                vantagens: []
+            }
+        ]);
+    };
+
+    const removerEstacao = (id: string) => {
+        if (estacoes.length === 1) {
+            setError('É necessário ter pelo menos uma estação');
+            return;
+        }
+        setEstacoes(estacoes.filter(e => e.id !== id));
+    };
+
+    const atualizarEstacao = (id: string, campo: keyof Estacao, valor: any) => {
+        setEstacoes(estacoes.map(e => 
+            e.id === id ? { ...e, [campo]: valor } : e
+        ));
+    };
+
+    const adicionarVantagem = (estacaoId: string) => {
+        const vantagem = vantagemInput[estacaoId] || novaVantagem;
+        if (!vantagem.trim()) return;
+
+        setEstacoes(estacoes.map(e => 
+            e.id === estacaoId 
+                ? { ...e, vantagens: [...e.vantagens, vantagem.trim()] }
+                : e
+        ));
+
+        // Limpar input
+        if (vantagemInput[estacaoId]) {
+            const newInput = { ...vantagemInput };
+            delete newInput[estacaoId];
+            setVantagemInput(newInput);
+        } else {
+            setNovaVantagem('');
+        }
+    };
+
+    const removerVantagem = (estacaoId: string, index: number) => {
+        setEstacoes(estacoes.map(e => 
+            e.id === estacaoId 
+                ? { ...e, vantagens: e.vantagens.filter((_, i) => i !== index) }
+                : e
+        ));
+    };
 
     const categories = [
         { value: 'palestra', label: 'Palestra' },
@@ -188,8 +261,6 @@ export function CreateEvent() {
             const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
             const filePath = fileName;
 
-            // console.log(`📤 Fazendo upload para ${bucket}:`, fileName);
-
             const { error: uploadError } = await supabase.storage
                 .from(bucket)
                 .upload(filePath, file, {
@@ -198,12 +269,10 @@ export function CreateEvent() {
                 });
 
             if (uploadError) {
-                console.error(`❌ Erro ao fazer upload para ${bucket}:`, uploadError);
+                console.error(`Erro ao fazer upload para ${bucket}:`, uploadError);
 
                 if (uploadError.message.includes('row-level security')) {
                     throw new Error(`Erro de permissão no bucket "${bucket}". Contacte o administrador.`);
-                } else if (uploadError.message.includes('duplicate')) {
-                    throw new Error('Arquivo já existe. Tente novamente.');
                 }
                 throw uploadError;
             }
@@ -212,7 +281,6 @@ export function CreateEvent() {
                 .from(bucket)
                 .getPublicUrl(filePath);
 
-            // console.log(`✅ Upload concluído:`, publicUrl);
             return publicUrl;
         } catch (err) {
             console.error('Erro no upload:', err);
@@ -220,10 +288,8 @@ export function CreateEvent() {
         }
     };
 
-    // Função para enviar notificações manualmente (fallback)
-    const enviarNotificacoesManualmente = async (eventoId: string, eventoNome: string) => {
+    const enviarNotificacoes = async (eventoId: string, eventoNome: string) => {
         try {
-            // Buscar seguidores
             const { data: seguidores, error } = await supabase
                 .from('favoritos_organizadores')
                 .select(`
@@ -237,14 +303,10 @@ export function CreateEvent() {
 
             if (error) throw error;
 
-            // console.log(`📢 Enviando notificações para ${seguidores?.length || 0} seguidores`);
-
-            // Para cada seguidor, criar notificação
             for (const seguidor of seguidores || []) {
                 const seguidorData = seguidor.usuarios_normais;
                 if (!seguidorData) continue;
 
-                // Inserir notificação no banco
                 await supabase
                     .from('notificacoes')
                     .insert({
@@ -255,7 +317,6 @@ export function CreateEvent() {
                         tipo: 'novo_evento'
                     });
 
-                // Tentar enviar email (fallback)
                 try {
                     await emailService.sendNotification({
                         to_email: seguidorData.email,
@@ -267,17 +328,11 @@ export function CreateEvent() {
                 } catch (emailErr) {
                     console.error('Erro ao enviar email:', emailErr);
                 }
-
-                // Mostrar notificação local (se o seguidor estiver logado)
-                // showLocalNotification(
-                //     '📢 Novo Evento!',
-                //     `${user?.name} criou um novo evento: ${eventoNome}`
-                // );
             }
 
             setNotificacaoEnviada(true);
         } catch (err) {
-            console.error('Erro ao enviar notificações manualmente:', err);
+            console.error('Erro ao enviar notificações:', err);
         }
     };
 
@@ -289,12 +344,23 @@ export function CreateEvent() {
             return;
         }
 
+        // Validar estações
+        const estacoesValidas = estacoes.every(e => 
+            e.nome.trim() && 
+            e.quantidade > 0 && 
+            e.preco >= 0
+        );
+
+        if (!estacoesValidas) {
+            setError('Preencha corretamente todas as informações das estações');
+            return;
+        }
+
         setIsLoading(true);
         setError(null);
-        setNotificacaoEnviada(false);
 
         try {
-            // Validações
+            // Validações básicas
             if (!formData.nome_evento) throw new Error('O nome do evento é obrigatório');
             if (!formData.data_evento) throw new Error('A data do evento é obrigatória');
             if (!formData.hora_evento) throw new Error('A hora do evento é obrigatória');
@@ -302,9 +368,6 @@ export function CreateEvent() {
                 throw new Error('O local do evento é obrigatório para eventos presenciais ou híbridos');
             }
             if (!imageFile) throw new Error('A imagem do evento é obrigatória');
-
-            // console.log('Iniciando criação do evento para organizador:', user.id);
-            // console.log(`📢 Este organizador tem ${seguidoresCount} seguidores que serão notificados!`);
 
             // Upload da imagem
             const imageUrl = await uploadFile(imageFile, 'event-images');
@@ -324,7 +387,10 @@ export function CreateEvent() {
                 if (!pdfUrl) throw new Error('Erro ao fazer upload do PDF');
             }
 
-            // Inserir evento no banco (O TRIGGER vai notificar os seguidores automaticamente)
+            // Preparar estações para JSONB
+            const estacoesJSON = estacoes.map(({ id, ...rest }) => rest);
+
+            // Inserir evento no banco
             const { data: newEvent, error: insertError } = await supabase
                 .from('eventos')
                 .insert([
@@ -337,11 +403,11 @@ export function CreateEvent() {
                         tipo_evento: formData.tipo_evento,
                         local: formData.local || null,
                         descricao: formData.descricao || null,
-                        valor: formData.valor ? parseFloat(formData.valor) : null,
                         contacto_whatsapp: formData.contacto_whatsapp || null,
                         imagem_url: imageUrl,
                         video_url: videoUrl,
                         arquivo_pdf_url: pdfUrl,
+                        estacoes: estacoesJSON,
                         created_at: new Date().toISOString(),
                         updated_at: new Date().toISOString()
                     }
@@ -354,12 +420,9 @@ export function CreateEvent() {
                 throw new Error('Erro ao salvar evento no banco de dados: ' + insertError.message);
             }
 
-            // console.log('✅ Evento criado com sucesso:', newEvent);
-            // console.log('📢 Notificações serão enviadas para os seguidores via trigger do banco!');
-
-            // Fallback manual (caso o trigger não funcione)
+            // Enviar notificações para seguidores
             if (seguidoresCount > 0) {
-                await enviarNotificacoesManualmente(newEvent.id, newEvent.nome_evento);
+                await enviarNotificacoes(newEvent.id, newEvent.nome_evento);
             }
 
             // Redirecionar para a página do evento
@@ -373,7 +436,6 @@ export function CreateEvent() {
         }
     };
 
-    // Loading enquanto verifica usuário
     if (!user) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -408,7 +470,7 @@ export function CreateEvent() {
 
             {/* Main Content */}
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-                {/* Banner com informação de seguidores */}
+                {/* Banner */}
                 <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -420,7 +482,7 @@ export function CreateEvent() {
                         <div className="flex items-center justify-between">
                             <div>
                                 <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Área de Eventos</p>
-                                <h1 className="text-4xl md:text-5xl font-bold mb-2">Criação de Eventos</h1>
+                                <h1 className="text-4xl md:text-5xl font-bold mb-2">Criar Novo Evento</h1>
                                 {seguidoresCount > 0 && (
                                     <div className="flex items-center gap-2 mt-4 bg-white/20 backdrop-blur-sm rounded-full px-4 py-2 w-fit">
                                         <Bell className="w-5 h-5" />
@@ -452,10 +514,9 @@ export function CreateEvent() {
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Informações Básicas</h2>
 
                         <div className="space-y-4">
-                            {/* Nome do Evento */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Nome do Evento
+                                    Nome do Evento *
                                 </label>
                                 <input
                                     type="text"
@@ -468,31 +529,10 @@ export function CreateEvent() {
                                 />
                             </div>
 
-                            {/* Categoria */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Categoria
-                                </label>
-                                <select
-                                    name="categoria"
-                                    value={formData.categoria}
-                                    onChange={handleInputChange}
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                                >
-                                    {categories.map(cat => (
-                                        <option key={cat.value} value={cat.value}>
-                                            {cat.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            {/* Data e Hora */}
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Data
+                                        Data *
                                     </label>
                                     <input
                                         type="date"
@@ -505,7 +545,7 @@ export function CreateEvent() {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hora
+                                        Hora *
                                     </label>
                                     <input
                                         type="time"
@@ -518,31 +558,49 @@ export function CreateEvent() {
                                 </div>
                             </div>
 
-                            {/* Tipo de Evento */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tipo de Evento
-                                </label>
-                                <select
-                                    name="tipo_evento"
-                                    value={formData.tipo_evento}
-                                    onChange={handleInputChange}
-                                    required
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                                >
-                                    {eventTypes.map(type => (
-                                        <option key={type.value} value={type.value}>
-                                            {type.label}
-                                        </option>
-                                    ))}
-                                </select>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Categoria
+                                    </label>
+                                    <select
+                                        name="categoria"
+                                        value={formData.categoria}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    >
+                                        {categories.map(cat => (
+                                            <option key={cat.value} value={cat.value}>
+                                                {cat.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Tipo de Evento
+                                    </label>
+                                    <select
+                                        name="tipo_evento"
+                                        value={formData.tipo_evento}
+                                        onChange={handleInputChange}
+                                        required
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    >
+                                        {eventTypes.map(type => (
+                                            <option key={type.value} value={type.value}>
+                                                {type.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
                             </div>
 
-                            {/* Local */}
                             {(formData.tipo_evento === 'presencial' || formData.tipo_evento === 'hibrido') && (
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Local do Evento
+                                        Local do Evento *
                                     </label>
                                     <input
                                         type="text"
@@ -572,27 +630,9 @@ export function CreateEvent() {
                                 </div>
                             )}
 
-                            {/* Valor */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Valor (Kz) - Deixe em branco se gratuito
-                                </label>
-                                <input
-                                    type="number"
-                                    name="valor"
-                                    value={formData.valor}
-                                    onChange={handleInputChange}
-                                    min="0"
-                                    step="100"
-                                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
-                                    placeholder="0"
-                                />
-                            </div>
-
-                            {/* Contacto WhatsApp */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Contacto WhatsApp (com código do país)
+                                    Contacto WhatsApp
                                 </label>
                                 <input
                                     type="text"
@@ -622,12 +662,133 @@ export function CreateEvent() {
                         />
                     </div>
 
+                    {/* Estações / Ingressos */}
+                    <div className="bg-white rounded-xl shadow-md p-6">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-lg font-semibold text-gray-900">Tipos de Ingresso</h2>
+                            <button
+                                type="button"
+                                onClick={adicionarEstacao}
+                                className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm"
+                            >
+                                <Plus className="w-4 h-4" />
+                                Adicionar Estação
+                            </button>
+                        </div>
+
+                        <div className="space-y-4">
+                            {estacoes.map((estacao, index) => (
+                                <div key={estacao.id} className="border border-gray-200 rounded-lg p-4">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <h3 className="font-semibold text-gray-900">Estação {index + 1}</h3>
+                                        {estacoes.length > 1 && (
+                                            <button
+                                                type="button"
+                                                onClick={() => removerEstacao(estacao.id)}
+                                                className="text-red-500 hover:text-red-700"
+                                            >
+                                                <Trash2 className="w-4 h-4" />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="grid grid-cols-3 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Nome
+                                            </label>
+                                            <input
+                                                type="text"
+                                                value={estacao.nome}
+                                                onChange={(e) => atualizarEstacao(estacao.id, 'nome', e.target.value)}
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                                placeholder="Ex: VIP"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Quantidade
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={estacao.quantidade}
+                                                onChange={(e) => atualizarEstacao(estacao.id, 'quantidade', parseInt(e.target.value) || 0)}
+                                                min="1"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                Preço (Kz)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={estacao.preco}
+                                                onChange={(e) => atualizarEstacao(estacao.id, 'preco', parseInt(e.target.value) || 0)}
+                                                min="0"
+                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    <div>
+                                        <label className="block text-xs font-medium text-gray-700 mb-2">
+                                            Vantagens
+                                        </label>
+                                        <div className="flex flex-wrap gap-2 mb-2">
+                                            {estacao.vantagens.map((vantagem, idx) => (
+                                                <span
+                                                    key={idx}
+                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs"
+                                                >
+                                                    {vantagem}
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => removerVantagem(estacao.id, idx)}
+                                                        className="text-gray-400 hover:text-red-500"
+                                                    >
+                                                        <X className="w-3 h-3" />
+                                                    </button>
+                                                </span>
+                                            ))}
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <input
+                                                type="text"
+                                                value={vantagemInput[estacao.id] || ''}
+                                                onChange={(e) => setVantagemInput({ ...vantagemInput, [estacao.id]: e.target.value })}
+                                                onKeyPress={(e) => e.key === 'Enter' && adicionarVantagem(estacao.id)}
+                                                placeholder="Adicionar vantagem..."
+                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => adicionarVantagem(estacao.id)}
+                                                className="px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors"
+                                            >
+                                                <Plus className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                                <Ticket className="w-4 h-4" />
+                                <span>Total de ingressos disponíveis: </span>
+                                <strong>{estacoes.reduce((sum, e) => sum + e.quantidade, 0)}</strong>
+                            </div>
+                        </div>
+                    </div>
+
                     {/* Upload de Arquivos */}
                     <div className="bg-white rounded-xl shadow-md p-6">
                         <h2 className="text-lg font-semibold text-gray-900 mb-4">Arquivos do Evento</h2>
 
                         <div className="space-y-6">
-                            {/* Imagem (Obrigatória) */}
+                            {/* Imagem */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Imagem do Evento * (máx. 5MB)
@@ -640,7 +801,6 @@ export function CreateEvent() {
                                             onChange={handleImageChange}
                                             className="hidden"
                                             id="image-upload"
-                                            required
                                         />
                                         <label
                                             htmlFor="image-upload"
@@ -673,7 +833,7 @@ export function CreateEvent() {
                                 )}
                             </div>
 
-                            {/* Vídeo (Opcional) */}
+                            {/* Vídeo */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Vídeo Promocional (opcional, máx. 50MB)
@@ -717,7 +877,7 @@ export function CreateEvent() {
                                 )}
                             </div>
 
-                            {/* PDF (Opcional) */}
+                            {/* PDF */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
                                     Material em PDF (opcional, máx. 10MB)
@@ -763,7 +923,7 @@ export function CreateEvent() {
                         </div>
                     </div>
 
-                    {/* Botão de Submit */}
+                    {/* Botões */}
                     <div className="flex justify-end gap-4">
                         <button
                             type="button"

@@ -7,9 +7,12 @@
     "npm": ">=10.0.0"
   },
   "scripts": {
+    "server": "node server/index.js",
+    "server:dev": "nodemon server/index.js",
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "dev:all": "concurrently \"npm run server\" \"npm run dev\""
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
@@ -40,16 +43,23 @@
     "@radix-ui/react-toggle": "^1.1.2",
     "@radix-ui/react-toggle-group": "^1.1.2",
     "@radix-ui/react-tooltip": "^1.1.8",
-    "@supabase/supabase-js": "^2.49.1",
+    "@stripe/react-stripe-js": "^6.1.0",
+    "@stripe/stripe-js": "^9.0.1",
+    "@supabase/supabase-js": "^2.101.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cors": "^2.8.6",
+    "dotenv": "^16.4.7",
     "embla-carousel-react": "^8.6.0",
+    "express": "^5.2.1",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.487.0",
     "motion": "^12.5.0",
     "next-themes": "^0.4.6",
     "ngrok": "^5.0.0-beta.2",
+    "nodemailer": "^8.0.4",
+    "qrcode": "^1.5.4",
     "react": "^18.3.1",
     "react-day-picker": "^8.10.1",
     "react-dom": "^18.3.1",
@@ -58,14 +68,18 @@
     "react-router-dom": "^6.22.0",
     "recharts": "^2.15.2",
     "sonner": "^2.0.3",
+    "stripe": "^21.0.1",
     "tailwind-merge": "^2.6.0",
     "vaul": "^1.1.2",
     "vite-plugin-pwa": "^1.2.0"
   },
   "devDependencies": {
-    "@types/node": "^20.10.0",
+    "@types/node": "^20.19.37",
+    "@types/stripe-v3": "^3.1.33",
     "@vitejs/plugin-basic-ssl": "^2.3.0",
     "@vitejs/plugin-react-swc": "^3.10.2",
+    "concurrently": "^9.1.2",
+    "nodemon": "^3.1.9",
     "vite": "^6.4.1"
   }
 }

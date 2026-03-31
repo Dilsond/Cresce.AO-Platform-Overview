@@ -1,5 +1,5 @@
 import logo from "../assets/logo.png";
-import { ArrowLeft, Calendar, MapPin, Heart, Building2, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
 import { EventReviews } from './EventReviews';
 import { useState, useEffect } from 'react';
 import { EventQuiz } from './EventQuiz';
@@ -7,12 +7,21 @@ import { EventChat } from './EventChat';
 import { Footer } from './Footer';
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { supabase } from '../lib/supabase';
+import { BuyTicketModal } from './BayTicketModal';
+import { getEventImageUrl, getEventVideoUrl, getEventPdfUrl } from '../lib/storage';
 
 type User = {
   id: string;
   name: string;
   email: string;
   type?: 'user' | 'organizer';
+};
+
+type Estacao = {
+  nome: string;
+  quantidade: number;
+  preco: number;
+  vantagens: string[];
 };
 
 type Event = {
@@ -34,6 +43,7 @@ type Event = {
   organizerPhone?: string;
   likes: number;
   price?: number;
+  estacoes?: Estacao[];
   reviews?: any[];
   averageRating?: number;
 };
@@ -49,6 +59,7 @@ export function EventDetailPage() {
   const [showVideo, setShowVideo] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [averageRating, setAverageRating] = useState<number | undefined>(undefined);
+  const [showBuyModal, setShowBuyModal] = useState(false);
 
   const [currentUser] = useState<User | null>(() => {
     try {
@@ -61,7 +72,6 @@ export function EventDetailPage() {
 
   const formatTime = (time: string) => {
     if (!time) return '';
-    // Se tiver no formato HH:MM:SS, pegar apenas HH:MM
     return time.split(':').slice(0, 2).join(':');
   };
 
@@ -79,9 +89,6 @@ export function EventDetailPage() {
       setIsLoading(true);
       setError(null);
 
-      // console.log('Buscando evento:', eventId);
-
-      // Buscar evento pelo ID
       const { data: evento, error: eventoError } = await supabase
         .from('eventos')
         .select('*')
@@ -96,8 +103,6 @@ export function EventDetailPage() {
         return;
       }
 
-      // console.log('Evento encontrado:', evento);
-
       // Buscar organizador
       const { data: organizador, error: orgError } = await supabase
         .from('organizadores')
@@ -105,21 +110,13 @@ export function EventDetailPage() {
         .eq('id', evento.organizador_id)
         .single();
 
-      if (orgError) {
-        console.error('Erro ao buscar organizador:', orgError);
-      }
-
-      // Buscar número de likes (da tabela favoritos_eventos)
-      const { count: likesCount, error: likesError } = await supabase
+      // Buscar likes
+      const { count: likesCount } = await supabase
         .from('favoritos_eventos')
         .select('*', { count: 'exact', head: true })
         .eq('evento_id', eventId);
 
-      if (likesError) {
-        console.error('Erro ao buscar likes:', likesError);
-      }
-
-      // Verificar se o usuário atual deu like
+      // Verificar like do usuário
       if (currentUser) {
         let query = supabase
           .from('favoritos_eventos')
@@ -133,33 +130,28 @@ export function EventDetailPage() {
         }
 
         const { data: userLike } = await query.maybeSingle();
-
         setIsLiked(!!userLike);
       }
 
-      // Buscar reviews (da tabela comentarios)
-      const { data: reviews, error: reviewsError } = await supabase
+      // Buscar reviews
+      const { data: reviews } = await supabase
         .from('comentarios')
         .select(`
-          id,
-          descricao,
-          avaliacao,
-          imagem_url,
-          created_at,
-          usuario_normal:usuarios_normais (
-            nome_completo,
-            nome_utilizador
-          )
-        `)
+        id,
+        descricao,
+        avaliacao,
+        imagem_url,
+        created_at,
+        usuario_normal:usuarios_normais (
+          nome_completo,
+          nome_utilizador
+        )
+      `)
         .eq('evento_id', eventId)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      if (reviewsError) {
-        console.error('Erro ao buscar reviews:', reviewsError);
-      }
-
-      // Calcular média das avaliações
+      // Calcular média
       let averageRating = 0;
       if (reviews && reviews.length > 0) {
         const sum = reviews.reduce((acc, review) => acc + (review.avaliacao || 0), 0);
@@ -178,7 +170,30 @@ export function EventDetailPage() {
         images: review.imagem_url ? [review.imagem_url] : []
       })) || [];
 
-      // Montar objeto do evento
+      // Parse das estações
+      let estacoes = [];
+      if (evento.estacoes && Array.isArray(evento.estacoes)) {
+        estacoes = evento.estacoes;
+      } else if (evento.valor) {
+        estacoes = [{
+          nome: 'Normal',
+          quantidade: 100,
+          preco: evento.valor,
+          vantagens: ['Acesso geral']
+        }];
+      }
+
+      // IMPORTANTE: Usar as funções para obter URLs públicas
+      const imageUrl = getEventImageUrl(evento.imagem_url);
+      const videoUrl = getEventVideoUrl(evento.video_url);
+      const pdfUrl = getEventPdfUrl(evento.arquivo_pdf_url);
+
+      console.log('🔍 URL da imagem processada:', {
+        original: evento.imagem_url,
+        processed: imageUrl
+      });
+
+      // Montar evento
       const formattedEvent: Event = {
         id: evento.id,
         name: evento.nome_evento,
@@ -189,20 +204,20 @@ export function EventDetailPage() {
         eventType: evento.tipo_evento,
         location: evento.local || 'Local a definir',
         price: evento.valor || 0,
-        image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-        video: evento.video_url,
-        pdf: evento.arquivo_pdf_url,
-        status: 'A decorrer', // Você pode definir baseado na data
+        image: imageUrl,
+        video: videoUrl,
+        pdf: pdfUrl,
+        status: 'A decorrer',
         organizerId: evento.organizador_id,
         organizerName: organizador?.nome_empresa || 'Organizador não identificado',
         organizerEmail: organizador?.email_empresa,
         organizerPhone: evento.contacto_whatsapp,
         likes: likesCount || 0,
+        estacoes: estacoes,
         reviews: formattedReviews,
         averageRating
       };
 
-      // console.log('Evento formatado:', formattedEvent);
       setEvent(formattedEvent);
 
     } catch (err) {
@@ -212,19 +227,12 @@ export function EventDetailPage() {
       setIsLoading(false);
     }
   };
-
-  // No EventDetailPage, antes de renderizar o EventReviews:
-  // console.log('EventDetailPage - event:', event);
-  // console.log('EventDetailPage - currentUser:', currentUser);
-  // console.log('EventDetailPage - eventId:', event?.id);
-  // console.log('EventDetailPage - currentUserId:', currentUser?.id);
-
+  
   const onLikeToggle = async () => {
     if (!currentUser || !event) return;
 
     try {
       if (isLiked) {
-        // Remover like - construir query baseada no tipo de usuário
         let query = supabase
           .from('favoritos_eventos')
           .delete()
@@ -245,7 +253,6 @@ export function EventDetailPage() {
           console.error('Erro ao remover like:', error);
         }
       } else {
-        // Adicionar like - construir objeto baseado no tipo de usuário
         const insertData: any = {
           evento_id: event.id,
           created_at: new Date().toISOString()
@@ -277,7 +284,6 @@ export function EventDetailPage() {
     const shareData = {
       title: event?.name,
       text: `Confira este evento: ${event?.name}\n\n${event?.description}`,
-      // url: window.location.href,
     };
 
     try {
@@ -296,7 +302,6 @@ export function EventDetailPage() {
     if (!currentUser || !event) return;
 
     try {
-      // Determinar qual coluna usar baseado no tipo de usuário
       const insertData: any = {
         evento_id: event.id,
         descricao: comment,
@@ -311,28 +316,21 @@ export function EventDetailPage() {
         insertData.organizador_id = currentUser.id;
       }
 
-      // Se houver imagens, guardar a primeira
       if (images && images.length > 0) {
         insertData.imagem_url = images[0];
       }
 
-      // console.log('Adicionando review:', insertData);
-
-      const { data, error } = await supabase
+      const { error } = await supabase
         .from('comentarios')
-        .insert([insertData])
-        .select()
-        .single();
+        .insert([insertData]);
 
       if (error) {
         console.error('Erro ao adicionar review:', error);
         return;
       }
 
-      // console.log('Review adicionada:', data);
-
       // Recarregar evento para atualizar reviews
-      // fetchEvent(event.id);
+      await fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao adicionar review:', err);
@@ -353,14 +351,11 @@ export function EventDetailPage() {
         updateData.imagem_url = images[0];
       }
 
-      // console.log('Atualizando review:', reviewId, updateData);
-
       let query = supabase
         .from('comentarios')
         .update(updateData)
         .eq('id', reviewId);
 
-      // Adicionar filtro baseado no tipo de usuário
       if (currentUser.type === 'user') {
         query = query.eq('usuario_normal_id', currentUser.id);
       } else if (currentUser.type === 'organizer') {
@@ -374,8 +369,7 @@ export function EventDetailPage() {
         return;
       }
 
-      // console.log('Review atualizada com sucesso');
-      // fetchEvent(event.id);
+      await fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao atualizar review:', err);
@@ -386,14 +380,11 @@ export function EventDetailPage() {
     if (!currentUser || !event) return;
 
     try {
-      // console.log('Deletando review:', reviewId);
-
       let query = supabase
         .from('comentarios')
         .update({ deleted_at: new Date().toISOString() })
         .eq('id', reviewId);
 
-      // Adicionar filtro baseado no tipo de usuário
       if (currentUser.type === 'user') {
         query = query.eq('usuario_normal_id', currentUser.id);
       } else if (currentUser.type === 'organizer') {
@@ -407,8 +398,7 @@ export function EventDetailPage() {
         return;
       }
 
-      // console.log('Review deletada com sucesso');
-      // fetchEvent(event.id);
+      await fetchEvent(event.id);
 
     } catch (err) {
       console.error('Erro ao deletar review:', err);
@@ -434,32 +424,24 @@ export function EventDetailPage() {
     });
   };
 
-  const getEventTypeColor = (type: string) => {
-    switch (type) {
-      case 'presencial': return 'bg-blue-100 text-blue-700';
-      case 'online': return 'bg-green-100 text-green-700';
-      case 'híbrido': return 'bg-orange-100 text-orange-700';
-      default: return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getEventTypeIcon = (type: string) => {
-    switch (type) {
-      case 'presencial': return '📍';
-      case 'online': return '💻';
-      case 'híbrido': return '🌐';
-      default: return '📅';
-    }
-  };
-
-  // WhatsApp contact function
   const handleWhatsAppContact = () => {
     const phoneNumber = event?.organizerPhone || '244900000000';
     const message = encodeURIComponent(
-      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}. Com a descrição: ${event?.description}`
+      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}.`
     );
     const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
     window.open(whatsappUrl, '_blank');
+  };
+
+  // Calcular total de ingressos disponíveis
+  const getTotalIngressos = () => {
+    if (!event?.estacoes) return 0;
+    return event.estacoes.reduce((sum, estacao) => sum + estacao.quantidade, 0);
+  };
+
+  // Verificar se o evento tem ingressos disponíveis
+  const hasIngressosDisponiveis = () => {
+    return getTotalIngressos() > 0;
   };
 
   if (isLoading) {
@@ -490,7 +472,6 @@ export function EventDetailPage() {
     );
   }
 
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -505,15 +486,12 @@ export function EventDetailPage() {
               <span>Voltar</span>
             </button>
 
-            <div
-              className="flex items-center"
-            >
+            <div className="flex items-center">
               <img
                 src={logo}
                 alt="Cresce.AO Logo"
                 className="h-10 w-auto object-contain"
               />
-
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>
@@ -526,23 +504,17 @@ export function EventDetailPage() {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Hero Section */}
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
-          {/* Left Column - Event Info */}
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white flex flex-col justify-between min-h-[400px]">
             <div>
               <div className="text-sm text-gray-300 mb-4">
                 Fale com o produtor: {event.organizerName}
               </div>
-
               <h1 className="text-4xl font-bold mb-6">{event.name}</h1>
-
               <div className="space-y-3">
-                {/* Date and Time */}
                 <div className="flex items-center gap-2 text-gray-200">
                   <Calendar className="w-5 h-5" />
                   <span>{formatDate(event.date)} • {event.time}</span>
                 </div>
-
-                {/* Location */}
                 <div className="flex items-center gap-2 text-gray-200">
                   <MapPin className="w-5 h-5" />
                   <span>Evento {event.eventType} em <span className="text-orange-400 font-semibold">{event.location}</span></span>
@@ -550,16 +522,14 @@ export function EventDetailPage() {
               </div>
             </div>
 
-            {/* Payment Option Badge */}
             <div className="mt-6">
               <div className="inline-flex items-center gap-2 bg-orange-600 px-4 py-2 rounded-full text-sm font-semibold">
-                <CreditCard className="w-4 h-4" />
+                <Ticket className="w-4 h-4" />
                 {event.price ? `${event.price.toLocaleString('pt-AO')} Kz` : 'Gratuito'}
               </div>
             </div>
           </div>
 
-          {/* Right Column - Event Image */}
           <div className="relative rounded-2xl overflow-hidden shadow-xl">
             <img
               src={event.image}
@@ -569,8 +539,6 @@ export function EventDetailPage() {
                 (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
               }}
             />
-
-            {/* Status Badge */}
             {event.status === 'Cancelada' && (
               <div className="absolute top-6 left-6">
                 <span className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-semibold shadow-lg">
@@ -593,41 +561,87 @@ export function EventDetailPage() {
               </div>
             </div>
 
-            {/* Quiz Button in Description */}
-            <div className="mt-8 pt-6 border-t border-gray-200">
-                <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
-                  <div className="flex items-center gap-4 mb-4">
-                    <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
-                      <GraduationCap className="w-7 h-7 text-white" />
+            {/* Estações / Tipos de Ingresso */}
+            {event.estacoes && event.estacoes.length > 0 && (
+              <div className="bg-white rounded-xl shadow-md p-8">
+                <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Tipos de Ingresso</h2>
+                <div className="space-y-4">
+                  {event.estacoes.map((estacao, index) => (
+                    <div key={index} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-3">
+                        <div>
+                          <h3 className="text-lg font-bold text-gray-900">{estacao.nome}</h3>
+                          <p className="text-2xl font-bold text-orange-600 mt-1">
+                            {estacao.preco.toLocaleString()} Kz
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm text-gray-500">
+                            <span className="font-semibold text-gray-700">{estacao.quantidade}</span> ingressos disponíveis
+                          </p>
+                        </div>
+                      </div>
+
+                      {estacao.vantagens && estacao.vantagens.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-gray-100">
+                          <p className="text-sm font-semibold text-gray-700 mb-2">Vantagens:</p>
+                          <ul className="space-y-1">
+                            {estacao.vantagens.map((vantagem, idx) => (
+                              <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
+                                <Sparkles className="w-3 h-3 text-orange-500" />
+                                {vantagem}
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
-                    <div className="flex-1">
-                      <h3 className="text-xl font-bold text-gray-900">Quiz Educativo</h3>
-                      <p className="text-sm text-gray-600">Teste seus conhecimentos sobre o tema</p>
+                  ))}
+
+                  <div className="bg-orange-50 rounded-lg p-4 mt-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm text-gray-600">Total de ingressos disponíveis</p>
+                        <p className="text-2xl font-bold text-orange-600">{getTotalIngressos()}</p>
+                      </div>
+                      <Ticket className="w-8 h-8 text-orange-400" />
                     </div>
                   </div>
-                  <p className="text-gray-700 mb-4">
-                    Avalie o seu conhecimento respondendo a 5 perguntas de múltipla escolha.
-                    No final, receberá feedback personalizado sobre o seu desempenho.
-                  </p>
-                  <button
-                    onClick={() => setShowQuiz(true)}
-                    className="w-full bg-purple-600 hover:bg-purple-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
-                  >
-                    <GraduationCap className="w-5 h-5" />
-                    Testar Quiz
-                  </button>
                 </div>
               </div>
+            )}
+
+            {/* Quiz Button */}
+            <div className="mt-8 pt-6 border-t border-gray-200">
+              <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
+                <div className="flex items-center gap-4 mb-4">
+                  <div className="w-14 h-14 bg-purple-600 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <GraduationCap className="w-7 h-7 text-white" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-gray-900">Quiz Educativo</h3>
+                    <p className="text-sm text-gray-600">Teste seus conhecimentos sobre o tema</p>
+                  </div>
+                </div>
+                <p className="text-gray-700 mb-4">
+                  Avalie o seu conhecimento respondendo a perguntas de múltipla escolha.
+                  No final, receberá feedback personalizado sobre o seu desempenho.
+                </p>
+                <button
+                  onClick={() => setShowQuiz(true)}
+                  className="w-full bg-purple-600 hover:bg-purple-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
+                >
+                  <GraduationCap className="w-5 h-5" />
+                  Testar Quiz
+                </button>
+              </div>
+            </div>
 
             {/* Video Section */}
             {event.video && (
               <div className="bg-white rounded-xl shadow-md p-8">
-                <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                  Vídeo Promocional
-                </h2>
-
+                <h2 className="text-2xl font-bold text-gray-900 mb-4">Vídeo Promocional</h2>
                 <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden group">
-
                   {showVideo ? (
                     <iframe
                       src={event.video}
@@ -642,7 +656,6 @@ export function EventDetailPage() {
                         alt={`Preview de ${event.name}`}
                         className="w-full h-full object-cover"
                       />
-
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
@@ -651,18 +664,13 @@ export function EventDetailPage() {
                         className="absolute inset-0 flex items-center justify-center"
                       >
                         <div className="w-20 h-20 bg-orange-600 rounded-full flex items-center justify-center shadow-2xl">
-                          <svg
-                            className="w-10 h-10 text-white ml-1"
-                            fill="currentColor"
-                            viewBox="0 0 24 24"
-                          >
+                          <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z" />
                           </svg>
                         </div>
                       </button>
                     </>
                   )}
-
                 </div>
               </div>
             )}
@@ -670,7 +678,6 @@ export function EventDetailPage() {
             {/* Organizer Info */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Organizador</h2>
-
               <Link
                 to={`/organizer/${event.organizerId}`}
                 className="flex items-center gap-4 p-2 rounded-lg transition"
@@ -678,11 +685,8 @@ export function EventDetailPage() {
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-600 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                   {event.organizerName.charAt(0).toUpperCase()}
                 </div>
-
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    {event.organizerName}
-                  </h3>
+                  <h3 className="text-xl font-semibold text-gray-900">{event.organizerName}</h3>
                   <p className="text-gray-600">Organizador de Eventos</p>
                 </div>
               </Link>
@@ -696,10 +700,8 @@ export function EventDetailPage() {
 
               {event.status === 'A decorrer' ? (
                 <div className="space-y-4">
-                  {/* Event Details Card */}
                   <div className="border border-gray-200 rounded-lg p-5">
                     <div className="space-y-4">
-                      {/* Date */}
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Calendar className="w-5 h-5 text-orange-600" />
@@ -710,7 +712,6 @@ export function EventDetailPage() {
                         </div>
                       </div>
 
-                      {/* Time */}
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Clock className="w-5 h-5 text-orange-600" />
@@ -721,7 +722,6 @@ export function EventDetailPage() {
                         </div>
                       </div>
 
-                      {/* Location */}
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <MapPin className="w-5 h-5 text-orange-600" />
@@ -743,7 +743,6 @@ export function EventDetailPage() {
                         </div>
                       </div>
 
-                      {/* Event Type */}
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Building2 className="w-5 h-5 text-orange-600" />
@@ -756,27 +755,53 @@ export function EventDetailPage() {
                     </div>
                   </div>
 
-                  {/* WhatsApp Contact Button */}
-                  <div className="bg-gradient-to-br from-green-50 to-green-100 border border-green-200 rounded-lg p-5">
-                    <div className="text-center mb-4">
-                      <h4 className="font-semibold text-gray-900 mb-2">Interessado no evento?</h4>
-                      <p className="text-sm text-gray-600">
-                        Entre em contacto com o organizador para mais informações e inscrições
-                      </p>
+                  {/* Botão de Compra com estações */}
+                  {hasIngressosDisponiveis() && (
+                    <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-5">
+                      <div className="text-center mb-4">
+                        <h4 className="font-semibold text-gray-900 mb-2">Garanta seu lugar!</h4>
+                        <p className="text-sm text-gray-600">
+                          Escolha o tipo de ingresso que melhor se adequa a você
+                        </p>
+                      </div>
+
+                      {event.estacoes && event.estacoes.length > 0 && (
+                        <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
+                          {event.estacoes.map((ticket, idx) => (
+                            <div key={idx} className="flex justify-between items-center p-2 bg-white rounded-lg">
+                              <div>
+                                <p className="font-medium text-gray-900">{ticket.nome}</p>
+                                <p className="text-xs text-gray-500">{ticket.quantidade} disponíveis</p>
+                              </div>
+                              <p className="font-bold text-orange-600">{ticket.preco.toLocaleString()} Kz</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => setShowBuyModal(true)}
+                        disabled={!currentUser}
+                        className={`w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md ${currentUser
+                          ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer text-white'
+                          : 'bg-gray-300 cursor-not-allowed text-gray-500'
+                          }`}
+                      >
+                        <Ticket className="w-6 h-6" />
+                        {currentUser ? 'Comprar Ingresso' : 'Faça login para comprar'}
+                      </button>
+                      {!currentUser && (
+                        <p className="text-xs text-center text-gray-500 mt-2">
+                          <button
+                            onClick={() => navigate('/login')}
+                            className="text-orange-600 hover:underline"
+                          >
+                            Faça login
+                          </button> para adquirir seu ingresso
+                        </p>
+                      )}
                     </div>
-
-                    <button
-                      onClick={handleWhatsAppContact}
-                      className="w-full bg-green-600 hover:bg-green-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md"
-                    >
-                      <MessageCircle className="w-6 h-6" />
-                      Falar no WhatsApp
-                    </button>
-
-                    <p className="text-xs text-center text-gray-500 mt-3">
-                      Será redirecionado para o WhatsApp
-                    </p>
-                  </div>
+                  )}
 
                   {/* Like Button */}
                   <button
@@ -820,17 +845,41 @@ export function EventDetailPage() {
                 Partilhar Evento
               </button>
             </div>
-
           </div>
         </div>
+
+        {/* Modal de Compra */}
+        {showBuyModal && event && (
+          <BuyTicketModal
+            isOpen={showBuyModal}
+            onClose={() => setShowBuyModal(false)}
+            eventoId={event.id}
+            eventoNome={event.name}
+            estacoes={event.estacoes || []}
+            usuario={currentUser}
+          />
+        )}
+
+        {/* Quiz Modal */}
+        {showQuiz && event && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+              <EventQuiz
+                eventId={event.id}
+                eventName={event.name}
+                onClose={() => setShowQuiz(false)}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Reviews Section */}
         <div className="mt-8">
           <EventReviews
             eventId={event.id}
-            onAddReview={(rating, comment, images) => onAddReview(rating, comment, images)}
-            onUpdateReview={(reviewId, rating, comment, images) => onUpdateReview(reviewId, rating, comment, images)}
-            onDeleteReview={(reviewId) => onDeleteReview(reviewId)}
+            onAddReview={onAddReview}
+            onUpdateReview={onUpdateReview}
+            onDeleteReview={onDeleteReview}
             currentUserName={currentUser?.name}
             currentUserId={currentUser?.id}
             currentUserType={currentUser?.type}
@@ -839,7 +888,11 @@ export function EventDetailPage() {
       </main>
 
       {/* Footer */}
-      <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
+      <Footer
+        onExplore={() => navigate('/events')}
+        onNavigateToPrivacy={() => navigate('/privacy-policy')}
+        onNavigateToTerms={() => navigate('/terms-of-use')}
+      />
     </div>
   );
 }
