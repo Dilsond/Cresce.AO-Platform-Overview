@@ -9,12 +9,14 @@ const app = express();
 const PORT = 3002;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-app.use(cors({
-  origin: ['http://localhost:5173', 'http://127.0.0.1:5173'],
-  methods: ['GET', 'POST'],
-  allowedHeaders: ['Content-Type']
-}));
+const corsOptions = {
+  origin: '*',
+  methods: ['GET', 'POST', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Accept', 'ngrok-skip-browser-warning'],
+  credentials: false
+};
 
+app.use(cors(corsOptions));
 app.use(express.json());
 
 app.use((req, res, next) => {

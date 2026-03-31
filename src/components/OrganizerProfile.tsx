@@ -794,12 +794,6 @@ export function OrganizerProfile() {
         return;
       }
 
-      // Validar tamanho (max 2MB)
-      if (file.size > 2 * 1024 * 1024) {
-        setError('A imagem deve ter no máximo 2MB');
-        return;
-      }
-
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}-${Date.now()}.${fileExt}`;
       const filePath = `avatars/${fileName}`;

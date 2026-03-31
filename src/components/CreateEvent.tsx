@@ -47,11 +47,12 @@ export function CreateEvent() {
         {
             id: crypto.randomUUID(),
             nome: 'Normal',
-            quantidade: 100,
+            quantidade: 0,
             preco: 0,
             vantagens: ['Acesso geral']
         }
     ]);
+
     const [vantagemInput, setVantagemInput] = useState<Record<string, string>>({});
     const [novaVantagem, setNovaVantagem] = useState('');
 
