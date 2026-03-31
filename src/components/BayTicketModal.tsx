@@ -55,33 +55,23 @@ export function BuyTicketModal({ isOpen, onClose, eventoId, eventoNome, estacoes
     setError(null);
     setSuccess(null);
 
-    const getApiUrl = () => {
-      // Se está em ngrok ou produção, usa a variável de ambiente
-      if (import.meta.env.VITE_API_URL) {
-        return `${import.meta.env.VITE_API_URL}/api/create-checkout-session`;
-      }
-      return 'http://localhost:3002/api/create-checkout-session';
-    };
+    try {
+      // Tentar diferentes URLs possíveis
+      const possibleUrls = [
+        'http://localhost:3002/api/create-checkout-session',
+        'http://127.0.0.1:3002/api/create-checkout-session',
+        `${window.location.protocol}//${window.location.hostname}:3002/api/create-checkout-session`
+      ];
 
-    const handleSubmit = async (e: React.FormEvent) => {
-      e.preventDefault();
-      // ... validações ...
+      let response = null;
+      let lastError = null;
 
-      setIsLoading(true);
-      setError(null);
+      // Tentar cada URL
+      for (const url of possibleUrls) {
+        try {
+          console.log('📡 Tentando URL:', url);
 
-      try {
-        const url = getApiUrl();
-        console.log('📡 Usando URL:', url);
-
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-            'ngrok-skip-browser-warning': 'true' // ← importante para o ngrok
-          },
-          body: JSON.stringify({
+          const requestBody = {
             evento_id: eventoId,
             estacao_nome: selectedEstacao.nome,
             quantidade,
@@ -89,36 +79,76 @@ export function BuyTicketModal({ isOpen, onClose, eventoId, eventoNome, estacoes
             usuario_email: usuario?.email,
             usuario_nome: usuario?.name,
             valor_total: selectedEstacao.preco * quantidade
-          })
-        });
+          };
 
-        if (!response.ok) {
-          const err = await response.json();
-          throw new Error(err.error || `HTTP ${response.status}`);
+          console.log('📦 Dados enviados:', requestBody);
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+          });
+
+          const data = await res.json();
+
+          if (res.ok) {
+            response = { ok: true, data, url };
+            break;
+          } else {
+            lastError = data.error || `HTTP ${res.status}`;
+          }
+        } catch (err) {
+          lastError = err.message;
+          console.log(`❌ Falha na URL ${url}:`, err.message);
+        }
+      }
+
+      if (!response) {
+        throw new Error(lastError || 'Não foi possível conectar ao servidor. Verifique se o backend está rodando.');
+      }
+
+      console.log('📡 Resposta do servidor:', response.data);
+
+      if (response.data.success !== false) {
+        setSuccess(`Pedido criado com sucesso! ID: ${response.data.pedido_id?.substring(0, 20)}...`);
+
+        // Abrir o link de pagamento em uma nova aba (se disponível)
+        if (response.data.url) {
+          window.open(response.data.url, '_blank'); // Abre o checkout real do Stripe
         }
 
-        const data = await response.json();
-        console.log('✅ Resposta:', data);
-
-        if (data.url) {
-          window.open(data.url, '_blank');
-        }
-
-        setSuccess(`Pedido criado! ID: ${data.pedido_id}`);
+        // Fechar modal após 2 segundos
         setTimeout(() => {
           onClose();
+          // Limpar estados
           setSelectedEstacao(null);
           setQuantidade(1);
+          setError(null);
           setSuccess(null);
         }, 2000);
-
-      } catch (err: any) {
-        console.error('❌ Erro:', err);
-        setError(err.message || 'Erro ao processar. Tente novamente.');
-      } finally {
-        setIsLoading(false);
+      } else {
+        throw new Error(response.data.error || 'Erro ao criar pedido');
       }
-    };
+
+    } catch (err: any) {
+      console.error('❌ Erro ao criar sessão:', err);
+
+      let errorMessage = err.message || 'Erro ao processar pagamento. Tente novamente.';
+
+      // Mensagens de erro mais amigáveis
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        errorMessage = 'Não foi possível conectar ao servidor. Verifique se o backend está rodando em http://localhost:3002';
+      } else if (errorMessage.includes('CORS')) {
+        errorMessage = 'Erro de conexão. Verifique as configurações CORS do servidor.';
+      }
+
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   if (!isOpen) return null;
@@ -176,8 +206,8 @@ export function BuyTicketModal({ isOpen, onClose, eventoId, eventoNome, estacoes
                     key={estacao.nome}
                     onClick={() => !isLoading && setSelectedEstacao(estacao)}
                     className={`border-2 rounded-xl p-4 cursor-pointer transition-all ${selectedEstacao?.nome === estacao.nome
-                      ? 'border-orange-500 bg-orange-50'
-                      : 'border-gray-200 hover:border-orange-300'
+                        ? 'border-orange-500 bg-orange-50'
+                        : 'border-gray-200 hover:border-orange-300'
                       } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <div className="flex items-center justify-between">
