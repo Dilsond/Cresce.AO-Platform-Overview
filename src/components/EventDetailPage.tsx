@@ -1,7 +1,7 @@
 import logo from "../assets/logo.png";
 import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
 import { EventReviews } from './EventReviews';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react'; // ← adicionar useCallback
 import { EventQuiz } from './EventQuiz';
 import { EventChat } from './EventChat';
 import { Footer } from './Footer';
@@ -77,14 +77,8 @@ export function EventDetailPage() {
 
   const [isLiked, setIsLiked] = useState(false);
 
-  // Buscar evento do banco de dados
-  useEffect(() => {
-    if (id) {
-      fetchEvent(id);
-    }
-  }, [id]);
-
-  const fetchEvent = async (eventId: string) => {
+  // ── MUDANÇA 1: fetchEvent como useCallback para poder reutilizar ──────────
+  const fetchEvent = useCallback(async (eventId: string) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -103,20 +97,17 @@ export function EventDetailPage() {
         return;
       }
 
-      // Buscar organizador
-      const { data: organizador, error: orgError } = await supabase
+      const { data: organizador } = await supabase
         .from('organizadores')
         .select('nome_empresa, email_empresa')
         .eq('id', evento.organizador_id)
         .single();
 
-      // Buscar likes
       const { count: likesCount } = await supabase
         .from('favoritos_eventos')
         .select('*', { count: 'exact', head: true })
         .eq('evento_id', eventId);
 
-      // Verificar like do usuário
       if (currentUser) {
         let query = supabase
           .from('favoritos_eventos')
@@ -133,7 +124,6 @@ export function EventDetailPage() {
         setIsLiked(!!userLike);
       }
 
-      // Buscar reviews
       const { data: reviews } = await supabase
         .from('comentarios')
         .select(`
@@ -151,14 +141,12 @@ export function EventDetailPage() {
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
 
-      // Calcular média
       let averageRating = 0;
       if (reviews && reviews.length > 0) {
         const sum = reviews.reduce((acc, review) => acc + (review.avaliacao || 0), 0);
         averageRating = sum / reviews.length;
       }
 
-      // Formatar reviews
       const formattedReviews = reviews?.map(review => ({
         id: review.id,
         userId: review.usuario_normal?.id,
@@ -170,7 +158,6 @@ export function EventDetailPage() {
         images: review.imagem_url ? [review.imagem_url] : []
       })) || [];
 
-      // Parse das estações
       let estacoes = [];
       if (evento.estacoes && Array.isArray(evento.estacoes)) {
         estacoes = evento.estacoes;
@@ -183,17 +170,10 @@ export function EventDetailPage() {
         }];
       }
 
-      // IMPORTANTE: Usar as funções para obter URLs públicas
       const imageUrl = getEventImageUrl(evento.imagem_url);
       const videoUrl = getEventVideoUrl(evento.video_url);
       const pdfUrl = getEventPdfUrl(evento.arquivo_pdf_url);
 
-      console.log('🔍 URL da imagem processada:', {
-        original: evento.imagem_url,
-        processed: imageUrl
-      });
-
-      // Montar evento
       const formattedEvent: Event = {
         id: evento.id,
         name: evento.nome_evento,
@@ -226,8 +206,40 @@ export function EventDetailPage() {
     } finally {
       setIsLoading(false);
     }
-  };
-  
+  }, [currentUser]);
+
+  useEffect(() => {
+    if (id) {
+      fetchEvent(id);
+    }
+  }, [id, fetchEvent]);
+
+  // ── MUDANÇA 2: Subscrição Realtime — atualiza estacoes quando o webhook escreve ──
+  useEffect(() => {
+    if (!id) return;
+
+    const channel = supabase
+      .channel(`evento-estacoes-${id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'eventos',
+          filter: `id=eq.${id}`,
+        },
+        (payload) => {
+          const novasEstacoes = (payload.new as any).estacoes;
+          if (novasEstacoes) {
+            setEvent(prev => prev ? { ...prev, estacoes: novasEstacoes } : prev);
+          }
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [id]);
+
   const onLikeToggle = async () => {
     if (!currentUser || !event) return;
 
@@ -245,12 +257,9 @@ export function EventDetailPage() {
         }
 
         const { error } = await query;
-
         if (!error) {
           setIsLiked(false);
           setEvent(prev => prev ? { ...prev, likes: prev.likes - 1 } : prev);
-        } else {
-          console.error('Erro ao remover like:', error);
         }
       } else {
         const insertData: any = {
@@ -264,15 +273,10 @@ export function EventDetailPage() {
           insertData.organizador_id = currentUser.id;
         }
 
-        const { error } = await supabase
-          .from('favoritos_eventos')
-          .insert(insertData);
-
+        const { error } = await supabase.from('favoritos_eventos').insert(insertData);
         if (!error) {
           setIsLiked(true);
           setEvent(prev => prev ? { ...prev, likes: prev.likes + 1 } : prev);
-        } else {
-          console.error('Erro ao adicionar like:', error);
         }
       }
     } catch (err) {
@@ -285,7 +289,6 @@ export function EventDetailPage() {
       title: event?.name,
       text: `Confira este evento: ${event?.name}\n\n${event?.description}`,
     };
-
     try {
       if (navigator.share) {
         await navigator.share(shareData);
@@ -300,7 +303,6 @@ export function EventDetailPage() {
 
   const onAddReview = async (rating: number, comment: string, images: any[]) => {
     if (!currentUser || !event) return;
-
     try {
       const insertData: any = {
         evento_id: event.id,
@@ -309,29 +311,12 @@ export function EventDetailPage() {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       };
+      if (currentUser.type === 'user') insertData.usuario_normal_id = currentUser.id;
+      else if (currentUser.type === 'organizer') insertData.organizador_id = currentUser.id;
+      if (images && images.length > 0) insertData.imagem_url = images[0];
 
-      if (currentUser.type === 'user') {
-        insertData.usuario_normal_id = currentUser.id;
-      } else if (currentUser.type === 'organizer') {
-        insertData.organizador_id = currentUser.id;
-      }
-
-      if (images && images.length > 0) {
-        insertData.imagem_url = images[0];
-      }
-
-      const { error } = await supabase
-        .from('comentarios')
-        .insert([insertData]);
-
-      if (error) {
-        console.error('Erro ao adicionar review:', error);
-        return;
-      }
-
-      // Recarregar evento para atualizar reviews
-      await fetchEvent(event.id);
-
+      const { error } = await supabase.from('comentarios').insert([insertData]);
+      if (!error) await fetchEvent(event.id);
     } catch (err) {
       console.error('Erro ao adicionar review:', err);
     }
@@ -339,38 +324,16 @@ export function EventDetailPage() {
 
   const onUpdateReview = async (reviewId: string, rating: number, comment: string, images: any[]) => {
     if (!currentUser || !event) return;
-
     try {
-      const updateData: any = {
-        descricao: comment,
-        avaliacao: rating,
-        updated_at: new Date().toISOString()
-      };
+      const updateData: any = { descricao: comment, avaliacao: rating, updated_at: new Date().toISOString() };
+      if (images && images.length > 0) updateData.imagem_url = images[0];
 
-      if (images && images.length > 0) {
-        updateData.imagem_url = images[0];
-      }
-
-      let query = supabase
-        .from('comentarios')
-        .update(updateData)
-        .eq('id', reviewId);
-
-      if (currentUser.type === 'user') {
-        query = query.eq('usuario_normal_id', currentUser.id);
-      } else if (currentUser.type === 'organizer') {
-        query = query.eq('organizador_id', currentUser.id);
-      }
+      let query = supabase.from('comentarios').update(updateData).eq('id', reviewId);
+      if (currentUser.type === 'user') query = query.eq('usuario_normal_id', currentUser.id);
+      else if (currentUser.type === 'organizer') query = query.eq('organizador_id', currentUser.id);
 
       const { error } = await query;
-
-      if (error) {
-        console.error('Erro ao atualizar review:', error);
-        return;
-      }
-
-      await fetchEvent(event.id);
-
+      if (!error) await fetchEvent(event.id);
     } catch (err) {
       console.error('Erro ao atualizar review:', err);
     }
@@ -378,28 +341,13 @@ export function EventDetailPage() {
 
   const onDeleteReview = async (reviewId: string) => {
     if (!currentUser || !event) return;
-
     try {
-      let query = supabase
-        .from('comentarios')
-        .update({ deleted_at: new Date().toISOString() })
-        .eq('id', reviewId);
-
-      if (currentUser.type === 'user') {
-        query = query.eq('usuario_normal_id', currentUser.id);
-      } else if (currentUser.type === 'organizer') {
-        query = query.eq('organizador_id', currentUser.id);
-      }
+      let query = supabase.from('comentarios').update({ deleted_at: new Date().toISOString() }).eq('id', reviewId);
+      if (currentUser.type === 'user') query = query.eq('usuario_normal_id', currentUser.id);
+      else if (currentUser.type === 'organizer') query = query.eq('organizador_id', currentUser.id);
 
       const { error } = await query;
-
-      if (error) {
-        console.error('Erro ao deletar review:', error);
-        return;
-      }
-
-      await fetchEvent(event.id);
-
+      if (!error) await fetchEvent(event.id);
     } catch (err) {
       console.error('Erro ao deletar review:', err);
     }
@@ -407,42 +355,26 @@ export function EventDetailPage() {
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric'
-    });
+    return date.toLocaleDateString('pt-PT', { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
   const formatDateFull = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('pt-PT', {
-      weekday: 'long',
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    });
+    return date.toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   const handleWhatsAppContact = () => {
     const phoneNumber = event?.organizerPhone || '244900000000';
-    const message = encodeURIComponent(
-      `Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}.`
-    );
-    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${message}`;
-    window.open(whatsappUrl, '_blank');
+    const message = encodeURIComponent(`Olá! Gostaria de obter mais informações sobre o evento: ${event?.name}.`);
+    window.open(`https://wa.me/${phoneNumber}?text=${message}`, '_blank');
   };
 
-  // Calcular total de ingressos disponíveis
   const getTotalIngressos = () => {
     if (!event?.estacoes) return 0;
     return event.estacoes.reduce((sum, estacao) => sum + estacao.quantidade, 0);
   };
 
-  // Verificar se o evento tem ingressos disponíveis
-  const hasIngressosDisponiveis = () => {
-    return getTotalIngressos() > 0;
-  };
+  const hasIngressosDisponiveis = () => getTotalIngressos() > 0;
 
   if (isLoading) {
     return (
@@ -461,10 +393,7 @@ export function EventDetailPage() {
         <div className="text-center max-w-md">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Evento não encontrado</h2>
           <p className="text-gray-600 mb-6">{error || 'O evento que você procura não existe ou foi removido.'}</p>
-          <button
-            onClick={() => navigate('/events')}
-            className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors"
-          >
+          <button onClick={() => navigate('/events')} className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors">
             Voltar aos eventos
           </button>
         </div>
@@ -474,24 +403,15 @@ export function EventDetailPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
       <header className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <div className="flex items-center justify-between">
-            <button
-              onClick={() => navigate(-1)}
-              className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-900 transition-colors"
-            >
+            <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-900 transition-colors">
               <ArrowLeft className="w-5 h-5" />
               <span>Voltar</span>
             </button>
-
             <div className="flex items-center">
-              <img
-                src={logo}
-                alt="Cresce.AO Logo"
-                className="h-10 w-auto object-contain"
-              />
+              <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>
@@ -500,15 +420,11 @@ export function EventDetailPage() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Section */}
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white flex flex-col justify-between min-h-[400px]">
             <div>
-              <div className="text-sm text-gray-300 mb-4">
-                Fale com o produtor: {event.organizerName}
-              </div>
+              <div className="text-sm text-gray-300 mb-4">Fale com o produtor: {event.organizerName}</div>
               <h1 className="text-4xl font-bold mb-6">{event.name}</h1>
               <div className="space-y-3">
                 <div className="flex items-center gap-2 text-gray-200">
@@ -521,7 +437,6 @@ export function EventDetailPage() {
                 </div>
               </div>
             </div>
-
             <div className="mt-6">
               <div className="inline-flex items-center gap-2 bg-orange-600 px-4 py-2 rounded-full text-sm font-semibold">
                 <Ticket className="w-4 h-4" />
@@ -535,25 +450,18 @@ export function EventDetailPage() {
               src={event.image}
               alt={event.name}
               className="w-full h-full object-cover min-h-[400px]"
-              onError={(e) => {
-                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
-              }}
+              onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800'; }}
             />
             {event.status === 'Cancelada' && (
               <div className="absolute top-6 left-6">
-                <span className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-semibold shadow-lg">
-                  Evento Cancelado
-                </span>
+                <span className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-semibold shadow-lg">Evento Cancelado</span>
               </div>
             )}
           </div>
         </div>
 
-        {/* Event Details Section */}
         <div className="grid lg:grid-cols-3 gap-8">
-          {/* Main Content Column */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Description */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Descrição do evento</h2>
               <div className="space-y-4 text-gray-700 leading-relaxed">
@@ -561,7 +469,6 @@ export function EventDetailPage() {
               </div>
             </div>
 
-            {/* Estações / Tipos de Ingresso */}
             {event.estacoes && event.estacoes.length > 0 && (
               <div className="bg-white rounded-xl shadow-md p-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Tipos de Ingresso</h2>
@@ -571,17 +478,16 @@ export function EventDetailPage() {
                       <div className="flex justify-between items-start mb-3">
                         <div>
                           <h3 className="text-lg font-bold text-gray-900">{estacao.nome}</h3>
-                          <p className="text-2xl font-bold text-orange-600 mt-1">
-                            {estacao.preco.toLocaleString()} Kz
-                          </p>
+                          <p className="text-2xl font-bold text-orange-600 mt-1">{estacao.preco.toLocaleString()} Kz</p>
                         </div>
                         <div className="text-right">
                           <p className="text-sm text-gray-500">
-                            <span className="font-semibold text-gray-700">{estacao.quantidade}</span> ingressos disponíveis
+                            <span className={`font-semibold ${estacao.quantidade === 0 ? 'text-red-500' : 'text-gray-700'}`}>
+                              {estacao.quantidade === 0 ? 'Esgotado' : `${estacao.quantidade} disponíveis`}
+                            </span>
                           </p>
                         </div>
                       </div>
-
                       {estacao.vantagens && estacao.vantagens.length > 0 && (
                         <div className="mt-3 pt-3 border-t border-gray-100">
                           <p className="text-sm font-semibold text-gray-700 mb-2">Vantagens:</p>
@@ -597,7 +503,6 @@ export function EventDetailPage() {
                       )}
                     </div>
                   ))}
-
                   <div className="bg-orange-50 rounded-lg p-4 mt-4">
                     <div className="flex items-center justify-between">
                       <div>
@@ -611,7 +516,6 @@ export function EventDetailPage() {
               </div>
             )}
 
-            {/* Quiz Button */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
                 <div className="flex items-center gap-4 mb-4">
@@ -623,10 +527,7 @@ export function EventDetailPage() {
                     <p className="text-sm text-gray-600">Teste seus conhecimentos sobre o tema</p>
                   </div>
                 </div>
-                <p className="text-gray-700 mb-4">
-                  Avalie o seu conhecimento respondendo a perguntas de múltipla escolha.
-                  No final, receberá feedback personalizado sobre o seu desempenho.
-                </p>
+                <p className="text-gray-700 mb-4">Avalie o seu conhecimento respondendo a perguntas de múltipla escolha.</p>
                 <button
                   onClick={() => setShowQuiz(true)}
                   className="w-full bg-purple-600 hover:bg-purple-700 cursor-pointer text-white py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2 shadow-md"
@@ -637,32 +538,16 @@ export function EventDetailPage() {
               </div>
             </div>
 
-            {/* Video Section */}
             {event.video && (
               <div className="bg-white rounded-xl shadow-md p-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Vídeo Promocional</h2>
                 <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden group">
                   {showVideo ? (
-                    <iframe
-                      src={event.video}
-                      title="Video do evento"
-                      className="w-full h-full"
-                      allowFullScreen
-                    />
+                    <iframe src={event.video} title="Video do evento" className="w-full h-full" allowFullScreen />
                   ) : (
                     <>
-                      <img
-                        src={event.image}
-                        alt={`Preview de ${event.name}`}
-                        className="w-full h-full object-cover"
-                      />
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowVideo(true);
-                        }}
-                        className="absolute inset-0 flex items-center justify-center"
-                      >
+                      <img src={event.image} alt={`Preview de ${event.name}`} className="w-full h-full object-cover" />
+                      <button onClick={(e) => { e.stopPropagation(); setShowVideo(true); }} className="absolute inset-0 flex items-center justify-center">
                         <div className="w-20 h-20 bg-orange-600 rounded-full flex items-center justify-center shadow-2xl">
                           <svg className="w-10 h-10 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
                             <path d="M8 5v14l11-7z" />
@@ -675,13 +560,9 @@ export function EventDetailPage() {
               </div>
             )}
 
-            {/* Organizer Info */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Organizador</h2>
-              <Link
-                to={`/organizer/${event.organizerId}`}
-                className="flex items-center gap-4 p-2 rounded-lg transition"
-              >
+              <Link to={`/organizer/${event.organizerId}`} className="flex items-center gap-4 p-2 rounded-lg transition">
                 <div className="w-16 h-16 bg-gradient-to-br from-orange-600 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
                   {event.organizerName.charAt(0).toUpperCase()}
                 </div>
@@ -693,7 +574,6 @@ export function EventDetailPage() {
             </div>
           </div>
 
-          {/* Sidebar - Contact & Engagement */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Informações e Contacto</h3>
@@ -711,7 +591,6 @@ export function EventDetailPage() {
                           <p className="text-gray-900 font-semibold">{formatDateFull(event.date)}</p>
                         </div>
                       </div>
-
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Clock className="w-5 h-5 text-orange-600" />
@@ -721,7 +600,6 @@ export function EventDetailPage() {
                           <p className="text-gray-900 font-semibold">{event.time}</p>
                         </div>
                       </div>
-
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <MapPin className="w-5 h-5 text-orange-600" />
@@ -729,20 +607,12 @@ export function EventDetailPage() {
                         <div className="flex-1">
                           <p className="text-sm text-gray-600 font-medium">Local</p>
                           {event.location.startsWith('http') ? (
-                            <a
-                              href={event.location}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-orange-600 hover:text-orange-700 font-semibold break-all text-sm"
-                            >
-                              Link Online
-                            </a>
+                            <a href={event.location} target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:text-orange-700 font-semibold break-all text-sm">Link Online</a>
                           ) : (
                             <p className="text-gray-900 font-semibold">{event.location}</p>
                           )}
                         </div>
                       </div>
-
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
                           <Building2 className="w-5 h-5 text-orange-600" />
@@ -755,67 +625,36 @@ export function EventDetailPage() {
                     </div>
                   </div>
 
-                  {/* Botão de Compra com estações */}
                   {hasIngressosDisponiveis() && (
                     <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-5">
                       <div className="text-center mb-4">
                         <h4 className="font-semibold text-gray-900 mb-2">Garanta seu lugar!</h4>
-                        <p className="text-sm text-gray-600">
-                          Escolha o tipo de ingresso que melhor se adequa a você
-                        </p>
+                        <p className="text-sm text-gray-600">Escolha o tipo de ingresso que melhor se adequa a você</p>
                       </div>
-
-                      {event.estacoes && event.estacoes.length > 0 && (
-                        <div className="space-y-2 mb-4 max-h-48 overflow-y-auto">
-                          {event.estacoes.map((ticket, idx) => (
-                            <div key={idx} className="flex justify-between items-center p-2 bg-white rounded-lg">
-                              <div>
-                                <p className="font-medium text-gray-900">{ticket.nome}</p>
-                                <p className="text-xs text-gray-500">{ticket.quantidade} disponíveis</p>
-                              </div>
-                              <p className="font-bold text-orange-600">{ticket.preco.toLocaleString()} Kz</p>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
                       <button
                         onClick={() => setShowBuyModal(true)}
                         disabled={!currentUser}
-                        className={`w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md ${currentUser
-                          ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer text-white'
-                          : 'bg-gray-300 cursor-not-allowed text-gray-500'
-                          }`}
+                        className={`w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md ${currentUser ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer text-white' : 'bg-gray-300 cursor-not-allowed text-gray-500'}`}
                       >
                         <Ticket className="w-6 h-6" />
                         {currentUser ? 'Comprar Ingresso' : 'Faça login para comprar'}
                       </button>
                       {!currentUser && (
                         <p className="text-xs text-center text-gray-500 mt-2">
-                          <button
-                            onClick={() => navigate('/login')}
-                            className="text-orange-600 hover:underline"
-                          >
-                            Faça login
-                          </button> para adquirir seu ingresso
+                          <button onClick={() => navigate('/login')} className="text-orange-600 hover:underline">Faça login</button> para adquirir seu ingresso
                         </p>
                       )}
                     </div>
                   )}
 
-                  {/* Like Button */}
                   <button
                     onClick={onLikeToggle}
-                    className={`w-full px-6 py-3 rounded-lg cursor-pointer font-semibold transition-all flex items-center justify-center gap-2 ${isLiked
-                      ? 'bg-orange-600 text-white hover:bg-orange-700'
-                      : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'
-                      }`}
+                    className={`w-full px-6 py-3 rounded-lg cursor-pointer font-semibold transition-all flex items-center justify-center gap-2 ${isLiked ? 'bg-orange-600 text-white hover:bg-orange-700' : 'border-2 border-orange-600 text-orange-600 hover:bg-orange-50'}`}
                   >
                     <Heart className={`w-5 h-5 ${isLiked ? 'fill-current' : ''}`} />
                     {isLiked ? 'Interessado' : 'Demonstrar Interesse'}
                   </button>
 
-                  {/* Interest Count */}
                   <div className="text-center">
                     <p className="text-sm text-gray-600">
                       <span className="font-semibold text-gray-900">{event.likes}</span> pessoas interessadas
@@ -826,21 +665,14 @@ export function EventDetailPage() {
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
                   <p className="text-red-600 font-semibold mb-2">Este evento foi cancelado</p>
                   <p className="text-sm text-red-500">Entre em contacto com o organizador para mais informações</p>
-                  <button
-                    onClick={handleWhatsAppContact}
-                    className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2"
-                  >
+                  <button onClick={handleWhatsAppContact} className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
                     <MessageCircle className="w-5 h-5" />
                     Contactar Organizador
                   </button>
                 </div>
               )}
 
-              {/* Share Button */}
-              <button
-                onClick={handleShareEvent}
-                className="w-full mt-4 px-6 py-3 cursor-pointer border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2"
-              >
+              <button onClick={handleShareEvent} className="w-full mt-4 px-6 py-3 cursor-pointer border-2 border-gray-300 text-gray-700 rounded-lg font-semibold hover:bg-gray-50 transition-colors flex items-center justify-center gap-2">
                 <Share2 className="w-5 h-5" />
                 Partilhar Evento
               </button>
@@ -848,7 +680,7 @@ export function EventDetailPage() {
           </div>
         </div>
 
-        {/* Modal de Compra */}
+        {/* ── MUDANÇA 3: onCompraRealizada passa o refetch para o modal ── */}
         {showBuyModal && event && (
           <BuyTicketModal
             isOpen={showBuyModal}
@@ -857,23 +689,18 @@ export function EventDetailPage() {
             eventoNome={event.name}
             estacoes={event.estacoes || []}
             usuario={currentUser}
+            onCompraRealizada={() => fetchEvent(event.id)}
           />
         )}
 
-        {/* Quiz Modal */}
         {showQuiz && event && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-              <EventQuiz
-                eventId={event.id}
-                eventName={event.name}
-                onClose={() => setShowQuiz(false)}
-              />
+              <EventQuiz eventId={event.id} eventName={event.name} onClose={() => setShowQuiz(false)} />
             </div>
           </div>
         )}
 
-        {/* Reviews Section */}
         <div className="mt-8">
           <EventReviews
             eventId={event.id}
@@ -887,7 +714,6 @@ export function EventDetailPage() {
         </div>
       </main>
 
-      {/* Footer */}
       <Footer
         onExplore={() => navigate('/events')}
         onNavigateToPrivacy={() => navigate('/privacy-policy')}
