@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
-import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff, UserCheck, UserPlus, User } from "lucide-react";
+import { Calendar, MapPin, Heart, ArrowLeft, Sparkles, Building2, HeartOff, UserCheck, UserPlus, User, Eye } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { EventCardSkeleton } from "./EventCardSkeleton";
 import { notificationService } from "../services/notificationService";
@@ -17,12 +17,16 @@ export default function OrganizerProfilePage() {
   const [error, setError] = useState<string | null>(null);
   const [organizerName, setOrganizerName] = useState("");
   const [organizerInfo, setOrganizerInfo] = useState<any>(null);
+  const [organizerAvatar, setOrganizerAvatar] = useState<string | null>(null);
 
   // Estados para favoritar organizador
   const [isFavorite, setIsFavorite] = useState(false);
   const [favoriteCount, setFavoriteCount] = useState(0);
   const [isFavoriteLoading, setIsFavoriteLoading] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
+
+  // Estados para favoritar eventos
+  const [likedEvents, setLikedEvents] = useState<string[]>([]);
 
   // Buscar usuário logado
   useEffect(() => {
@@ -46,6 +50,90 @@ export default function OrganizerProfilePage() {
     });
   };
 
+  // Função para buscar eventos favoritados pelo usuário
+  const fetchUserLikedEvents = async () => {
+    if (!currentUser) return;
+
+    try {
+      let query = supabase.from('favoritos_eventos').select('evento_id');
+      if (currentUser.type === 'user') {
+        query = query.eq('usuario_normal_id', currentUser.id);
+      } else if (currentUser.type === 'organizer') {
+        query = query.eq('organizador_id', currentUser.id);
+      }
+
+      const { data: favorites } = await query;
+      if (favorites) {
+        setLikedEvents(favorites.map(f => f.evento_id));
+      }
+    } catch (err) {
+      console.error('Erro ao buscar eventos favoritados:', err);
+    }
+  };
+
+  // Função para favoritar/desfavoritar evento
+  const handleEventLikeToggle = async (eventId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!currentUser) {
+      alert("Faça login para favoritar eventos");
+      navigate('/login');
+      return;
+    }
+
+    try {
+      const isLiked = likedEvents.includes(eventId);
+
+      if (isLiked) {
+        // Remover favorito
+        let query = supabase
+          .from('favoritos_eventos')
+          .delete()
+          .eq('evento_id', eventId);
+
+        if (currentUser.type === 'user') {
+          query = query.eq('usuario_normal_id', currentUser.id);
+        } else if (currentUser.type === 'organizer') {
+          query = query.eq('organizador_id', currentUser.id);
+        }
+
+        const { error } = await query;
+        if (!error) {
+          setLikedEvents(prev => prev.filter(id => id !== eventId));
+          // Atualizar contagem de likes no evento
+          setEvents(prev => prev.map(event =>
+            event.id === eventId
+              ? { ...event, likes: Math.max(0, event.likes - 1) }
+              : event
+          ));
+        }
+      } else {
+        // Adicionar favorito
+        const insertData: any = {
+          evento_id: eventId,
+          created_at: new Date().toISOString()
+        };
+
+        if (currentUser.type === 'user') {
+          insertData.usuario_normal_id = currentUser.id;
+        } else if (currentUser.type === 'organizer') {
+          insertData.organizador_id = currentUser.id;
+        }
+
+        const { error } = await supabase.from('favoritos_eventos').insert(insertData);
+        if (!error) {
+          setLikedEvents(prev => [...prev, eventId]);
+          setEvents(prev => prev.map(event =>
+            event.id === eventId
+              ? { ...event, likes: event.likes + 1 }
+              : event
+          ));
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao alternar like do evento:', err);
+    }
+  };
+
   const fetchOrganizerEvents = async () => {
     if (!id) return;
 
@@ -66,6 +154,7 @@ export default function OrganizerProfilePage() {
       } else if (organizer) {
         setOrganizerInfo(organizer);
         setOrganizerName(organizer.nome_empresa);
+        setOrganizerAvatar(organizer.avatar_url);
       }
 
       // Buscar eventos do organizador
@@ -103,6 +192,15 @@ export default function OrganizerProfilePage() {
             status = "Finalizado";
           }
 
+          // Buscar URL da imagem
+          let imageUrl = evento.imagem_url;
+          if (imageUrl && imageUrl.includes('supabase.co')) {
+            const { data } = supabase.storage
+              .from('event-images')
+              .getPublicUrl(imageUrl.split('/').pop() || imageUrl);
+            imageUrl = data.publicUrl;
+          }
+
           return {
             id: evento.id,
             name: evento.nome_evento,
@@ -113,7 +211,7 @@ export default function OrganizerProfilePage() {
             description: evento.descricao || "",
             category: evento.categoria,
             eventType: evento.tipo_evento,
-            image: evento.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+            image: imageUrl || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
             video: evento.video_url,
             status,
             organizerId: evento.organizador_id,
@@ -127,6 +225,9 @@ export default function OrganizerProfilePage() {
 
       // Buscar informações de favoritos do organizador
       await fetchFavoriteInfo(organizer?.id);
+
+      // Buscar eventos favoritados pelo usuário
+      await fetchUserLikedEvents();
 
     } catch (err) {
       console.error("Erro inesperado:", err);
@@ -165,19 +266,14 @@ export default function OrganizerProfilePage() {
   // Função para verificar se o organizador está logado no mesmo navegador
   const isOrganizadorLogado = async (organizadorId: string): Promise<boolean> => {
     try {
-      // Pegar usuário logado do localStorage
       const loggedUser = localStorage.getItem('user');
       if (!loggedUser) return false;
 
       const user = JSON.parse(loggedUser);
-
-      // Verificar se o usuário logado é um organizador e se é o mesmo ID
       if (user.type === 'organizer' && user.id === organizadorId) {
-        console.log('✅ Organizador está logado no mesmo navegador');
         return true;
       }
 
-      // Verificar também via Supabase se há sessão ativa (para garantir)
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
         const { data: organizador } = await supabase
@@ -187,12 +283,10 @@ export default function OrganizerProfilePage() {
           .single();
 
         if (organizador && session.user.id === organizador.id) {
-          console.log('✅ Organizador autenticado via Supabase');
           return true;
         }
       }
 
-      console.log('❌ Organizador não está logado neste navegador');
       return false;
     } catch (error) {
       console.error('Erro ao verificar se organizador está logado:', error);
@@ -218,7 +312,6 @@ export default function OrganizerProfilePage() {
 
     try {
       if (isFavorite) {
-        // Remover dos favoritos
         const { error } = await supabase
           .from("favoritos_organizadores")
           .delete()
@@ -230,7 +323,6 @@ export default function OrganizerProfilePage() {
         setIsFavorite(false);
         setFavoriteCount(prev => prev - 1);
       } else {
-        // Adicionar aos favoritos
         const { error } = await supabase
           .from("favoritos_organizadores")
           .insert({
@@ -244,11 +336,9 @@ export default function OrganizerProfilePage() {
         setIsFavorite(true);
         setFavoriteCount(prev => prev + 1);
 
-        // 🔔 NOTIFICAÇÕES
         const isDifferentUser = organizerInfo && currentUser.id !== organizerInfo.id;
 
         if (isDifferentUser && organizerInfo?.email_empresa) {
-          // 1. Enviar email
           try {
             await emailService.sendNotification({
               to_email: organizerInfo.email_empresa,
@@ -261,7 +351,6 @@ export default function OrganizerProfilePage() {
             console.error('Erro ao enviar email:', emailError);
           }
 
-          // 2. Enviar PUSH NOTIFICATION para o organizador (funciona em qualquer navegador onde ele estiver logado)
           const pushEnviado = await sendPushNotification(
             organizerInfo.id,
             'organizer',
@@ -270,12 +359,7 @@ export default function OrganizerProfilePage() {
             `/organizer/${organizerInfo.id}`
           );
 
-          if (pushEnviado) {
-            console.log('✅ Push notification enviada para o organizador');
-          } else {
-            console.log('⚠️ Organizador não tem push ativado, tentando notificação local');
-
-            // Fallback: verificar se está no mesmo navegador
+          if (!pushEnviado) {
             const organizadorLogado = await isOrganizadorLogado(organizerInfo.id);
             if (organizadorLogado) {
               showLocalNotification(
@@ -331,30 +415,53 @@ export default function OrganizerProfilePage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Hero Banner */}
+        {/* Hero Banner com foto do organizador */}
         <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white mb-8">
           <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
           <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
 
           <div className="relative z-10">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
-                <h1 className="text-4xl md:text-5xl font-bold mb-3">{organizerName || "Organizador"}</h1>
+            <div className="flex items-center justify-between flex-wrap gap-6">
+              <div className="flex items-center gap-6">
+                {/* Avatar do organizador */}
+                <div className="w-24 h-24 rounded-full overflow-hidden bg-white/20 backdrop-blur-sm border-4 border-white shadow-xl flex items-center justify-center">
+                  {organizerAvatar ? (
+                    <img
+                      src={organizerAvatar}
+                      alt={organizerName}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                        const parent = (e.target as HTMLImageElement).parentElement;
+                        if (parent) {
+                          parent.innerHTML = '<span class="text-4xl font-bold">' + (organizerName?.charAt(0) || 'O') + '</span>';
+                        }
+                      }}
+                    />
+                  ) : (
+                    <span className="text-4xl font-bold">
+                      {organizerName?.charAt(0).toUpperCase() || 'O'}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
+                  <h1 className="text-4xl md:text-5xl font-bold mb-3">{organizerName || "Organizador"}</h1>
 
-                {organizerInfo && (
-                  <div className="flex flex-col gap-2 mt-4 text-orange-50">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="w-5 h-5" />
-                      <span>{organizerInfo.email_empresa}</span>
-                    </div>
-                    {organizerInfo.nif && (
+                  {organizerInfo && (
+                    <div className="flex flex-col gap-2 mt-4 text-orange-50">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm opacity-80">NIF: {organizerInfo.nif}</span>
+                        <Building2 className="w-5 h-5" />
+                        <span>{organizerInfo.email_empresa}</span>
                       </div>
-                    )}
-                  </div>
-                )}
+                      {organizerInfo.nif && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm opacity-80">NIF: {organizerInfo.nif}</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Botão de Favoritar Organizador */}
@@ -387,13 +494,14 @@ export default function OrganizerProfilePage() {
                   <User className="w-6 h-6" />
                   <div className="text-left">
                     <span className="text-2xl font-bold block">{favoriteCount}</span>
+                    <span className="text-xs opacity-90">seguidores</span>
                   </div>
                 </div>
               )}
             </div>
 
             {/* Estatísticas rápidas */}
-            <div className="flex gap-6 mt-6 pt-6 border-t border-white/20">
+            <div className="flex gap-6 mt-8 pt-6 border-t border-white/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
                   <Calendar className="w-5 h-5" />
@@ -474,8 +582,11 @@ export default function OrganizerProfilePage() {
                   {events.map((event) => (
                     <div
                       key={event.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate(`/event/${event.id}`);
+                      }}
                       className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:border-orange-200 hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full"
-                      onClick={() => navigate(`/event/${event.id}`)}
                     >
                       {/* Event Image */}
                       <div className="relative aspect-[16/9] overflow-hidden bg-gray-900">
@@ -498,20 +609,20 @@ export default function OrganizerProfilePage() {
                           </span>
                         </div>
 
-                        {/* Price Badge */}
-                        {event.price ? (
-                          <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                            <span className="px-2 py-1 rounded-md text-xs font-bold bg-white/90 backdrop-blur-sm text-green-600 shadow-sm">
-                              {event.price.toLocaleString()} Kz
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
-                            <span className="px-2 py-1 rounded-md text-xs font-bold bg-white/90 backdrop-blur-sm text-green-600 shadow-sm">
-                              Grátis
-                            </span>
-                          </div>
-                        )}
+                        {/* Like Button */}
+                        <div className="absolute top-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
+                          <button
+                            onClick={(e) => handleEventLikeToggle(event.id, e)}
+                            className="p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white hover:scale-110 transition-all shadow-sm"
+                          >
+                            <Heart
+                              className={`w-4 h-4 transition-all duration-200 ${likedEvents.includes(event.id)
+                                ? 'text-red-500 fill-red-500'
+                                : 'text-gray-600 hover:text-red-500'
+                                }`}
+                            />
+                          </button>
+                        </div>
 
                         {/* Status Badge */}
                         <div className="absolute bottom-3 right-3 transform group-hover:scale-110 transition-transform duration-300">
@@ -545,16 +656,35 @@ export default function OrganizerProfilePage() {
 
                         <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-gray-200 group-hover:bg-orange-100 flex items-center justify-center text-xs font-bold text-gray-600 group-hover:text-orange-600 transition-all duration-300">
-                              {organizerName.charAt(0)}
+                            <div className="w-6 h-6 rounded-full overflow-hidden backdrop-blur-sm border-white shadow-xl flex items-center justify-center">
+                              {organizerAvatar ? (
+                                <img
+                                  src={organizerAvatar}
+                                  alt={organizerName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).style.display = 'none';
+                                    const parent = (e.target as HTMLImageElement).parentElement;
+                                    if (parent) {
+                                      parent.innerHTML = '<span class="text-4xl font-bold">' + (organizerName?.charAt(0) || 'O') + '</span>';
+                                    }
+                                  }}
+                                />
+                              ) : (
+                                <span className="text-4xl font-bold">
+                                  {organizerName?.charAt(0).toUpperCase() || 'O'}
+                                </span>
+                              )}
                             </div>
                             <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">
                               {organizerName}
                             </span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Heart className="w-4 h-4 text-red-500 fill-red-500" />
-                            <span className="text-xs font-semibold text-gray-600">{event.likes}</span>
+                          <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-1">
+                              <Heart className={`w-4 h-4 ${likedEvents.includes(event.id) ? 'text-red-500 fill-red-500' : 'text-gray-400'}`} />
+                              <span className="text-xs font-semibold text-gray-600">{event.likes}</span>
+                            </div>
                           </div>
                         </div>
                       </div>

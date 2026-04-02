@@ -1,7 +1,7 @@
 import logo from "../assets/logo.png";
-import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles, Users } from 'lucide-react';
 import { EventReviews } from './EventReviews';
-import { useState, useEffect, useCallback } from 'react'; // ← adicionar useCallback
+import { useState, useEffect, useCallback } from 'react';
 import { EventQuiz } from './EventQuiz';
 import { EventChat } from './EventChat';
 import { Footer } from './Footer';
@@ -9,6 +9,7 @@ import { useNavigate, useParams, Link } from "react-router-dom";
 import { supabase } from '../lib/supabase';
 import { BuyTicketModal } from './BayTicketModal';
 import { getEventImageUrl, getEventVideoUrl, getEventPdfUrl } from '../lib/storage';
+import { UserPlus, UserCheck, User } from 'lucide-react';
 
 type User = {
   id: string;
@@ -60,6 +61,9 @@ export function EventDetailPage() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [averageRating, setAverageRating] = useState<number | undefined>(undefined);
   const [showBuyModal, setShowBuyModal] = useState(false);
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [followersCount, setFollowersCount] = useState(0);
+  const [organizerAvatar, setOrganizerAvatar] = useState<string | null>(null);
 
   const [currentUser] = useState<User | null>(() => {
     try {
@@ -147,6 +151,10 @@ export function EventDetailPage() {
         averageRating = sum / reviews.length;
       }
 
+
+      // Dentro de fetchEvent, após buscar o organizador, adicione:
+      await fetchOrganizerInfo(evento.organizador_id);
+
       const formattedReviews = reviews?.map(review => ({
         id: review.id,
         userId: review.usuario_normal?.id,
@@ -213,6 +221,7 @@ export function EventDetailPage() {
       fetchEvent(id);
     }
   }, [id, fetchEvent]);
+
 
   // ── MUDANÇA 2: Subscrição Realtime — atualiza estacoes quando o webhook escreve ──
   useEffect(() => {
@@ -372,6 +381,92 @@ export function EventDetailPage() {
   const getTotalIngressos = () => {
     if (!event?.estacoes) return 0;
     return event.estacoes.reduce((sum, estacao) => sum + estacao.quantidade, 0);
+  };
+
+  // Buscar informações do organizador (avatar e seguidores)
+  const fetchOrganizerInfo = async (organizerId: string) => {
+    try {
+      // Buscar dados do organizador
+      const { data: organizer, error: orgError } = await supabase
+        .from('organizadores')
+        .select('avatar_url, nome_empresa')
+        .eq('id', organizerId)
+        .single();
+
+      if (!orgError && organizer) {
+        setOrganizerAvatar(organizer.avatar_url);
+      }
+
+      // Buscar número de seguidores
+      const { count } = await supabase
+        .from('favoritos_organizadores')
+        .select('*', { count: 'exact', head: true })
+        .eq('organizador_favoritado_id', organizerId);
+
+      setFollowersCount(count || 0);
+
+      // Verificar se o usuário atual já segue este organizador
+      if (currentUser && currentUser.type === 'user') {
+        const { data: follow } = await supabase
+          .from('favoritos_organizadores')
+          .select('id')
+          .eq('organizador_favoritado_id', organizerId)
+          .eq('usuario_normal_id', currentUser.id)
+          .maybeSingle();
+
+        setIsFollowing(!!follow);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar informações do organizador:', err);
+    }
+  };
+
+  // Função para seguir/deixar de seguir organizador
+  const handleFollowToggle = async () => {
+    if (!currentUser) {
+      alert('Faça login para seguir organizadores');
+      navigate('/login');
+      return;
+    }
+
+    if (currentUser.type !== 'user') {
+      alert('Apenas usuários podem seguir organizadores');
+      return;
+    }
+
+    if (!event) return;
+
+    try {
+      if (isFollowing) {
+        // Deixar de seguir
+        const { error } = await supabase
+          .from('favoritos_organizadores')
+          .delete()
+          .eq('organizador_favoritado_id', event.organizerId)
+          .eq('usuario_normal_id', currentUser.id);
+
+        if (!error) {
+          setIsFollowing(false);
+          setFollowersCount(prev => prev - 1);
+        }
+      } else {
+        // Seguir
+        const { error } = await supabase
+          .from('favoritos_organizadores')
+          .insert({
+            organizador_favoritado_id: event.organizerId,
+            usuario_normal_id: currentUser.id,
+            created_at: new Date().toISOString()
+          });
+
+        if (!error) {
+          setIsFollowing(true);
+          setFollowersCount(prev => prev + 1);
+        }
+      }
+    } catch (err) {
+      console.error('Erro ao alternar follow:', err);
+    }
   };
 
   const hasIngressosDisponiveis = () => getTotalIngressos() > 0;
@@ -560,17 +655,78 @@ export function EventDetailPage() {
               </div>
             )}
 
+            {/* Seção do Organizador com foto e botão seguir */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Organizador</h2>
-              <Link to={`/organizer/${event.organizerId}`} className="flex items-center gap-4 p-2 rounded-lg transition">
-                <div className="w-16 h-16 bg-gradient-to-br from-orange-600 to-red-600 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                  {event.organizerName.charAt(0).toUpperCase()}
-                </div>
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900">{event.organizerName}</h3>
-                  <p className="text-gray-600">Organizador de Eventos</p>
-                </div>
-              </Link>
+
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <Link
+                  to={`/organizer/${event.organizerId}`}
+                  className="flex items-center gap-4 p-2 rounded-lg transition flex-1 min-w-0"
+                >
+                  {/* Avatar do organizador */}
+                  <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                    {organizerAvatar ? (
+                      <img
+                        src={organizerAvatar}
+                        alt={event.organizerName}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          (e.target as HTMLImageElement).style.display = 'none';
+                          const parent = (e.target as HTMLImageElement).parentElement;
+                          if (parent) {
+                            parent.innerHTML = event.organizerName.charAt(0).toUpperCase();
+                          }
+                        }}
+                      />
+                    ) : (
+                      event.organizerName.charAt(0).toUpperCase()
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <h3 className="text-xl font-semibold text-gray-900 hover:text-orange-600 transition-colors truncate">
+                      {event.organizerName}
+                    </h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <Users className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                      <p className="text-sm text-gray-500">
+                        {followersCount} {followersCount === 1 ? 'seguidor' : 'seguidores'}
+                      </p>
+                    </div>
+                  </div>
+                </Link>
+
+                {/* Botão Seguir - só aparece se for usuário normal e não for o próprio organizador */}
+                {currentUser && currentUser.type === 'user' && currentUser.id !== event.organizerId && (
+                  <button
+                    onClick={handleFollowToggle}
+                    className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg font-semibold transition-all whitespace-nowrap ${isFollowing
+                        ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+                        : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
+                      }`}
+                  >
+                    {isFollowing ? (
+                      <>
+                        <UserCheck className="w-4 h-4" />
+                        <span>Seguindo</span>
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus className="w-4 h-4" />
+                        <span>Seguir</span>
+                      </>
+                    )}
+                  </button>
+                )}
+
+                {/* Mostrar apenas contagem para não-usuários ou se for o próprio organizador */}
+                {(!currentUser || currentUser.type !== 'user' || currentUser.id === event.organizerId) && (
+                  <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg whitespace-nowrap">
+                    <Users className="w-4 h-4 text-gray-400" />
+                    <span className="text-sm text-gray-600">{followersCount} seguidores</span>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

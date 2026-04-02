@@ -192,10 +192,10 @@ export function CreateEvent() {
                 return;
             }
 
-            if (file.size > 5 * 1024 * 1024) {
-                setError('A imagem deve ter no máximo 5MB');
-                return;
-            }
+            // if (file.size > 5 * 1024 * 1024) {
+            //     setError('A imagem deve ter no máximo 5MB');
+            //     return;
+            // }
 
             setImageFile(file);
             const reader = new FileReader();
@@ -215,10 +215,10 @@ export function CreateEvent() {
                 return;
             }
 
-            if (file.size > 50 * 1024 * 1024) {
-                setError('O vídeo deve ter no máximo 50MB');
-                return;
-            }
+            // if (file.size > 50 * 1024 * 1024) {
+            //     setError('O vídeo deve ter no máximo 50MB');
+            //     return;
+            // }
 
             setVideoFile(file);
             setError(null);

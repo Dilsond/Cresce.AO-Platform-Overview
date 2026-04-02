@@ -165,7 +165,7 @@ export function FollowersPage() {
   }, [currentUser]);
 
   const handleRemoveFollower = async (followerId: string, userId: string) => {
-    if (!confirm('Tem certeza que deseja remover este seguidor? Ele não poderá mais ver seus eventos.')) return;
+    // if (!confirm('Tem certeza que deseja remover este seguidor? Ele não poderá mais ver seus eventos.')) return;
 
     setRemovingId(followerId);
 
@@ -181,7 +181,7 @@ export function FollowersPage() {
       setFollowers(prev => prev.filter(f => f.id !== followerId));
       setTotalSeguidores(prev => prev - 1);
 
-      alert('Seguidor removido com sucesso!');
+      // alert('Seguidor removido com sucesso!');
 
     } catch (err) {
       console.error('Erro ao remover seguidor:', err);
@@ -428,7 +428,7 @@ export function FollowersPage() {
                         <button
                           onClick={() => handleRemoveFollower(follower.id, follower.user_id)}
                           disabled={removingId === follower.id}
-                          className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-medium disabled:opacity-50 group-hover:bg-red-100"
+                          className="w-full flex items-center justify-center cursor-pointer gap-2 px-4 py-2.5 bg-red-50 text-red-600 rounded-xl hover:bg-red-100 transition-colors font-medium disabled:opacity-50 group-hover:bg-red-100"
                         >
                           {removingId === follower.id ? (
                             <>

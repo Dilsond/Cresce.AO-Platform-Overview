@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
-    Calendar, 
-    MapPin, 
-    Heart, 
-    Edit2, 
-    Trash2, 
-    Plus, 
+import {
+    Calendar,
+    MapPin,
+    Heart,
+    Edit2,
+    Trash2,
+    Plus,
     Ticket,
     Users,
     Clock,
@@ -15,12 +15,16 @@ import {
     XCircle,
     Eye,
     Copy,
-    Share2
+    Share2,
+    UserPlus,
+    X
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { EventCardSkeleton } from './EventCardSkeleton';
 import { EditEventModal } from './EditEventModal';
+import { EventLikersModal } from './EventLikersModal';
+import { DeleteEventModal } from './DeleteEventModal';
 import logo from "../assets/logo.png";
 
 interface User {
@@ -68,6 +72,10 @@ export function MyEventsPage() {
     const [error, setError] = useState<string | null>(null);
     const [selectedEvent, setSelectedEvent] = useState<Event | null>(null);
     const [showEditModal, setShowEditModal] = useState(false);
+    const [showLikersModal, setShowLikersModal] = useState(false);
+    const [showDeleteModal, setShowDeleteModal] = useState(false);
+    const [selectedEventForDelete, setSelectedEventForDelete] = useState<{ id: string; name: string } | null>(null);
+    const [selectedEventForLikers, setSelectedEventForLikers] = useState<{ id: string; name: string } | null>(null);
     const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'cancelled' | 'finished'>('all');
     const [searchTerm, setSearchTerm] = useState('');
 
@@ -151,7 +159,7 @@ export function MyEventsPage() {
                     const hoje = new Date();
                     const dataEvento = new Date(evento.data_evento);
                     let status = 'active';
-                    
+
                     if (evento.deleted_at) {
                         status = 'cancelled';
                     } else if (dataEvento < hoje) {
@@ -212,15 +220,20 @@ export function MyEventsPage() {
         setShowEditModal(true);
     };
 
-    const handleDeleteEvent = async (eventId: string) => {
-        if (!confirm('Tem certeza que deseja cancelar este evento? Esta ação pode ser desfeita.')) {
-            return;
-        }
+    const handleViewLikers = (event: Event) => {
+        setSelectedEventForLikers({ id: event.id, name: event.name });
+        setShowLikersModal(true);
+    };
+
+    const handleCancelEvent = async (eventId: string) => {
+        // if (!confirm('Tem certeza que deseja cancelar este evento? Esta ação pode ser desfeita posteriormente.')) {
+        //     return;
+        // }
 
         try {
             const { error } = await supabase
                 .from('eventos')
-                .update({ 
+                .update({
                     deleted_at: new Date().toISOString(),
                     updated_at: new Date().toISOString()
                 })
@@ -228,10 +241,8 @@ export function MyEventsPage() {
 
             if (error) throw error;
 
-            // Atualizar lista de eventos
             await fetchOrganizerEvents();
-            
-            // alert('Evento cancelado com sucesso!');
+
         } catch (err) {
             console.error('Erro ao cancelar evento:', err);
             alert('Erro ao cancelar evento. Tente novamente.');
@@ -239,14 +250,14 @@ export function MyEventsPage() {
     };
 
     const handleRestoreEvent = async (eventId: string) => {
-        if (!confirm('Tem certeza que deseja reativar este evento?')) {
-            return;
-        }
+        // if (!confirm('Tem certeza que deseja reativar este evento?')) {
+        //     return;
+        // }
 
         try {
             const { error } = await supabase
                 .from('eventos')
-                .update({ 
+                .update({
                     deleted_at: null,
                     updated_at: new Date().toISOString()
                 })
@@ -255,51 +266,25 @@ export function MyEventsPage() {
             if (error) throw error;
 
             await fetchOrganizerEvents();
-            // alert('Evento reativado com sucesso!');
         } catch (err) {
             console.error('Erro ao reativar evento:', err);
             alert('Erro ao reativar evento. Tente novamente.');
         }
     };
 
-    const handleDuplicateEvent = async (event: Event) => {
-        if (!confirm(`Deseja duplicar o evento "${event.name}"?`)) {
-            return;
-        }
+    const handleDeleteEvent = (event: Event) => {
+        console.log('🗑️ Abrindo modal para excluir:', event.id, event.name);
+        setSelectedEventForDelete({
+            id: event.id,
+            name: event.name
+        });
+        setShowDeleteModal(true);
+    };
 
-        try {
-            const newEventName = `${event.name} (Cópia)`;
-            
-            const { data: newEvent, error } = await supabase
-                .from('eventos')
-                .insert({
-                    organizador_id: user!.id,
-                    nome_evento: newEventName,
-                    categoria: event.category,
-                    data_evento: event.date,
-                    hora_evento: event.time,
-                    tipo_evento: event.eventType,
-                    local: event.location,
-                    descricao: event.description,
-                    valor: event.price,
-                    imagem_url: event.image,
-                    video_url: event.video,
-                    arquivo_pdf_url: event.pdf,
-                    estacoes: event.estacoes,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            await fetchOrganizerEvents();
-            // alert(`Evento duplicado com sucesso!`);
-        } catch (err) {
-            console.error('Erro ao duplicar evento:', err);
-            alert('Erro ao duplicar evento. Tente novamente.');
-        }
+    // Função chamada após deletar
+    const handlePermanentDelete = async () => {
+        console.log('🔄 Recarregando lista de eventos...');
+        await fetchOrganizerEvents();
     };
 
     const getStatusBadge = (status: string) => {
@@ -316,16 +301,12 @@ export function MyEventsPage() {
     };
 
     const filteredEvents = events.filter(event => {
-        // Filtro por status
         if (filterStatus !== 'all' && event.status !== filterStatus) {
             return false;
         }
-        
-        // Filtro por busca
         if (searchTerm && !event.name.toLowerCase().includes(searchTerm.toLowerCase())) {
             return false;
         }
-        
         return true;
     });
 
@@ -367,34 +348,58 @@ export function MyEventsPage() {
             </header>
 
             <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+                {/* Estatísticas */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                        <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
+                        <p className="text-sm text-gray-500">Total</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                        <p className="text-2xl font-bold text-green-600">{stats.active}</p>
+                        <p className="text-sm text-gray-500">Ativos</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
+                        <p className="text-2xl font-bold text-red-600">{stats.cancelled}</p>
+                        <p className="text-sm text-gray-500">Cancelados</p>
+                    </div>
+                </div>
 
                 {/* Filtros e busca */}
-                <div className="bg-white rounded-xl shadow-sm p-4 mb-6">
-                    <div className="flex flex-col md:flex-row gap-4">
-                        <div className="flex-1">
+                <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-6">
+                    <div className="flex flex-col sm:flex-row gap-3">
+                        <div className="relative flex-1">
                             <input
                                 type="text"
-                                placeholder="Buscar evento..."
+                                placeholder="Pesquisar evento..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
                             />
-                        </div>
-                        <div className="flex gap-2">
-                            {['all', 'active', 'cancelled', 'finished'].map((status) => (
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                                <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                                </svg>
+                            </div>
+                            {searchTerm && (
                                 <button
-                                    key={status}
-                                    onClick={() => setFilterStatus(status as any)}
-                                    className={`px-4 py-2 rounded-lg font-medium transition-all ${
-                                        filterStatus === status
+                                    onClick={() => setSearchTerm('')}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                                >
+                                    <X className="w-4 h-4" />
+                                </button>
+                            )}
+                        </div>
+                        <div className="flex gap-2 flex-wrap">
+                            {(['all', 'active', 'cancelled', 'finished'] as const).map((s) => (
+                                <button
+                                    key={s}
+                                    onClick={() => setFilterStatus(s)}
+                                    className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${filterStatus === s
                                             ? 'bg-orange-600 text-white'
                                             : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                                    }`}
+                                        }`}
                                 >
-                                    {status === 'all' && 'Todos'}
-                                    {status === 'active' && 'Ativos'}
-                                    {status === 'cancelled' && 'Cancelados'}
-                                    {status === 'finished' && 'Finalizados'}
+                                    {{ all: 'Todos', active: 'Ativos', cancelled: 'Cancelados', finished: 'Finalizados' }[s]}
                                 </button>
                             ))}
                         </div>
@@ -469,7 +474,7 @@ export function MyEventsPage() {
                                         <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">
                                             {event.name}
                                         </h3>
-                                        
+
                                         <div className="space-y-2 mb-4">
                                             <div className="flex items-center gap-2 text-sm text-gray-600">
                                                 <Calendar className="w-4 h-4" />
@@ -492,33 +497,49 @@ export function MyEventsPage() {
                                         </div>
 
                                         {/* Botões de ação */}
-                                        <div className="flex gap-2 pt-4 border-t border-gray-100">
+                                        <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
                                             <button
                                                 onClick={() => navigate(`/event/${event.id}`)}
-                                                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                                                className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
                                             >
                                                 <Eye className="w-4 h-4" />
                                                 Ver
                                             </button>
                                             <button
                                                 onClick={() => handleEditEvent(event)}
-                                                className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
+                                                className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
                                             >
                                                 <Edit2 className="w-4 h-4" />
                                                 Editar
                                             </button>
+                                            <button
+                                                onClick={() => handleViewLikers(event)}
+                                                className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-pink-100 text-pink-700 rounded-lg hover:bg-pink-200 transition-colors text-sm font-medium"
+                                            >
+                                                <Users className="w-4 h-4" />
+                                                Interessados
+                                            </button>
                                             {event.status === 'cancelled' ? (
-                                                <button
-                                                    onClick={() => handleRestoreEvent(event.id)}
-                                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
-                                                >
-                                                    <CheckCircle className="w-4 h-4" />
-                                                    Reativar
-                                                </button>
+                                                <>
+                                                    <button
+                                                        onClick={() => handleRestoreEvent(event.id)}
+                                                        className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors text-sm font-medium"
+                                                    >
+                                                        <CheckCircle className="w-4 h-4" />
+                                                        Reativar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteEvent(event)}
+                                                        className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm font-medium"
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                        Excluir
+                                                    </button>
+                                                </>
                                             ) : (
                                                 <button
-                                                    onClick={() => handleDeleteEvent(event.id)}
-                                                    className="flex-1 flex items-center justify-center gap-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
+                                                    onClick={() => handleCancelEvent(event.id)}
+                                                    className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm font-medium"
                                                 >
                                                     <Trash2 className="w-4 h-4" />
                                                     Cancelar
@@ -542,6 +563,33 @@ export function MyEventsPage() {
                         setSelectedEvent(null);
                     }}
                     onUpdate={fetchOrganizerEvents}
+                />
+            )}
+
+            {/* Modal de Interessados */}
+            {showLikersModal && selectedEventForLikers && (
+                <EventLikersModal
+                    isOpen={showLikersModal}
+                    onClose={() => {
+                        setShowLikersModal(false);
+                        setSelectedEventForLikers(null);
+                    }}
+                    eventId={selectedEventForLikers.id}
+                    eventName={selectedEventForLikers.name}
+                />
+            )}
+
+            {/* Modal de Exclusão Permanente */}
+            {showDeleteModal && selectedEventForDelete && (
+                <DeleteEventModal
+                    isOpen={showDeleteModal}
+                    onClose={() => {
+                        setShowDeleteModal(false);
+                        setSelectedEventForDelete(null);
+                    }}
+                    eventId={selectedEventForDelete.id}
+                    eventName={selectedEventForDelete.name}
+                    onDelete={handlePermanentDelete}
                 />
             )}
         </div>

@@ -12,6 +12,7 @@ import {
   ChevronRight,
   PlusCircle,
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.png';
 
 const NAV_ITEMS = [
@@ -28,20 +29,75 @@ export function OrganizerLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [organizer, setOrganizer] = useState<{ 
+    id: string;
+    name: string; 
+    email: string; 
+    avatarUrl?: string;
+    type: string;
+  } | null>(null);
 
-  const [organizer, setOrganizer] = useState<{ name: string; email: string; avatarUrl?: string } | null>(() => {
-    try {
-      const u = localStorage.getItem('user');
-      if (!u) return null;
-      const parsed = JSON.parse(u);
-      return parsed?.type === 'organizer' ? parsed : null;
-    } catch {
-      return null;
-    }
-  });
-
+  // Buscar dados do organizador do banco
   useEffect(() => {
-    setIsLoading(false);
+    const fetchOrganizerData = async () => {
+      try {
+        const storedUser = localStorage.getItem('user');
+        if (!storedUser) {
+          setIsLoading(false);
+          return;
+        }
+        
+        const parsedUser = JSON.parse(storedUser);
+        if (parsedUser.type !== 'organizer') {
+          setIsLoading(false);
+          return;
+        }
+
+        // Buscar dados completos do organizador no banco
+        const { data, error } = await supabase
+          .from('organizadores')
+          .select('id, nome_empresa, email_empresa, avatar_url')
+          .eq('id', parsedUser.id)
+          .single();
+
+        if (error) {
+          console.error('Erro ao buscar dados do organizador:', error);
+          // Fallback para os dados do localStorage
+          setOrganizer({
+            id: parsedUser.id,
+            name: parsedUser.name || parsedUser.company,
+            email: parsedUser.email,
+            avatarUrl: parsedUser.avatarUrl,
+            type: 'organizer'
+          });
+        } else if (data) {
+          setOrganizer({
+            id: data.id,
+            name: data.nome_empresa,
+            email: data.email_empresa,
+            avatarUrl: data.avatar_url,
+            type: 'organizer'
+          });
+          
+          // Atualizar localStorage com a URL do avatar
+          if (data.avatar_url) {
+            const updatedUser = {
+              ...parsedUser,
+              name: data.nome_empresa,
+              email: data.email_empresa,
+              avatarUrl: data.avatar_url
+            };
+            localStorage.setItem('user', JSON.stringify(updatedUser));
+          }
+        }
+      } catch (err) {
+        console.error('Erro:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchOrganizerData();
   }, []);
 
   useEffect(() => {
@@ -55,9 +111,12 @@ export function OrganizerLayout() {
     navigate('/organizer-login', { replace: true });
   };
 
-  const initials = organizer?.name
-    ? organizer.name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase()
-    : 'OG';
+  const getInitials = (name: string) => {
+    if (!name) return 'OG';
+    return name.split(' ').map((n) => n[0]).slice(0, 2).join('').toUpperCase();
+  };
+
+  const initials = organizer?.name ? getInitials(organizer.name) : 'OG';
 
   if (isLoading) {
     return (
@@ -188,10 +247,20 @@ export function OrganizerLayout() {
             title={collapsed ? organizer.name : undefined}
           >
             <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xs font-bold">
-              {organizer.avatarUrl
-                ? <img src={organizer.avatarUrl} alt={organizer.name} className="w-full h-full object-cover" />
-                : initials
-              }
+              {organizer.avatarUrl ? (
+                <img 
+                  src={organizer.avatarUrl} 
+                  alt={organizer.name} 
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    // Fallback se a imagem não carregar
+                    (e.target as HTMLImageElement).style.display = 'none';
+                    (e.target as HTMLImageElement).parentElement!.innerHTML = initials;
+                  }}
+                />
+              ) : (
+                initials
+              )}
             </div>
             {!collapsed && (
               <div className="flex-1 min-w-0">

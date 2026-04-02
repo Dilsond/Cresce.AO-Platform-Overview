@@ -24,7 +24,8 @@ import {
   EyeOff,
   HelpCircle,
   Tag,
-  Camera
+  Camera,
+  Loader2
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -697,7 +698,7 @@ export function OrganizerProfile() {
       setEditContacto(data?.contacto || '');
       setEditSobre(data?.sobre || '');
       setEditTags(data?.tags || []);
-      
+
       // Calcular tempo de membro
       if (data?.created_at) {
         const dataCriacao = new Date(data.created_at);
@@ -780,6 +781,34 @@ export function OrganizerProfile() {
     }
   };
 
+  // Adicione esta função de upload (igual à do CreateEvent)
+  // Use o bucket que já está funcionando
+  const uploadAvatar = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatars/${user.id}-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('event-images')  // Usando o bucket que já funciona
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: true
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('event-images')
+        .getPublicUrl(fileName);
+
+      return publicUrl;
+    } catch (err) {
+      console.error('Erro no upload:', err);
+      return null;
+    }
+  };
+
+  // Atualize a função handleAvatarUpload
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -794,41 +823,26 @@ export function OrganizerProfile() {
         return;
       }
 
-      const fileExt = file.name.split('.').pop();
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`;
-      const filePath = `avatars/${fileName}`;
+      // Fazer upload (mesma lógica do CreateEvent)
+      const imageUrl = await uploadAvatar(file);
+      if (!imageUrl) throw new Error('Erro ao fazer upload da imagem');
 
-      // Fazer upload para o Storage
-      const { error: uploadError } = await supabase.storage
-        .from('organizador-avatars')
-        .upload(filePath, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
-
-      if (uploadError) throw uploadError;
-
-      // Obter URL pública
-      const { data: { publicUrl } } = supabase.storage
-        .from('organizador-avatars')
-        .getPublicUrl(filePath);
-
-      // Atualizar banco de dados com a nova URL
+      // Atualizar banco de dados
       const { error: updateError } = await supabase
         .from('organizadores')
-        .update({ avatar_url: publicUrl })
+        .update({ avatar_url: imageUrl })
         .eq('id', user.id);
 
       if (updateError) throw updateError;
 
-      setAvatarUrl(publicUrl);
-      setOrganizerData({ ...organizerData, avatar_url: publicUrl });
+      setAvatarUrl(imageUrl);
+      setOrganizerData({ ...organizerData, avatar_url: imageUrl });
       setSuccessMessage('Foto de perfil atualizada com sucesso!');
       setTimeout(() => setSuccessMessage(null), 3000);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error('Erro ao fazer upload da foto:', err);
-      setError('Erro ao atualizar foto de perfil');
+      setError(err.message || 'Erro ao atualizar foto de perfil');
     } finally {
       setIsUploadingAvatar(false);
     }
@@ -986,43 +1000,47 @@ export function OrganizerProfile() {
 
           <div className="px-8 pb-8">
             <div className="-mt-12 flex items-end justify-between mb-6">
+              {/* Avatar com upload */}
               <div className="relative group">
                 <div className="w-24 h-24 bg-white rounded-2xl border-4 border-white shadow-xl overflow-hidden">
                   {avatarUrl ? (
-                    <img 
-                      src={avatarUrl} 
-                      alt={user.name} 
+                    <img
+                      src={avatarUrl}
+                      alt={user.name}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?background=f97316&color=fff&bold=true&size=96&name=${encodeURIComponent(user.name || 'O')}`;
+                      }}
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-4xl font-bold">
                       {(user.name || '').charAt(0).toUpperCase()}
                     </div>
                   )}
-                  
-                  {/* Botão de upload de foto - só aparece quando não está editando */}
-                  {!isEditing && (
-                    <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                      <Camera className="w-6 h-6 text-white" />
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleAvatarUpload}
-                        disabled={isUploadingAvatar}
-                        className="hidden"
-                      />
-                    </label>
-                  )}
-                  
-                  {/* Loading indicator */}
-                  {isUploadingAvatar && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl">
-                      <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    </div>
-                  )}
                 </div>
+
+                {/* Botão de upload (só aparece quando não está editando) */}
+                {!isEditing && (
+                  <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
+                    <Camera className="w-6 h-6 text-white" />
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="hidden"
+                    />
+                  </label>
+                )}
+
+                {/* Loading indicator */}
+                {isUploadingAvatar && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl">
+                    <Loader2 className="w-6 h-6 text-white animate-spin" />
+                  </div>
+                )}
               </div>
-              
+
               {!isEditing ? (
                 <button
                   onClick={handleEditClick}
@@ -1178,28 +1196,28 @@ export function OrganizerProfile() {
               Informações de Contacto
             </h3>
 
-            <InfoRow 
-              icon={<Mail className="w-5 h-5 text-orange-500" />} 
-              label="Email" 
-              value={organizerData?.email_empresa || user.email} 
+            <InfoRow
+              icon={<Mail className="w-5 h-5 text-orange-500" />}
+              label="Email"
+              value={organizerData?.email_empresa || user.email}
             />
 
-            <InfoRow 
-              icon={<Phone className="w-5 h-5 text-orange-500" />} 
-              label="Telefone" 
-              value={organizerData?.contacto || 'Não informado'} 
+            <InfoRow
+              icon={<Phone className="w-5 h-5 text-orange-500" />}
+              label="Telefone"
+              value={organizerData?.contacto || 'Não informado'}
             />
 
-            <InfoRow 
-              icon={<MapPin className="w-5 h-5 text-orange-500" />} 
-              label="Localização" 
-              value={organizerData?.localizacao || 'Não informada'} 
+            <InfoRow
+              icon={<MapPin className="w-5 h-5 text-orange-500" />}
+              label="Localização"
+              value={organizerData?.localizacao || 'Não informada'}
             />
 
-            <InfoRow 
-              icon={<Briefcase className="w-5 h-5 text-orange-500" />} 
-              label="Empresa" 
-              value={organizerData?.nome_empresa || user.name} 
+            <InfoRow
+              icon={<Briefcase className="w-5 h-5 text-orange-500" />}
+              label="Empresa"
+              value={organizerData?.nome_empresa || user.name}
             />
           </div>
 
@@ -1211,28 +1229,28 @@ export function OrganizerProfile() {
                 Estatísticas da Conta
               </h3>
 
-              <StatRow 
-                icon={<Calendar className="w-4 h-4 text-blue-500" />} 
-                label="Total de Eventos" 
-                value={stats.total.toString()} 
+              <StatRow
+                icon={<Calendar className="w-4 h-4 text-blue-500" />}
+                label="Total de Eventos"
+                value={stats.total.toString()}
               />
 
-              <StatRow 
-                icon={<Users className="w-4 h-4 text-purple-500" />} 
-                label="Total de Interessados" 
-                value={stats.totalLikes.toString()} 
+              <StatRow
+                icon={<Users className="w-4 h-4 text-purple-500" />}
+                label="Total de Interessados"
+                value={stats.totalLikes.toString()}
               />
 
-              <StatRow 
-                icon={<Star className="w-4 h-4 text-amber-500" />} 
-                label="Avaliação Média" 
-                value={stats.avaliacaoMedia > 0 ? `${stats.avaliacaoMedia} ★` : 'Sem avaliações'} 
+              <StatRow
+                icon={<Star className="w-4 h-4 text-amber-500" />}
+                label="Avaliação Média"
+                value={stats.avaliacaoMedia > 0 ? `${stats.avaliacaoMedia} ★` : 'Sem avaliações'}
               />
 
-              <StatRow 
-                icon={<Award className="w-4 h-4 text-orange-500" />} 
-                label="Membro desde" 
-                value={memberSince} 
+              <StatRow
+                icon={<Award className="w-4 h-4 text-orange-500" />}
+                label="Membro desde"
+                value={memberSince}
               />
             </div>
 

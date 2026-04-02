@@ -161,7 +161,7 @@ export function EventsPage() {
             .single();
 
           if (org) {
-            showLocalNotification('❤️ Novo Like!', `${currentUser.name || currentUser.username || 'Alguém'} curtiu: ${evento.name}`);
+            // showLocalNotification('❤️ Novo Like!', `${currentUser.name || currentUser.username || 'Alguém'} curtiu: ${evento.name}`);
             await notificationService.sendEmailNotification(
               {
                 id: `tmp-${Date.now()}`,
@@ -429,12 +429,12 @@ export function EventsPage() {
             </div>
 
             <div className="hidden lg:flex items-center gap-4">
-              <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 hover:text-orange-600 flex gap-2">
+              <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
                 <Heart className="w-5 h-5" /> Favoritos
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" className="rounded-full w-10 h-10 p-0 border border-gray-200">
+                  <Button variant="ghost" className="rounded-full cursor-pointer w-10 h-10 p-0 border border-gray-200">
                     <div className="w-10 h-10 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white font-semibold">
                       {currentUser.name?.charAt(0).toUpperCase() || currentUser.username?.charAt(0).toUpperCase() || 'U'}
                     </div>
@@ -443,14 +443,14 @@ export function EventsPage() {
                 <DropdownMenuContent align="end" className="w-56">
                   <DropdownMenuItem className="text-sm font-medium">{currentUser.name || currentUser.username}</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onNavigateToProfile}>Meu Perfil</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onNavigateToProfile} className="cursor-pointer">Meu Perfil</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onLogout} className="text-red-600"><LogOut className="w-4 h-4 mr-2" /> Sair</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onLogout} className="text-red-600 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> Sair</DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
             
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 text-gray-600 hover:text-orange-600">
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 cursor-pointer text-gray-600 hover:text-orange-600">
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
           </div>
@@ -470,14 +470,14 @@ export function EventsPage() {
                 </div>
               </div>
               <div className="p-4 space-y-2">
-                <button onClick={() => { navigate('/favorites'); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
+                <button onClick={() => { navigate('/favorites'); setMobileMenuOpen(false); }} className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
                   <Heart className="w-5 h-5 text-red-500" /> <span>Favoritos</span>
                 </button>
                 <Separator className="my-2" />
-                <button onClick={() => { onNavigateToProfile(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
+                <button onClick={() => { onNavigateToProfile(); setMobileMenuOpen(false); }} className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
                   <User className="w-5 h-5 text-orange-600" /> <span>Perfil</span>
                 </button>
-                <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 py-2 text-red-600 hover:bg-red-50 rounded-lg">
+                <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 cursor-pointer py-2 text-red-600 hover:bg-red-50 rounded-lg">
                   <LogOut className="w-5 h-5" /> <span>Sair</span>
                 </button>
               </div>
