@@ -1,4 +1,4 @@
-import { BrowserRouter as Router, Routes, Route, useNavigate } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
 import { LandingPage } from './components/LandingPage';
 import { LoginPage } from './components/LoginPage';
 import { SignupPage } from './components/SignupPage';
@@ -14,12 +14,16 @@ import { CreateEvent } from './components/CreateEvent';
 import { EventDetailPage } from './components/EventDetailPage';
 import { OrganizerProfile } from './components/OrganizerProfile';
 import { UserDashboard } from './components/UserDashboard';
-import { PrivateRoute } from "./components/PrivateRoute";
-import OrganizerProfilePage from "./components/OrganizerProfilePage";
+import { PrivateRoute } from './components/PrivateRoute';
+import OrganizerProfilePage from './components/OrganizerProfilePage';
 import { ForgotPassword } from './components/ForgotPassword';
+import { OrganizerLayout } from './components/OrganizerLayout';
+import { MyEventsPage } from './components/MyEventsPage';
+import { FollowersPage } from './components/FollowersPage';
+import { ManageCommentsPage } from './components/ManageCommentsPage';
+import { AppLayout } from './components/AppLayout';
 
 function AppRoutes() {
-
   const navigate = useNavigate();
 
   return (
@@ -27,90 +31,30 @@ function AppRoutes() {
       <CookieBanner />
 
       <Routes>
+        {/* Páginas públicas sem layout */}
+        <Route path="/" element={<LandingPage onExplore={() => navigate('/events')} onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />} />
+        <Route path="/login" element={<LoginPage onLogin={() => navigate('/events')} onBack={() => navigate('/')} />} />
+        <Route path="/signup" element={<SignupPage onSignup={() => navigate('/events')} onNavigateToLogin={() => navigate('/login')} onBack={() => navigate('/login')} />} />
+        <Route path="/organizer-signup" element={<OrganizerSignupPage onBack={() => navigate('/login')} />} />
+        <Route path="/organizer-login" element={<OrganizerLoginPage onBack={() => navigate('/login')} />} />
+        <Route path="/forgot-password" element={<ForgotPassword onBack={() => navigate('/login')} />} />
+        <Route path="/privacy-policy" element={<PrivacyPolicyPage onBack={() => navigate('/events')} />} />
+        <Route path="/terms-of-use" element={<TermsOfUsePage onBack={() => navigate('/events')} />} />
 
-        <Route
-          path="/"
-          element={
-            <LandingPage
-              onExplore={() => navigate('/login')}
-              onNavigateToPrivacy={() => navigate('/privacy-policy')}
-              onNavigateToTerms={() => navigate('/terms-of-use')}
-            />
-          }
-        />
-
-        <Route
-          path="/login"
-          element={
-            <LoginPage
-              onLogin={() => navigate('/events')}
-              onBack={() => navigate('/')}
-            />
-          }
-        />
-
-        <Route
-          path="/signup"
-          element={
-            <SignupPage
-              onSignup={() => navigate('/events')}
-              onNavigateToLogin={() => navigate('/login')}
-              onBack={() => navigate('/login')}
-            />
-          }
-        />
-
-        <Route
-          path="/organizer-signup"
-          element={<OrganizerSignupPage
-            onBack={() => navigate('/login')}
-          />
-          }
-        />
-
-        <Route
-          path="/organizer-login"
-          element={
-            <OrganizerLoginPage
-              onBack={() => navigate('/login')}
-            />
-          }
-        />
-
-        <Route
-          path="/organizer-dashboard"
-          element={<PrivateRoute>
-            <OrganizerDashboard />
-          </PrivateRoute>
-          }
-        />
-
-        <Route path="/favorites" element={<PrivateRoute><FavoritesPage /></PrivateRoute>} />
-
-        <Route path="/create-event" element={<PrivateRoute><CreateEvent /></PrivateRoute>} />
-
-        <Route path="/events" element={<PrivateRoute><EventsPage /></PrivateRoute>} />
-
-        <Route path="/event/:id" element={<PrivateRoute><EventDetailPage /></PrivateRoute>} />
-
-        <Route path="/organizer-profile" element={<PrivateRoute><OrganizerProfile /></PrivateRoute>} />
-
-        <Route path="/user-dashboard" element={<PrivateRoute><UserDashboard /></PrivateRoute>} />
-
-        <Route path="/organizer/:id" element={ <PrivateRoute><OrganizerProfilePage /></PrivateRoute>} />
-
-        <Route path="/forgot-password" element={ <ForgotPassword onBack={() => navigate('/login')} />}  />
-
-        <Route
-          path="/privacy-policy"
-          element={<PrivacyPolicyPage onBack={() => navigate('/events')} />}
-        />
-
-        <Route
-          path="/terms-of-use"
-          element={<TermsOfUsePage onBack={() => navigate('/events')} />}
-        />
-
+        {/* Rotas protegidas com layout dinâmico */}
+        <Route element={<AppLayout />}>
+          <Route path="/events" element={<EventsPage />} />
+          <Route path="/event/:id" element={<EventDetailPage />} />
+          <Route path="/favorites" element={<FavoritesPage />} />
+          <Route path="/organizer-dashboard" element={<OrganizerDashboard />} />
+          <Route path="/create-event" element={<CreateEvent />} />
+          <Route path="/organizer-profile" element={<OrganizerProfile />} />
+          <Route path="/organizer/:id" element={<OrganizerProfilePage />} />
+          <Route path="/my-events" element={<MyEventsPage />} />
+          <Route path="/followers" element={<FollowersPage />} />
+          <Route path="/manage-comments" element={<ManageCommentsPage />} />
+          <Route path="/user-dashboard" element={<UserDashboard />} />
+        </Route>
       </Routes>
     </>
   );
@@ -119,7 +63,7 @@ function AppRoutes() {
 export default function App() {
   return (
     <Router>
-      <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
+      <div className="min-h-screen">
         <AppRoutes />
       </div>
     </Router>
