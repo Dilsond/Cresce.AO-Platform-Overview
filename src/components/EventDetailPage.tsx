@@ -81,7 +81,27 @@ export function EventDetailPage() {
 
   const [isLiked, setIsLiked] = useState(false);
 
-  // ── MUDANÇA 1: fetchEvent como useCallback para poder reutilizar ──────────
+  // Verificar se o evento já foi finalizado (data passada)
+  const isEventFinished = () => {
+    if (!event) return true;
+    const hoje = new Date();
+    const dataEvento = new Date(event.date);
+    // Resetar horas para comparar apenas as datas
+    hoje.setHours(0, 0, 0, 0);
+    dataEvento.setHours(0, 0, 0, 0);
+    return dataEvento < hoje;
+  };
+
+  // Verificar se o usuário pode comprar ingresso
+  const canBuyTicket = () => {
+    if (!currentUser) return false;
+    // Não permitir se o evento já foi finalizado
+    if (isEventFinished()) return false;
+    // Não permitir se o usuário é o próprio organizador
+    if (currentUser.type === 'organizer' && currentUser.id === event?.organizerId) return false;
+    return true;
+  };
+
   const fetchEvent = useCallback(async (eventId: string) => {
     try {
       setIsLoading(true);
@@ -151,8 +171,6 @@ export function EventDetailPage() {
         averageRating = sum / reviews.length;
       }
 
-
-      // Dentro de fetchEvent, após buscar o organizador, adicione:
       await fetchOrganizerInfo(evento.organizador_id);
 
       const formattedReviews = reviews?.map(review => ({
@@ -182,6 +200,16 @@ export function EventDetailPage() {
       const videoUrl = getEventVideoUrl(evento.video_url);
       const pdfUrl = getEventPdfUrl(evento.arquivo_pdf_url);
 
+      // Determinar status do evento baseado na data
+      const hoje = new Date();
+      const dataEvento = new Date(evento.data_evento);
+      let status = 'A decorrer';
+      if (dataEvento < hoje) {
+        status = 'Finalizado';
+      } else if (evento.deleted_at) {
+        status = 'Cancelado';
+      }
+
       const formattedEvent: Event = {
         id: evento.id,
         name: evento.nome_evento,
@@ -195,7 +223,7 @@ export function EventDetailPage() {
         image: imageUrl,
         video: videoUrl,
         pdf: pdfUrl,
-        status: 'A decorrer',
+        status,
         organizerId: evento.organizador_id,
         organizerName: organizador?.nome_empresa || 'Organizador não identificado',
         organizerEmail: organizador?.email_empresa,
@@ -222,8 +250,7 @@ export function EventDetailPage() {
     }
   }, [id, fetchEvent]);
 
-
-  // ── MUDANÇA 2: Subscrição Realtime — atualiza estacoes quando o webhook escreve ──
+  // Subscrição Realtime
   useEffect(() => {
     if (!id) return;
 
@@ -383,10 +410,8 @@ export function EventDetailPage() {
     return event.estacoes.reduce((sum, estacao) => sum + estacao.quantidade, 0);
   };
 
-  // Buscar informações do organizador (avatar e seguidores)
   const fetchOrganizerInfo = async (organizerId: string) => {
     try {
-      // Buscar dados do organizador
       const { data: organizer, error: orgError } = await supabase
         .from('organizadores')
         .select('avatar_url, nome_empresa')
@@ -397,7 +422,6 @@ export function EventDetailPage() {
         setOrganizerAvatar(organizer.avatar_url);
       }
 
-      // Buscar número de seguidores
       const { count } = await supabase
         .from('favoritos_organizadores')
         .select('*', { count: 'exact', head: true })
@@ -405,7 +429,6 @@ export function EventDetailPage() {
 
       setFollowersCount(count || 0);
 
-      // Verificar se o usuário atual já segue este organizador
       if (currentUser && currentUser.type === 'user') {
         const { data: follow } = await supabase
           .from('favoritos_organizadores')
@@ -421,7 +444,6 @@ export function EventDetailPage() {
     }
   };
 
-  // Função para seguir/deixar de seguir organizador
   const handleFollowToggle = async () => {
     if (!currentUser) {
       alert('Faça login para seguir organizadores');
@@ -438,7 +460,6 @@ export function EventDetailPage() {
 
     try {
       if (isFollowing) {
-        // Deixar de seguir
         const { error } = await supabase
           .from('favoritos_organizadores')
           .delete()
@@ -450,7 +471,6 @@ export function EventDetailPage() {
           setFollowersCount(prev => prev - 1);
         }
       } else {
-        // Seguir
         const { error } = await supabase
           .from('favoritos_organizadores')
           .insert({
@@ -471,6 +491,29 @@ export function EventDetailPage() {
 
   const hasIngressosDisponiveis = () => getTotalIngressos() > 0;
 
+  // Verificar se o evento está finalizado
+  const isEventFinalizado = () => {
+    if (!event) return true;
+    const hoje = new Date();
+    const dataEvento = new Date(event.date);
+    hoje.setHours(0, 0, 0, 0);
+    dataEvento.setHours(0, 0, 0, 0);
+    return dataEvento < hoje;
+  };
+
+  // Verificar se o usuário é o próprio organizador
+  const isOwnEvent = () => {
+    if (!currentUser || !event) return false;
+    return currentUser.type === 'organizer' && currentUser.id === event.organizerId;
+  };
+
+  // Obter mensagem de bloqueio para compra
+  const getBuyBlockMessage = () => {
+    if (isEventFinalizado()) return "Este evento já foi realizado";
+    if (isOwnEvent()) return "Você não pode comprar ingressos para seu próprio evento";
+    return null;
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -488,7 +531,7 @@ export function EventDetailPage() {
         <div className="text-center max-w-md">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">Evento não encontrado</h2>
           <p className="text-gray-600 mb-6">{error || 'O evento que você procura não existe ou foi removido.'}</p>
-          <button onClick={() => navigate('/events')} className="bg-orange-600 text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors">
+          <button onClick={() => navigate(-1)} className="bg-orange-600 cursor-pointer text-white px-6 py-3 rounded-lg hover:bg-orange-700 transition-colors">
             Voltar aos eventos
           </button>
         </div>
@@ -547,9 +590,14 @@ export function EventDetailPage() {
               className="w-full h-full object-cover min-h-[400px]"
               onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800'; }}
             />
-            {event.status === 'Cancelada' && (
+            {event.status === 'Cancelado' && (
               <div className="absolute top-6 left-6">
                 <span className="px-4 py-2 bg-red-600 text-white rounded-full text-sm font-semibold shadow-lg">Evento Cancelado</span>
+              </div>
+            )}
+            {isEventFinalizado() && event.status !== 'Cancelado' && (
+              <div className="absolute top-6 left-6">
+                <span className="px-4 py-2 bg-gray-600 text-white rounded-full text-sm font-semibold shadow-lg">Evento Finalizado</span>
               </div>
             )}
           </div>
@@ -655,7 +703,7 @@ export function EventDetailPage() {
               </div>
             )}
 
-            {/* Seção do Organizador com foto e botão seguir */}
+            {/* Seção do Organizador */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Organizador</h2>
 
@@ -664,7 +712,6 @@ export function EventDetailPage() {
                   to={`/organizer/${event.organizerId}`}
                   className="flex items-center gap-4 p-2 rounded-lg transition flex-1 min-w-0"
                 >
-                  {/* Avatar do organizador */}
                   <div className="w-16 h-16 rounded-full overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
                     {organizerAvatar ? (
                       <img
@@ -696,7 +743,6 @@ export function EventDetailPage() {
                   </div>
                 </Link>
 
-                {/* Botão Seguir - só aparece se for usuário normal e não for o próprio organizador */}
                 {currentUser && currentUser.type === 'user' && currentUser.id !== event.organizerId && (
                   <button
                     onClick={handleFollowToggle}
@@ -719,7 +765,6 @@ export function EventDetailPage() {
                   </button>
                 )}
 
-                {/* Mostrar apenas contagem para não-usuários ou se for o próprio organizador */}
                 {(!currentUser || currentUser.type !== 'user' || currentUser.id === event.organizerId) && (
                   <div className="flex items-center gap-2 px-4 py-2 bg-gray-50 rounded-lg whitespace-nowrap">
                     <Users className="w-4 h-4 text-gray-400" />
@@ -734,7 +779,7 @@ export function EventDetailPage() {
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Informações e Contacto</h3>
 
-              {event.status === 'A decorrer' ? (
+              {event.status === 'A decorrer' && !isEventFinalizado() ? (
                 <div className="space-y-4">
                   <div className="border border-gray-200 rounded-lg p-5">
                     <div className="space-y-4">
@@ -787,18 +832,28 @@ export function EventDetailPage() {
                         <h4 className="font-semibold text-gray-900 mb-2">Garanta seu lugar!</h4>
                         <p className="text-sm text-gray-600">Escolha o tipo de ingresso que melhor se adequa a você</p>
                       </div>
-                      <button
-                        onClick={() => setShowBuyModal(true)}
-                        disabled={!currentUser}
-                        className={`w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md ${currentUser ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer text-white' : 'bg-gray-300 cursor-not-allowed text-gray-500'}`}
-                      >
-                        <Ticket className="w-6 h-6" />
-                        {currentUser ? 'Comprar Ingresso' : 'Faça login para comprar'}
-                      </button>
-                      {!currentUser && (
-                        <p className="text-xs text-center text-gray-500 mt-2">
-                          <button onClick={() => navigate('/login')} className="text-orange-600 hover:underline">Faça login</button> para adquirir seu ingresso
-                        </p>
+                      
+                      {/* Botão de compra com restrições */}
+                      {getBuyBlockMessage() ? (
+                        <div className="text-center p-3 bg-gray-100 rounded-lg">
+                          <p className="text-sm text-gray-600">{getBuyBlockMessage()}</p>
+                        </div>
+                      ) : (
+                        <>
+                          <button
+                            onClick={() => setShowBuyModal(true)}
+                            disabled={!currentUser}
+                            className={`w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md ${currentUser ? 'bg-orange-600 hover:bg-orange-700 cursor-pointer text-white' : 'bg-gray-300 cursor-not-allowed text-gray-500'}`}
+                          >
+                            <Ticket className="w-6 h-6" />
+                            {currentUser ? 'Comprar Ingresso' : 'Faça login para comprar'}
+                          </button>
+                          {!currentUser && (
+                            <p className="text-xs text-center text-gray-500 mt-2">
+                              <button onClick={() => navigate('/login')} className="text-orange-600 hover:underline">Faça login</button> para adquirir seu ingresso
+                            </p>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
@@ -819,9 +874,11 @@ export function EventDetailPage() {
                 </div>
               ) : (
                 <div className="bg-red-50 border border-red-200 rounded-lg p-6 text-center">
-                  <p className="text-red-600 font-semibold mb-2">Este evento foi cancelado</p>
+                  <p className="text-red-600 font-semibold mb-2">
+                    {isEventFinalizado() ? 'Este evento já foi realizado' : 'Este evento foi cancelado'}
+                  </p>
                   <p className="text-sm text-red-500">Entre em contacto com o organizador para mais informações</p>
-                  <button onClick={handleWhatsAppContact} className="mt-4 w-full bg-green-600 hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
+                  <button onClick={handleWhatsAppContact} className="mt-4 w-full bg-green-600 cursor-pointer hover:bg-green-700 text-white py-3 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2">
                     <MessageCircle className="w-5 h-5" />
                     Contactar Organizador
                   </button>
@@ -836,7 +893,6 @@ export function EventDetailPage() {
           </div>
         </div>
 
-        {/* ── MUDANÇA 3: onCompraRealizada passa o refetch para o modal ── */}
         {showBuyModal && event && (
           <BuyTicketModal
             isOpen={showBuyModal}
