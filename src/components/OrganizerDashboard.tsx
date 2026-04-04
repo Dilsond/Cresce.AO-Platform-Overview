@@ -459,9 +459,9 @@ export function OrganizerDashboard() {
                             <ShoppingBag className="w-5 h-5 text-purple-500" />
                         </div>
                         <p className="text-3xl font-bold text-gray-900">{stats.totalTicketsSold}</p>
-                        <p className="text-sm text-gray-500 mt-1">Ingressos Vendidos</p>
-                        <div className="mt-3 text-xs text-green-600 font-medium">
-                            {formatCurrency(stats.totalRevenue)}
+                        <p className="text-sm text-gray-500 mt-1">Ingressos</p>
+                        <div className="mt-3 text-xs text-gray-500">
+                            Gratis e Pago
                         </div>
                     </div>
 

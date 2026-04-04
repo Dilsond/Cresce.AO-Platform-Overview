@@ -25,7 +25,8 @@ import {
   HelpCircle,
   Tag,
   Camera,
-  Loader2
+  Loader2,
+  Plus
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
@@ -957,38 +958,32 @@ export function OrganizerProfile() {
               <ArrowLeft className="w-5 h-5" />
               <span>Voltar</span>
             </button>
-            <div className="flex items-center">
-              <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
-              <span className="text-xl font-bold text-gray-900 tracking-tight">
-                Cresce<span className="text-orange-600">.AO</span>
-              </span>
-            </div>
           </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-4 sm:space-y-6">
+
         {/* Hero Banner */}
-        <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-3xl shadow-2xl p-8 text-white">
-          <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-          <div className="absolute bottom-0 left-0 w-64 h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+        <div className="relative overflow-hidden bg-gradient-to-br from-orange-600 via-orange-500 to-red-600 rounded-2xl sm:rounded-3xl shadow-2xl p-6 sm:p-8 text-white">
+          <div className="absolute top-0 right-0 w-64 sm:w-96 h-64 sm:h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
+          <div className="absolute bottom-0 left-0 w-40 sm:w-64 h-40 sm:h-64 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
           <div className="relative z-10">
-            <p className="text-orange-100 text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
-            <h1 className="text-4xl md:text-5xl font-bold mb-3">Meu Perfil</h1>
-            <p className="text-xl text-orange-50">Gerencie suas informações e estatísticas</p>
+            <p className="text-orange-100 text-xs sm:text-sm font-medium mb-2 uppercase tracking-wider">Perfil do Organizador</p>
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold mb-2 sm:mb-3">Meu Perfil</h1>
+            <p className="text-base sm:text-xl text-orange-50">Gerencie suas informações e estatísticas</p>
           </div>
         </div>
 
         {/* Mensagens */}
         {error && (
-          <div className="p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+          <div className="p-3 sm:p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
             <p className="text-red-600 text-sm">{error}</p>
           </div>
         )}
-
         {successMessage && (
-          <div className="p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
+          <div className="p-3 sm:p-4 bg-green-50 border border-green-200 rounded-lg flex items-center gap-2">
             <CheckCircle2 className="w-5 h-5 text-green-600 flex-shrink-0" />
             <p className="text-green-600 text-sm">{successMessage}</p>
           </div>
@@ -996,13 +991,14 @@ export function OrganizerProfile() {
 
         {/* Profile Card */}
         <div className="bg-white rounded-2xl shadow-lg overflow-hidden">
-          <div className="h-36 bg-gradient-to-br from-orange-500 via-orange-400 to-red-500"></div>
+          <div className="h-24 sm:h-36 bg-gradient-to-br from-orange-500 via-orange-400 to-red-500" />
 
-          <div className="px-8 pb-8">
-            <div className="-mt-12 flex items-end justify-between mb-6">
-              {/* Avatar com upload */}
+          <div className="px-4 sm:px-8 pb-6 sm:pb-8">
+            <div className="-mt-10 sm:-mt-12 flex items-end justify-between mb-4 sm:mb-6">
+
+              {/* Avatar */}
               <div className="relative group">
-                <div className="w-24 h-24 bg-white rounded-2xl border-4 border-white shadow-xl overflow-hidden">
+                <div className="w-20 h-20 sm:w-24 sm:h-24 bg-white rounded-2xl border-4 border-white shadow-xl overflow-hidden">
                   {avatarUrl ? (
                     <img
                       src={avatarUrl}
@@ -1013,27 +1009,17 @@ export function OrganizerProfile() {
                       }}
                     />
                   ) : (
-                    <div className="w-full h-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-4xl font-bold">
+                    <div className="w-full h-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-3xl sm:text-4xl font-bold">
                       {(user.name || '').charAt(0).toUpperCase()}
                     </div>
                   )}
                 </div>
-
-                {/* Botão de upload (só aparece quando não está editando) */}
                 {!isEditing && (
                   <label className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
                     <Camera className="w-6 h-6 text-white" />
-                    <input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleAvatarUpload}
-                      disabled={isUploadingAvatar}
-                      className="hidden"
-                    />
+                    <input type="file" accept="image/*" onChange={handleAvatarUpload} disabled={isUploadingAvatar} className="hidden" />
                   </label>
                 )}
-
-                {/* Loading indicator */}
                 {isUploadingAvatar && (
                   <div className="absolute inset-0 flex items-center justify-center bg-black bg-opacity-50 rounded-2xl">
                     <Loader2 className="w-6 h-6 text-white animate-spin" />
@@ -1041,126 +1027,105 @@ export function OrganizerProfile() {
                 )}
               </div>
 
+              {/* Botões edição */}
               {!isEditing ? (
                 <button
                   onClick={handleEditClick}
-                  className="flex items-center gap-2 px-4 py-2 bg-orange-600 cursor-pointer text-white rounded-lg hover:bg-orange-700 transition-colors"
+                  className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 bg-orange-600 cursor-pointer text-white rounded-lg hover:bg-orange-700 transition-colors text-sm sm:text-base"
                 >
                   <Edit2 className="w-4 h-4" />
-                  Editar Perfil
+                  <span className="hidden xs:inline">Editar Perfil</span>
+                  <span className="xs:hidden">Editar</span>
                 </button>
               ) : (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-1.5 sm:gap-2">
                   <button
                     onClick={handleSaveClick}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 bg-green-600 cursor-pointer text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-green-600 cursor-pointer text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 text-sm sm:text-base"
                   >
                     {isSaving ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        Salvando...
+                        <span className="hidden sm:inline">Salvando...</span>
                       </>
                     ) : (
                       <>
                         <Save className="w-4 h-4" />
-                        Salvar
+                        <span className="hidden sm:inline">Salvar</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={handleCancelClick}
                     disabled={isSaving}
-                    className="flex items-center gap-2 px-4 py-2 bg-gray-200 cursor-pointer text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3 sm:px-4 py-2 bg-gray-200 cursor-pointer text-gray-700 rounded-lg hover:bg-gray-300 transition-colors disabled:opacity-50 text-sm sm:text-base"
                   >
                     <X className="w-4 h-4" />
-                    Cancelar
+                    <span className="hidden sm:inline">Cancelar</span>
                   </button>
                 </div>
               )}
             </div>
 
             {!isEditing ? (
-              // Modo Visualização
               <>
-                <h2 className="text-2xl font-bold text-gray-900">
+                <h2 className="text-xl sm:text-2xl font-bold text-gray-900">
                   {organizerData?.nome_empresa || user.name}
                 </h2>
-                <p className="text-gray-500 mt-1">
+                <p className="text-gray-500 mt-1 text-sm sm:text-base">
                   {organizerData?.email_empresa || 'Email não informado'}
                 </p>
               </>
             ) : (
-              // Modo Edição
               <div className="space-y-4 mt-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Nome da Empresa *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Nome da Empresa *</label>
                   <input
                     type="text"
                     value={editName}
                     onChange={(e) => setEditName(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm sm:text-base"
                     placeholder="Nome da empresa"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Localização
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Localização</label>
                   <input
                     type="text"
                     value={editLocalizacao}
                     onChange={(e) => setEditLocalizacao(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm sm:text-base"
                     placeholder="Ex: Luanda, Angola"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Contacto
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Contacto</label>
                   <input
                     type="text"
                     value={editContacto}
                     onChange={(e) => setEditContacto(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm sm:text-base"
                     placeholder="+244 900 000 000"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Sobre a Organização
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Sobre a Organização</label>
                   <textarea
                     value={editSobre}
                     onChange={(e) => setEditSobre(e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                    className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm sm:text-base"
                     placeholder="Descreva sua organização..."
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Tags
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
                   <div className="flex flex-wrap gap-2 mb-2">
                     {editTags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="px-3 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-sm font-medium flex items-center gap-1"
-                      >
+                      <span key={tag} className="px-3 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-sm font-medium flex items-center gap-1">
                         {tag}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveTag(tag)}
-                          className="hover:text-red-600"
-                        >
+                        <button type="button" onClick={() => handleRemoveTag(tag)} className="hover:text-red-600">
                           <X className="w-3 h-3" />
                         </button>
                       </span>
@@ -1172,15 +1137,15 @@ export function OrganizerProfile() {
                       value={newTag}
                       onChange={(e) => setNewTag(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), handleAddTag())}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                      className="flex-1 px-4 py-2 border border-gray-300 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
                       placeholder="Adicionar tag"
                     />
                     <button
                       type="button"
                       onClick={handleAddTag}
-                      className="px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors"
+                      className="px-3 sm:px-4 py-2 bg-orange-600 text-white rounded-xl hover:bg-orange-700 transition-colors text-sm"
                     >
-                      Adicionar
+                      <Plus className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -1189,81 +1154,40 @@ export function OrganizerProfile() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-2 gap-6">
+        {/* Contact + Stats/Security */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+
           {/* Contact Info */}
-          <div className="bg-white rounded-2xl shadow-lg p-6 space-y-4">
-            <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3">
+          <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-6 space-y-4">
+            <h3 className="font-bold text-gray-900 text-base sm:text-lg border-b border-gray-100 pb-3">
               Informações de Contacto
             </h3>
-
-            <InfoRow
-              icon={<Mail className="w-5 h-5 text-orange-500" />}
-              label="Email"
-              value={organizerData?.email_empresa || user.email}
-            />
-
-            <InfoRow
-              icon={<Phone className="w-5 h-5 text-orange-500" />}
-              label="Telefone"
-              value={organizerData?.contacto || 'Não informado'}
-            />
-
-            <InfoRow
-              icon={<MapPin className="w-5 h-5 text-orange-500" />}
-              label="Localização"
-              value={organizerData?.localizacao || 'Não informada'}
-            />
-
-            <InfoRow
-              icon={<Briefcase className="w-5 h-5 text-orange-500" />}
-              label="Empresa"
-              value={organizerData?.nome_empresa || user.name}
-            />
+            <InfoRow icon={<Mail className="w-5 h-5 text-orange-500" />} label="Email" value={organizerData?.email_empresa || user.email} />
+            <InfoRow icon={<Phone className="w-5 h-5 text-orange-500" />} label="Telefone" value={organizerData?.contacto || 'Não informado'} />
+            <InfoRow icon={<MapPin className="w-5 h-5 text-orange-500" />} label="Localização" value={organizerData?.localizacao || 'Não informada'} />
+            <InfoRow icon={<Briefcase className="w-5 h-5 text-orange-500" />} label="Empresa" value={organizerData?.nome_empresa || user.name} />
           </div>
 
-          {/* Stats & Security */}
-          <div className="space-y-6">
-            {/* Stats */}
-            <div className="bg-white rounded-2xl shadow-lg p-6 space-y-3">
-              <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3">
+          {/* Stats + Security */}
+          <div className="space-y-4 sm:space-y-6">
+            <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-6 space-y-3">
+              <h3 className="font-bold text-gray-900 text-base sm:text-lg border-b border-gray-100 pb-3">
                 Estatísticas da Conta
               </h3>
-
-              <StatRow
-                icon={<Calendar className="w-4 h-4 text-blue-500" />}
-                label="Total de Eventos"
-                value={stats.total.toString()}
-              />
-
-              <StatRow
-                icon={<Users className="w-4 h-4 text-purple-500" />}
-                label="Total de Interessados"
-                value={stats.totalLikes.toString()}
-              />
-
-              <StatRow
-                icon={<Star className="w-4 h-4 text-amber-500" />}
-                label="Avaliação Média"
-                value={stats.avaliacaoMedia > 0 ? `${stats.avaliacaoMedia} ★` : 'Sem avaliações'}
-              />
-
-              <StatRow
-                icon={<Award className="w-4 h-4 text-orange-500" />}
-                label="Membro desde"
-                value={memberSince}
-              />
+              <StatRow icon={<Calendar className="w-4 h-4 text-blue-500" />} label="Total de Eventos" value={stats.total.toString()} />
+              <StatRow icon={<Users className="w-4 h-4 text-purple-500" />} label="Total de Interessados" value={stats.totalLikes.toString()} />
+              <StatRow icon={<Star className="w-4 h-4 text-amber-500" />} label="Avaliação Média" value={stats.avaliacaoMedia > 0 ? `${stats.avaliacaoMedia} ★` : 'Sem avaliações'} />
+              <StatRow icon={<Award className="w-4 h-4 text-orange-500" />} label="Membro desde" value={memberSince} />
             </div>
 
-            {/* Security */}
-            <div className="bg-white rounded-2xl shadow-lg p-6">
-              <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
+            <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-6">
+              <h3 className="font-bold text-gray-900 text-base sm:text-lg border-b border-gray-100 pb-3 mb-4 flex items-center gap-2">
                 <Lock className="w-5 h-5 text-orange-600" />
                 Segurança
               </h3>
-
               <button
                 onClick={() => setIsChangingPassword(true)}
-                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-50 cursor-pointer text-orange-700 border-2 border-orange-200 rounded-xl hover:bg-orange-100 transition-colors font-medium"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-orange-50 cursor-pointer text-orange-700 border-2 border-orange-200 rounded-xl hover:bg-orange-100 transition-colors font-medium text-sm sm:text-base"
               >
                 <KeyRound className="w-5 h-5" />
                 Alterar Senha
@@ -1273,21 +1197,16 @@ export function OrganizerProfile() {
         </div>
 
         {/* About */}
-        <div className="bg-white rounded-2xl shadow-lg p-6">
-          <h3 className="font-bold text-gray-900 text-lg border-b border-gray-100 pb-3 mb-4">
+        <div className="bg-white rounded-2xl shadow-lg p-5 sm:p-6">
+          <h3 className="font-bold text-gray-900 text-base sm:text-lg border-b border-gray-100 pb-3 mb-4">
             Sobre a Organização
           </h3>
-
-          <p className="text-gray-600 leading-relaxed">
+          <p className="text-gray-600 leading-relaxed text-sm sm:text-base">
             {organizerData?.sobre || 'Organização dedicada à promoção de eventos de capacitação, networking e desenvolvimento profissional em Angola. Comprometidos em criar experiências transformadoras que impulsionam o crescimento pessoal e empresarial.'}
           </p>
-
           <div className="mt-4 flex flex-wrap gap-2">
             {(organizerData?.tags || ['Empreendedorismo', 'Tecnologia', 'Liderança', 'Inovação', 'Networking']).map((tag: string) => (
-              <span
-                key={tag}
-                className="px-3 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-sm font-medium"
-              >
+              <span key={tag} className="px-3 py-1 bg-orange-50 text-orange-700 border border-orange-200 rounded-full text-xs sm:text-sm font-medium">
                 {tag}
               </span>
             ))}
@@ -1295,20 +1214,21 @@ export function OrganizerProfile() {
         </div>
 
         {/* Dica de Segurança */}
-        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-6">
+        <div className="bg-gradient-to-br from-blue-50 to-blue-100 border border-blue-200 rounded-xl p-4 sm:p-6">
           <div className="flex items-start gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
-              <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+              <img src={logo} alt="Cresce.AO Logo" className="h-9 sm:h-10 w-auto object-contain" />
             </div>
             <div>
-              <h4 className="font-semibold text-gray-900 mb-1">Dica de Segurança</h4>
-              <p className="text-sm text-gray-600">
+              <h4 className="font-semibold text-gray-900 mb-1 text-sm sm:text-base">Dica de Segurança</h4>
+              <p className="text-xs sm:text-sm text-gray-600">
                 Mantenha sua senha segura e nunca a compartilhe com ninguém.
                 Recomendamos alterar sua senha periodicamente para maior segurança.
               </p>
             </div>
           </div>
         </div>
+
       </main>
 
       {/* Modal de Alteração de Senha */}

@@ -12,28 +12,15 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
   const [error, setError] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  // Função auxiliar para gerar hash SHA-256 (compatível com todos os navegadores)
   async function sha256(message: string): Promise<string> {
-    // Verificar se a API Crypto está disponível
     if (!window.crypto || !window.crypto.subtle) {
-      console.error('❌ Crypto API não disponível neste ambiente');
-      // Fallback para desenvolvimento (NÃO USAR EM PRODUÇÃO)
-      if (import.meta.env.DEV) {
-        console.warn('⚠️ Usando fallback inseguro para hash');
-        return message;
-      }
+      if (import.meta.env.DEV) return message;
       throw new Error('Ambiente não seguro para autenticação');
     }
-
-    try {
-      const msgBuffer = new TextEncoder().encode(message);
-      const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
-      const hashArray = Array.from(new Uint8Array(hashBuffer));
-      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-    } catch (err) {
-      console.error('❌ Erro ao gerar hash:', err);
-      throw new Error('Erro ao processar senha');
-    }
+    const msgBuffer = new TextEncoder().encode(message);
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', msgBuffer);
+    const hashArray = Array.from(new Uint8Array(hashBuffer));
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +28,6 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
     setIsLoading(true);
     setError(null);
 
-    // Validação básica
     if (!email || !password) {
       setError('Por favor, preencha todos os campos');
       setIsLoading(false);
@@ -49,54 +35,23 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
     }
 
     try {
-      console.log('🔍 Buscando usuário normal:', email);
-
-      // Buscar usuário na tabela pelo email
       const { data: userData, error: userError } = await supabase
         .from('usuarios_normais')
         .select('*')
         .eq('email', email)
         .maybeSingle();
 
-      if (userError) {
-        console.error('❌ Erro ao buscar usuário:', userError);
-        setError('Erro ao consultar usuário. Tente novamente.');
-        setIsLoading(false);
-        return;
-      }
+      if (userError) { setError('Erro ao consultar usuário.'); setIsLoading(false); return; }
+      if (!userData)  { setError('Email ou senha incorretos.'); setIsLoading(false); return; }
+      if (userData.deleted_at) { setError('Esta conta está suspensa.'); setIsLoading(false); return; }
 
-      if (!userData) {
+      const hashedInputPassword = '$2a$10$' + await sha256(password);
+      if (userData.senha !== hashedInputPassword) {
         setError('Email ou senha incorretos.');
         setIsLoading(false);
         return;
       }
 
-      if (userData.deleted_at) {
-        setError('Esta conta está suspensa.');
-        setIsLoading(false);
-        return;
-      }
-
-      console.log('✅ Usuário encontrado, verificando senha...');
-
-      try {
-        // Gerar hash da senha digitada
-        const hashedInputPassword = '$2a$10$' + await sha256(password);
-        
-        // Comparar com o hash armazenado no banco
-        if (userData.senha !== hashedInputPassword) {
-          setError('Email ou senha incorretos.');
-          setIsLoading(false);
-          return;
-        }
-      } catch (hashError) {
-        console.error('❌ Erro ao verificar senha:', hashError);
-        setError('Erro ao processar senha. Tente novamente.');
-        setIsLoading(false);
-        return;
-      }
-
-      // Login bem-sucedido
       const user = {
         id: userData.id,
         name: userData.nome_completo,
@@ -105,12 +60,10 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
         type: 'user' as const
       };
 
-      console.log('✅ Login bem-sucedido:', user.email);
       localStorage.setItem('user', JSON.stringify(user));
       onLogin(user);
 
     } catch (err) {
-      console.error('❌ Erro inesperado:', err);
       setError('Ocorreu um erro inesperado. Tente novamente.');
     } finally {
       setIsLoading(false);
@@ -122,41 +75,41 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
       {/* Back button */}
       <motion.button
         onClick={onBack}
-        className="fixed top-6 left-6 flex items-center cursor-pointer gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50"
+        className="fixed top-4 left-4 sm:top-6 sm:left-6 flex items-center cursor-pointer gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm"
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: -4 }}
       >
-        <ArrowLeft className="w-5 h-5" />
-        Voltar
+        <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+        <span className="text-sm sm:text-base">Voltar</span>
       </motion.button>
 
       <motion.div
-        className="w-full max-w-4xl bg-white rounded-3xl shadow-2xl overflow-hidden"
+        className="w-full max-w-4xl bg-white rounded-2xl sm:rounded-3xl shadow-2xl overflow-hidden mt-14 sm:mt-0"
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.5 }}
       >
-        <div className="flex flex-col lg:flex-row min-h-[550px]">
-          {/* Left side - Orange Solid */}
+        <div className="flex flex-col lg:flex-row min-h-[500px]">
+
+          {/* Left side — visível apenas em lg+ */}
           <motion.div
-            className="lg:w-1/2 bg-orange-600 p-12 flex flex-col justify-between text-white relative overflow-hidden"
+            className="hidden lg:flex lg:w-1/2 bg-orange-600 p-12 flex-col justify-between text-white relative overflow-hidden"
             initial={{ x: -50, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            {/* Decorative circles */}
-            <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
 
             <div className="relative z-10">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: 0.4, type: "spring" }}
+                transition={{ delay: 0.4, type: 'spring' }}
                 className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-8"
               >
-                <div className="w-8 h-8 bg-white rounded-lg"></div>
+                <div className="w-8 h-8 bg-white rounded-lg" />
               </motion.div>
 
               <motion.div
@@ -182,40 +135,52 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
             >
               <div className="flex items-center gap-2 text-white/70 text-sm">
                 <div className="flex -space-x-2">
-                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white"></div>
-                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white"></div>
-                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white"></div>
+                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white" />
+                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white" />
+                  <div className="w-8 h-8 rounded-full bg-white/30 border-2 border-white" />
                 </div>
                 <span>Junte-se a milhares de profissionais</span>
               </div>
             </motion.div>
           </motion.div>
 
-          {/* Right side - Form */}
-          <div className="lg:w-1/2 p-12 flex flex-col justify-center">
+          {/* Topo laranja no mobile (substitui o lado esquerdo) */}
+          <div className="lg:hidden bg-orange-600 px-6 py-8 text-white relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <div className="relative z-10">
+              <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center mb-3">
+                <div className="w-5 h-5 bg-white rounded-md" />
+              </div>
+              <h2 className="text-xl font-bold leading-tight">
+                Plataforma de eventos para crescimento e networking
+              </h2>
+            </div>
+          </div>
+
+          {/* Right side — formulário */}
+          <div className="lg:w-1/2 p-6 sm:p-8 lg:p-12 flex flex-col justify-center">
             <motion.div
               initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: 0.3 }}
             >
-              <div className="mb-8">
-                <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mb-6">
-                  <div className="w-5 h-5 bg-orange-600 rounded-md"></div>
+              <div className="mb-6 sm:mb-8">
+                <div className="hidden lg:flex w-10 h-10 bg-orange-100 rounded-xl items-center justify-center mb-6">
+                  <div className="w-5 h-5 bg-orange-600 rounded-md" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">Login - Usuário</h1>
-                <p className="text-gray-600">
-                  Acesse sua conta de usuário para participar de eventos
+                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Login</h1>
+                <p className="text-sm sm:text-base text-gray-600">
+                  Acesse sua conta para participar de eventos
                 </p>
               </div>
 
-              {/* Mensagem de erro */}
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <p className="text-red-600 text-sm">{error}</p>
                 </div>
               )}
 
-              <form onSubmit={handleSubmit} className="space-y-5">
+              <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-5">
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                     Seu e-mail
@@ -226,7 +191,7 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 text-sm sm:text-base"
                     placeholder="seuemail@gmail.com"
                   />
                 </div>
@@ -238,11 +203,11 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                   <div className="relative">
                     <input
                       id="password"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
-                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-12"
+                      className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-12 text-sm sm:text-base"
                       placeholder="••••••••"
                     />
                     <button
@@ -250,7 +215,10 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                       onClick={() => setShowPassword(!showPassword)}
                       className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
                     >
-                      {showPassword ? <EyeOff className="w-5 h-5 cursor-pointer" /> : <Eye className="w-5 h-5 cursor-pointer" />}
+                      {showPassword
+                        ? <EyeOff className="w-5 h-5 cursor-pointer" />
+                        : <Eye className="w-5 h-5 cursor-pointer" />
+                      }
                     </button>
                   </div>
                 </div>
@@ -268,7 +236,7 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                 <motion.button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full bg-orange-600 cursor-pointer text-white py-3.5 rounded-xl font-semibold hover:bg-orange-700 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  className="w-full bg-orange-600 cursor-pointer text-white py-3 sm:py-3.5 rounded-xl font-semibold hover:bg-orange-700 transition-all shadow-lg shadow-orange-500/30 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base"
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                 >
@@ -277,7 +245,7 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                       <motion.div
                         className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
                         animate={{ rotate: 360 }}
-                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                        transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                       />
                       Entrando...
                     </>
@@ -290,40 +258,37 @@ export function LoginPage({ onBack, onLogin }: { onBack: () => void, onLogin: (u
                 </motion.button>
               </form>
 
-              {/* Divider */}
-              <div className="my-6">
+              <div className="my-5 sm:my-6">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-200"></div>
+                    <div className="w-full border-t border-gray-200" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-4 bg-white text-gray-500">Ou continue com</span>
+                    <span className="px-4 bg-gray-50 text-gray-500">Ou continue com</span>
                   </div>
                 </div>
               </div>
 
-              {/* Organizer link */}
-              <div className="border-t border-gray-100">
-                <button
-                  onClick={() => window.location.href = '/organizer-login'}
-                  className="w-full flex items-center justify-center gap-2 cursor-pointer px-4 py-3 border-2 border-orange-600 text-orange-600 rounded-xl hover:bg-orange-50 transition-colors font-semibold"
-                >
-                  <Building2 className="w-5 h-5" />
-                  Sou Organizador de Eventos
-                </button>
-              </div>
+              <button
+                onClick={() => window.location.href = '/organizer-login'}
+                className="w-full flex items-center justify-center gap-2 cursor-pointer px-4 py-3 border-2 border-orange-600 text-orange-600 rounded-xl hover:bg-orange-50 transition-colors font-semibold text-sm sm:text-base"
+              >
+                <Building2 className="w-5 h-5" />
+                Sou Organizador de Eventos
+              </button>
 
-              <p className="text-center text-gray-600 mt-6">
+              <p className="text-center text-gray-600 mt-5 text-sm sm:text-base">
                 Não tem uma conta?{' '}
                 <button
                   onClick={() => window.location.href = '/signup'}
                   className="text-orange-600 hover:text-orange-700 cursor-pointer font-semibold transition-colors"
                 >
-                  Criar conta de usuário
+                  Criar conta
                 </button>
               </p>
             </motion.div>
           </div>
+
         </div>
       </motion.div>
     </div>

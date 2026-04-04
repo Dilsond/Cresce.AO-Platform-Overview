@@ -75,7 +75,7 @@ export function EventsPage() {
   const [sortBy, setSortBy] = useState('Relevância');
 
   const isOrganizer = currentUser?.type === 'organizer';
-  
+
   // Usar searchQuery do layout se disponível, senão usar local
   const searchQuery = layoutContext?.searchQuery !== undefined ? layoutContext.searchQuery : localSearchQuery;
 
@@ -322,8 +322,10 @@ export function EventsPage() {
   }
 
   const FiltersBar = () => (
-    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-gray-100 pb-6">
-      <div className="flex items-center gap-2 md:gap-4 overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
+    <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:pb-6">
+
+      {/* Linha 1 — Filtrar por */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar">
         <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filtrar por</span>
         {[
           { label: 'Categoria', value: selectedCategory, set: setSelectedCategory, opts: categories.map(c => ({ value: c, label: c === 'Todas' ? 'Todas' : catLabels[c] })) },
@@ -333,31 +335,46 @@ export function EventsPage() {
         ].map(({ label, value, set, opts }) => (
           <DropdownMenu key={label}>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-9 text-sm">
-                {value === 'Todas' || value === 'Todos' ? label : (catLabels[value] || value)}<ChevronDown className="w-4 h-4 ml-2" />
+              <Button
+                variant="outline"
+                className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-8 sm:h-9 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
+              >
+                {value === 'Todas' || value === 'Todos' ? label : (catLabels[value] || value)}
+                <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              {opts.map(o => <DropdownMenuItem key={o.value} onClick={() => set(o.value)}>{o.label}</DropdownMenuItem>)}
+              {opts.map(o => (
+                <DropdownMenuItem key={o.value} onClick={() => set(o.value)}>
+                  {o.label}
+                </DropdownMenuItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
         ))}
       </div>
-      <div className="flex items-center gap-2 whitespace-nowrap">
-        <span className="text-sm font-semibold text-gray-700">Ordenar por</span>
+
+      {/* Linha 2 — Ordenar por */}
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Ordenar por</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 h-9 px-3 text-sm">
-              {sortBy}<ChevronDown className="w-4 h-4 ml-2" />
+            <Button
+              variant="outline"
+              className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 h-8 sm:h-9 px-3 text-xs sm:text-sm whitespace-nowrap"
+            >
+              {sortBy}
+              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="start" className="sm:align-end">
             {['Relevância', 'Data: Próximos', 'Data: Distantes', 'Preço: Menor para Maior', 'Preço: Maior para Menor'].map(s => (
               <DropdownMenuItem key={s} onClick={() => setSortBy(s)}>{s}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
+
     </div>
   );
 
@@ -419,12 +436,12 @@ export function EventsPage() {
 
             <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input 
-                type="text" 
-                placeholder="Buscar experiências" 
-                value={localSearchQuery} 
-                onChange={(e) => setLocalSearchQuery(e.target.value)} 
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" 
+              <input
+                type="text"
+                placeholder="Buscar experiências"
+                value={localSearchQuery}
+                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
               />
             </div>
 
@@ -449,7 +466,7 @@ export function EventsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-            
+
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 cursor-pointer text-gray-600 hover:text-orange-600">
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -460,12 +477,12 @@ export function EventsPage() {
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center bg-gray-100 rounded-lg border border-gray-200">
                   <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-                  <input 
-                    type="text" 
-                    placeholder="Buscar experiências" 
-                    value={localSearchQuery} 
-                    onChange={(e) => setLocalSearchQuery(e.target.value)} 
-                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none" 
+                  <input
+                    type="text"
+                    placeholder="Buscar experiências"
+                    value={localSearchQuery}
+                    onChange={(e) => setLocalSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none"
                   />
                 </div>
               </div>
@@ -490,12 +507,12 @@ export function EventsPage() {
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center w-full max-w-2xl mx-auto bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input 
-                type="text" 
-                placeholder="Buscar eventos..." 
-                value={localSearchQuery} 
-                onChange={(e) => setLocalSearchQuery(e.target.value)} 
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" 
+              <input
+                type="text"
+                placeholder="Buscar eventos..."
+                value={localSearchQuery}
+                onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
               />
             </div>
           </div>
@@ -511,7 +528,7 @@ export function EventsPage() {
           <ChevronRight className="w-4 h-4" />
           <span className="text-gray-900 font-medium">Encontre eventos</span>
         </div>
-        
+
         <div className="flex flex-col gap-6 mb-8">
           <h1 className="text-3xl md:text-4xl font-bold text-gray-900">Encontre eventos</h1>
           <FiltersBar />
@@ -549,10 +566,10 @@ export function EventsPage() {
             {sorted.map((ev) => <EventCard key={ev.id} event={ev} />)}
           </div>
         )}
-        
+
         {currentUser && <NotificationPermissionPrompt userId={currentUser.id} userType={currentUser.type} />}
       </main>
-      
+
       {!isOrganizer && (
         <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
       )}

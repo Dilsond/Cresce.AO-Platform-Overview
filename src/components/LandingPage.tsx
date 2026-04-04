@@ -1,12 +1,14 @@
-import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, Mic, Wrench, GraduationCap, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft } from 'lucide-react';
+import { Sparkles, Calendar, Users, TrendingUp, Search, Target, Network, Rocket, Mic, Wrench, GraduationCap, ArrowRight, Star, Quote, ChevronDown, Building2, Award, ChevronLeft, ChevronRight, MapPin, Clock, ArrowLeft, ArrowUp } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import { landingPageSlides, cursosWorkshops, eventosNegocios } from './LandingPageSlides';
+import { landingPageSlides } from './LandingPageSlides';
 import { AnimatedCounter } from './AnimatedCounter';
 import { Footer } from './Footer';
 import heroBg from "../assets/d48dbf308596a19f3efe4145eb156c4fa0bae765.png";
 import logo from "../assets/logo.png";
 import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
+import { supabase } from '../lib/supabase';
+import { getEventImageUrl } from '../lib/storage';
 
 interface LandingPageProps {
   onExplore: () => void;
@@ -14,9 +16,26 @@ interface LandingPageProps {
   onNavigateToTerms?: () => void;
 }
 
+interface Event {
+  id: string;
+  name: string;
+  date: string;
+  time: string;
+  location: string;
+  eventType: string;
+  description: string;
+  category: string;
+  image: string;
+  price: number;
+  isFree: boolean;
+}
+
 export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: LandingPageProps) {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [recentEvents, setRecentEvents] = useState<Event[]>([]);
+  const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const navigate = useNavigate();
 
   // Referência para a seção de atividades em destaque
@@ -31,7 +50,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
   // Função para rolar suavemente até a seção de atividades
   const scrollToAtividades = () => {
     if (atividadesRef.current) {
-      const offset = 80; // Altura do header fixo
+      const offset = 80;
       const elementPosition = atividadesRef.current.getBoundingClientRect().top;
       const offsetPosition = elementPosition + window.pageYOffset - offset;
 
@@ -41,6 +60,77 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       });
     }
   };
+
+  // Função para rolar para o topo
+  const scrollToTop = () => {
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    });
+  };
+
+  // Monitorar scroll para mostrar/esconder botão
+  useEffect(() => {
+    const handleScroll = () => {
+      setShowScrollTop(window.scrollY > 400);
+    };
+    window.addEventListener('scroll', handleScroll);
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Buscar eventos do banco de dados
+  useEffect(() => {
+    const fetchEvents = async () => {
+      try {
+        setIsLoadingEvents(true);
+        
+        // Buscar eventos recentes não deletados
+        const { data: eventos, error } = await supabase
+          .from('eventos')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false })
+          .limit(6);
+
+        if (error) {
+          console.error('Erro ao buscar eventos:', error);
+          return;
+        }
+
+        if (!eventos || eventos.length === 0) {
+          setRecentEvents([]);
+          return;
+        }
+
+        // Processar eventos
+        const processedEvents: Event[] = eventos.map(evento => {
+          const isFree = !evento.estacoes || evento.estacoes.length === 0 || evento.estacoes.every((e: any) => e.preco === 0);
+          
+          return {
+            id: evento.id,
+            name: evento.nome_evento,
+            date: evento.data_evento,
+            time: evento.hora_evento ? evento.hora_evento.split(':').slice(0, 2).join(':') : '',
+            location: evento.local || 'Local a definir',
+            eventType: evento.tipo_evento,
+            description: evento.descricao || '',
+            category: evento.categoria,
+            image: getEventImageUrl(evento.imagem_url),
+            price: evento.valor || 0,
+            isFree
+          };
+        });
+
+        setRecentEvents(processedEvents);
+      } catch (err) {
+        console.error('Erro ao carregar eventos:', err);
+      } finally {
+        setIsLoadingEvents(false);
+      }
+    };
+
+    fetchEvents();
+  }, []);
 
   // Auto-play do slideshow
   useEffect(() => {
@@ -63,13 +153,48 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
     setCurrentSlide((prev) => (prev - 1 + slides.length) % slides.length);
   };
 
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('pt-PT', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const getCategoryIcon = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'palestra':
+        return Mic;
+      case 'workshop':
+        return Wrench;
+      case 'masterclasse':
+        return GraduationCap;
+      default:
+        return Building2;
+    }
+  };
+
+  const getCategoryLabel = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'palestra':
+        return 'Palestra';
+      case 'workshop':
+        return 'Workshop';
+      case 'feiras':
+        return 'Feira';
+      case 'masterclasse':
+        return 'Masterclasse';
+      default:
+        return category || 'Evento';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-orange-50 to-red-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-sm bg-white/90">
         <div className="max-w-9xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-20">
-
-            {/* Logo */}
             <div
               className="flex items-center cursor-pointer"
               onClick={() => navigate('/')}
@@ -84,7 +209,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
               </span>
             </div>
 
-            {/* Buttons */}
             <div className="flex items-center gap-3">
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -128,7 +252,6 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
         <div className="relative z-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32 w-full">
           <div className="text-center">
             <div className="flex items-center justify-center gap-2 mb-6">
-              {/* <Sparkles className="w-12 h-12" /> */}
               <h1 className="text-5xl sm:text-7xl font-bold">Cresce<span className="text-orange-600">.AO</span></h1>
             </div>
             <p className="text-xl sm:text-2xl mb-8 max-w-3xl mx-auto opacity-95">
@@ -144,7 +267,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
         </div>
       </section>
 
-      {/* Slideshow de Atividades Disponíveis - ADICIONADA A REFERÊNCIA AQUI */}
+      {/* Slideshow de Atividades Disponíveis */}
       <section ref={atividadesRef} className="py-20 bg-gray-50 scroll-mt-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
@@ -157,9 +280,7 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
           </div>
 
           <div className="relative">
-            {/* Slider Container */}
             <div className="relative h-[400px] flex items-center justify-center overflow-hidden">
-              {/* Slides */}
               <div className="relative w-full h-full flex items-center justify-center">
                 {slides.map((slide, index) => {
                   const position = index - currentSlide;
@@ -200,37 +321,17 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
                               {slide.eventType}
                             </span>
                           </div>
-                          <h3 className="text-2xl font-bold mb-2">
-                            {slide.title}
-                          </h3>
-                          <p className="text-white/90 text-sm mb-3 line-clamp-2">
-                            {slide.description}
-                          </p>
+                          <h3 className="text-2xl font-bold mb-2">{slide.title}</h3>
+                          <p className="text-white/90 text-sm mb-3 line-clamp-2">{slide.description}</p>
                           <div className="flex flex-wrap items-center gap-3 text-xs mb-3">
-                            <div className="flex items-center gap-1">
-                              <Calendar className="w-3 h-3" />
-                              <span>{slide.date}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              <span>{slide.time}</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <MapPin className="w-3 h-3" />
-                              <span className="line-clamp-1">{slide.location}</span>
-                            </div>
+                            <div className="flex items-center gap-1"><Calendar className="w-3 h-3" /><span>{slide.date}</span></div>
+                            <div className="flex items-center gap-1"><Clock className="w-3 h-3" /><span>{slide.time}</span></div>
+                            <div className="flex items-center gap-1"><MapPin className="w-3 h-3" /><span className="line-clamp-1">{slide.location}</span></div>
                           </div>
                           <div className="flex items-center justify-between">
-                            <span className={`text-xl font-bold ${slide.price === 'Gratuito' ? 'text-green-400' : 'text-orange-400'}`}>
-                              {slide.price}
-                            </span>
+                            <span className={`text-xl font-bold ${slide.price === 'Gratuito' ? 'text-green-400' : 'text-orange-400'}`}>{slide.price}</span>
                             {isActive && (
-                              <button
-                                onClick={onExplore}
-                                className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors"
-                              >
-                                Ver Detalhes
-                              </button>
+                              <button onClick={onExplore} className="bg-orange-600 hover:bg-orange-700 cursor-pointer px-4 py-2 rounded-lg text-sm font-semibold transition-colors">Ver Detalhes</button>
                             )}
                           </div>
                         </div>
@@ -241,106 +342,79 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
               </div>
             </div>
 
-            {/* Navigation Buttons */}
-            <button
-              onClick={prevSlide}
-              className="absolute left-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
-              aria-label="Anterior"
-            >
+            <button onClick={prevSlide} className="absolute left-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110">
               <ChevronLeft className="w-6 h-6" />
             </button>
-
-            <button
-              onClick={nextSlide}
-              className="absolute right-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110"
-              aria-label="Próximo"
-            >
+            <button onClick={nextSlide} className="absolute right-4 top-1/2 -translate-y-1/2 z-40 cursor-pointer bg-white hover:bg-orange-600 text-orange-600 hover:text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110">
               <ChevronRight className="w-6 h-6" />
             </button>
 
-            {/* Dots Indicator */}
             <div className="flex justify-center gap-2 mt-6">
               {slides.map((_, index) => (
-                <button
-                  key={index}
-                  onClick={() => goToSlide(index)}
-                  className={`h-2 rounded-full cursor-pointer transition-all ${index === currentSlide
-                    ? 'bg-orange-600 w-8'
-                    : 'bg-gray-300 w-2 hover:bg-gray-400'
-                    }`}
-                  aria-label={`Ir para slide ${index + 1}`}
-                />
+                <button key={index} onClick={() => goToSlide(index)} className={`h-2 rounded-full cursor-pointer transition-all ${index === currentSlide ? 'bg-orange-600 w-8' : 'bg-gray-300 w-2 hover:bg-gray-400'}`} />
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      {/* Cursos e Workshops - Scroll Horizontal */}
+      {/* Eventos Recentes do Banco de Dados */}
       <section className="py-16 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">Workshops</h2>
+            <h2 className="text-3xl font-bold text-gray-900">Eventos Recentes</h2>
+            <button onClick={onExplore} className="text-orange-600 hover:text-orange-700 cursor-pointer font-semibold flex items-center gap-1">
+              Ver todos <ArrowRight className="w-4 h-4" />
+            </button>
           </div>
 
-          {/* Scroll horizontal */}
-          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
-            <div className="flex gap-4 pb-4">
-              {cursosWorkshops.map((curso) => (
-                <div key={curso.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1">
-                    <div className="relative h-[180px]">
-                      <img
-                        src={curso.image}
-                        alt={curso.title}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-bold text-gray-900 mb-2">{curso.title}</h3>
-                      <p className="text-sm text-gray-600 mb-1">{curso.location}</p>
-                      <p className="text-xs text-gray-500">{curso.date}</p>
-                    </div>
-                  </div>
-                </div>
+          {isLoadingEvents ? (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="bg-gray-100 rounded-xl animate-pulse h-64"></div>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Eventos de Negócios e Networking - Scroll Horizontal */}
-      <section className="py-16 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-3xl font-bold text-gray-900">
-              Eventos de Negócios e Networking
-            </h2>
-          </div>
-
-          {/* Scroll horizontal */}
-          <div className="overflow-x-auto scrollbar-hide -mx-4 px-4">
-            <div className="flex gap-4 pb-4">
-              {eventosNegocios.map((evento) => (
-                <div key={evento.id} className="flex-shrink-0 w-[280px]">
-                  <div className="bg-white rounded-lg overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer h-full transform hover:-translate-y-1">
-                    <div className="relative h-[180px]">
-                      <img
-                        src={evento.image}
-                        alt={evento.title}
-                        className="w-full h-full object-cover"
-                      />
+          ) : recentEvents.length === 0 ? (
+            <div className="text-center py-12 bg-gray-50 rounded-2xl">
+              <p className="text-gray-500">Nenhum evento disponível no momento.</p>
+            </div>
+          ) : (
+            <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {recentEvents.map((event) => {
+                const Icon = getCategoryIcon(event.category);
+                return (
+                  <div
+                    key={event.id}
+                    onClick={() => navigate(`/event/${event.id}`)}
+                    className="bg-white rounded-xl overflow-hidden shadow-md hover:shadow-xl transition-all cursor-pointer group transform hover:-translate-y-1"
+                  >
+                    <div className="relative h-48">
+                      <img src={event.image} alt={event.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                      <div className="absolute top-3 left-3">
+                        <span className="px-2 py-1 bg-orange-600 text-white rounded-lg text-xs font-semibold">{getCategoryLabel(event.category)}</span>
+                      </div>
+                      <div className="absolute top-3 right-3">
+                        <span className={`px-2 py-1 rounded-lg text-xs font-bold ${event.isFree ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>
+                          {event.isFree ? 'Grátis' : `${event.price.toLocaleString()} Kz`}
+                        </span>
+                      </div>
                     </div>
                     <div className="p-4">
-                      <h3 className="font-bold text-gray-900 mb-2">{evento.title}</h3>
-                      <p className="text-sm text-gray-600 mb-1">{evento.location}</p>
-                      <p className="text-xs text-gray-500">{evento.date}</p>
+                      <h3 className="font-bold text-gray-900 mb-2 line-clamp-1">{event.name}</h3>
+                      <div className="flex items-center gap-2 text-sm text-gray-500 mb-1">
+                        <Calendar className="w-4 h-4" />
+                        <span>{formatDate(event.date)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <MapPin className="w-4 h-4" />
+                        <span className="truncate">{event.location}</span>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
-          </div>
+          )}
         </div>
       </section>
 
@@ -348,98 +422,48 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Por que escolher o Cresce.AO?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              A plataforma que centraliza todas as oportunidades de crescimento profissional em Angola
-            </p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Por que escolher o Cresce.AO?</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">A plataforma que centraliza todas as oportunidades de crescimento profissional em Angola</p>
           </div>
 
-          {/* Estatísticas */}
           <div className="grid md:grid-cols-3 gap-8 mb-16 max-w-4xl mx-auto">
             <div className="bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl shadow-lg border border-orange-100 text-center hover:scale-105 hover:shadow-xl transition-all">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                <Users className="w-8 h-8 text-orange-600" />
-              </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">
-                <AnimatedCounter end={5247} duration={2500} />+
-              </div>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4"><Users className="w-8 h-8 text-orange-600" /></div>
+              <div className="text-4xl font-bold text-gray-900 mb-2"><AnimatedCounter end={5247} duration={2500} />+</div>
               <p className="text-gray-600 font-medium">Profissionais Cadastrados</p>
             </div>
-
             <div className="bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl shadow-lg border border-orange-100 text-center hover:scale-105 hover:shadow-xl transition-all">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                <Calendar className="w-8 h-8 text-orange-600" />
-              </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">
-                <AnimatedCounter end={287} duration={2500} />+
-              </div>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4"><Calendar className="w-8 h-8 text-orange-600" /></div>
+              <div className="text-4xl font-bold text-gray-900 mb-2"><AnimatedCounter end={287} duration={2500} />+</div>
               <p className="text-gray-600 font-medium">Eventos Realizados</p>
             </div>
-
             <div className="bg-gradient-to-br from-orange-50 to-white p-8 rounded-2xl shadow-lg border border-orange-100 text-center hover:scale-105 hover:shadow-xl transition-all">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4">
-                <Building2 className="w-8 h-8 text-orange-600" />
-              </div>
-              <div className="text-4xl font-bold text-gray-900 mb-2">
-                <AnimatedCounter end={63} duration={2500} />+
-              </div>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-full mb-4"><Building2 className="w-8 h-8 text-orange-600" /></div>
+              <div className="text-4xl font-bold text-gray-900 mb-2"><AnimatedCounter end={63} duration={2500} />+</div>
               <p className="text-gray-600 font-medium">Empresas Parceiras</p>
             </div>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
-            {/* Centralização */}
             <div className="text-center hover:scale-105 transition-transform">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4">
-                <Search className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                Centralização
-              </h3>
-              <p className="text-gray-600">
-                Todos os eventos corporativos e formativos em um só lugar
-              </p>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4"><Search className="w-8 h-8 text-orange-600" /></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Centralização</h3>
+              <p className="text-gray-600">Todos os eventos corporativos e formativos em um só lugar</p>
             </div>
-
-            {/* Relevância */}
             <div className="text-center hover:scale-105 transition-transform">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4">
-                <Target className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                Relevância
-              </h3>
-              <p className="text-gray-600">
-                Filtros inteligentes para encontrar eventos do seu interesse
-              </p>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4"><Target className="w-8 h-8 text-orange-600" /></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Relevância</h3>
+              <p className="text-gray-600">Filtros inteligentes para encontrar eventos do seu interesse</p>
             </div>
-
-            {/* Networking */}
             <div className="text-center hover:scale-105 transition-transform">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4">
-                <Network className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                Networking
-              </h3>
-              <p className="text-gray-600">
-                Conecte-se com profissionais e empresas de referência
-              </p>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4"><Network className="w-8 h-8 text-orange-600" /></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Networking</h3>
+              <p className="text-gray-600">Conecte-se com profissionais e empresas de referência</p>
             </div>
-
-            {/* Crescimento */}
             <div className="text-center hover:scale-105 transition-transform">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4">
-                <Rocket className="w-8 h-8 text-orange-600" />
-              </div>
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">
-                Crescimento
-              </h3>
-              <p className="text-gray-600">
-                Desenvolva competências e impulsione a sua carreira
-              </p>
+              <div className="inline-flex items-center justify-center w-16 h-16 bg-orange-100 rounded-2xl mb-4"><Rocket className="w-8 h-8 text-orange-600" /></div>
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Crescimento</h3>
+              <p className="text-gray-600">Desenvolva competências e impulsione a sua carreira</p>
             </div>
           </div>
         </div>
@@ -449,60 +473,26 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Como Funciona?
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Simples, rápido e eficiente. Comece a crescer em apenas 3 passos
-            </p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Como Funciona?</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">Simples, rápido e eficiente. Comece a crescer em apenas 3 passos</p>
           </div>
-
           <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-            {/* Passo 1 */}
             <div className="text-center relative">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">
-                1
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">
-                Pesquise
-              </h3>
-              <p className="text-gray-600 text-lg">
-                Explore eventos por categoria, data ou localização. Use filtros inteligentes para encontrar oportunidades perfeitas para você.
-              </p>
-              {/* Seta */}
-              <div className="hidden md:block absolute top-10 -right-8 text-orange-600">
-                <ArrowRight className="w-8 h-8" />
-              </div>
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">1</div>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Pesquise</h3>
+              <p className="text-gray-600 text-lg">Explore eventos por categoria, data ou localização. Use filtros inteligentes para encontrar oportunidades perfeitas para você.</p>
+              <div className="hidden md:block absolute top-10 -right-8 text-orange-600"><ArrowRight className="w-8 h-8" /></div>
             </div>
-
-            {/* Passo 2 */}
             <div className="text-center relative">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">
-                2
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">
-                Escolha
-              </h3>
-              <p className="text-gray-600 text-lg">
-                Visualize detalhes completos dos eventos, veja informações sobre organizadores e salve seus favoritos.
-              </p>
-              {/* Seta */}
-              <div className="hidden md:block absolute top-10 -right-8 text-orange-600">
-                <ArrowRight className="w-8 h-8" />
-              </div>
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">2</div>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Escolha</h3>
+              <p className="text-gray-600 text-lg">Visualize detalhes completos dos eventos, veja informações sobre organizadores e salve seus favoritos.</p>
+              <div className="hidden md:block absolute top-10 -right-8 text-orange-600"><ArrowRight className="w-8 h-8" /></div>
             </div>
-
-            {/* Passo 3 */}
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">
-                3
-              </div>
-              <h3 className="text-2xl font-semibold text-gray-900 mb-4">
-                Participe
-              </h3>
-              <p className="text-gray-600 text-lg">
-                Inscreva-se no evento, prepare-se e aproveite ao máximo essa oportunidade de crescimento profissional.
-              </p>
+              <div className="inline-flex items-center justify-center w-20 h-20 bg-orange-600 text-white rounded-full mb-6 text-2xl font-bold shadow-lg">3</div>
+              <h3 className="text-2xl font-semibold text-gray-900 mb-4">Participe</h3>
+              <p className="text-gray-600 text-lg">Inscreva-se no evento, prepare-se e aproveite ao máximo essa oportunidade de crescimento profissional.</p>
             </div>
           </div>
         </div>
@@ -511,18 +501,11 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       {/* Categorias */}
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Categorias de Atividades
-            </h2>
-            <p className="text-xl text-gray-600">
-              Explore diferentes tipos de eventos formativos e corporativos
-            </p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Categorias de Atividades</h2>
+            <p className="text-xl text-gray-600">Explore diferentes tipos de eventos formativos e corporativos</p>
           </div>
-
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
-
             {[
               { name: "Palestras", icon: Mic },
               { name: "Workshops", icon: Wrench },
@@ -530,108 +513,42 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
               { name: "Masterclasses", icon: GraduationCap }
             ].map((category) => {
               const Icon = category.icon;
-
               return (
-                <div
-                  key={category.name}
-                  className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all text-center border border-orange-200 hover:border-orange-600 transform hover:-translate-y-1 h-full"
-                >
-
-                  <div className="flex justify-center mb-4">
-                    <div className="bg-orange-100 p-4 rounded-full">
-                      <Icon className="w-7 h-7 text-orange-600" />
-                    </div>
-                  </div>
-
-                  <h3 className="text-xl font-semibold text-gray-900">
-                    {category.name}
-                  </h3>
-
+                <div key={category.name} className="bg-white p-6 rounded-xl shadow-md hover:shadow-xl transition-all text-center border border-orange-200 hover:border-orange-600 transform hover:-translate-y-1 h-full">
+                  <div className="flex justify-center mb-4"><div className="bg-orange-100 p-4 rounded-full"><Icon className="w-7 h-7 text-orange-600" /></div></div>
+                  <h3 className="text-xl font-semibold text-gray-900">{category.name}</h3>
                 </div>
               );
             })}
-
           </div>
-
         </div>
       </section>
+
       {/* Depoimentos */}
       <section className="py-20 bg-gray-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              O que dizem os nossos utilizadores
-            </h2>
-            <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-              Histórias reais de profissionais que transformaram suas carreiras através do Cresce.AO
-            </p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">O que dizem os nossos utilizadores</h2>
+            <p className="text-xl text-gray-600 max-w-3xl mx-auto">Histórias reais de profissionais que transformaram suas carreiras através do Cresce.AO</p>
           </div>
-
           <div className="grid md:grid-cols-3 gap-8">
-            {/* Depoimento 1 */}
             <div className="bg-white p-8 rounded-xl relative shadow-md hover:shadow-lg transition-shadow">
               <Quote className="w-10 h-10 text-orange-600 mb-4" />
-              <p className="text-gray-700 mb-6 text-lg">
-                "O Cresce.AO facilitou muito a minha procura por eventos de qualidade. Consegui participar em workshops que realmente impactaram a minha carreira."
-              </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  MC
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Maria Costa</p>
-                  <p className="text-gray-600 text-sm">Analista de Marketing</p>
-                </div>
-              </div>
-              <div className="flex gap-1 mt-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />
-                ))}
-              </div>
+              <p className="text-gray-700 mb-6 text-lg">"O Cresce.AO facilitou muito a minha procura por eventos de qualidade. Consegui participar em workshops que realmente impactaram a minha carreira."</p>
+              <div className="flex items-center gap-4"><div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">MC</div><div><p className="font-semibold text-gray-900">Maria Costa</p><p className="text-gray-600 text-sm">Analista de Marketing</p></div></div>
+              <div className="flex gap-1 mt-4">{[...Array(5)].map((_, i) => (<Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />))}</div>
             </div>
-
-            {/* Depoimento 2 */}
             <div className="bg-white p-8 rounded-xl relative shadow-md hover:shadow-lg transition-shadow">
               <Quote className="w-10 h-10 text-orange-600 mb-4" />
-              <p className="text-gray-700 mb-6 text-lg">
-                "Plataforma incrível! Encontrei várias oportunidades de networking e aprendi com profissionais de referência no mercado angolano."
-              </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  JS
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">João Silva</p>
-                  <p className="text-gray-600 text-sm">Gestor de Projetos</p>
-                </div>
-              </div>
-              <div className="flex gap-1 mt-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />
-                ))}
-              </div>
+              <p className="text-gray-700 mb-6 text-lg">"Plataforma incrível! Encontrei várias oportunidades de networking e aprendi com profissionais de referência no mercado angolano."</p>
+              <div className="flex items-center gap-4"><div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">JS</div><div><p className="font-semibold text-gray-900">João Silva</p><p className="text-gray-600 text-sm">Gestor de Projetos</p></div></div>
+              <div className="flex gap-1 mt-4">{[...Array(5)].map((_, i) => (<Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />))}</div>
             </div>
-
-            {/* Depoimento 3 */}
             <div className="bg-white p-8 rounded-xl relative shadow-md hover:shadow-lg transition-shadow">
               <Quote className="w-10 h-10 text-orange-600 mb-4" />
-              <p className="text-gray-700 mb-6 text-lg">
-                "A centralização de eventos numa única plataforma poupou-me muito tempo. Agora consigo planear melhor o meu desenvolvimento profissional."
-              </p>
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">
-                  AF
-                </div>
-                <div>
-                  <p className="font-semibold text-gray-900">Ana Fernandes</p>
-                  <p className="text-gray-600 text-sm">Empreendedora</p>
-                </div>
-              </div>
-              <div className="flex gap-1 mt-4">
-                {[...Array(5)].map((_, i) => (
-                  <Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />
-                ))}
-              </div>
+              <p className="text-gray-700 mb-6 text-lg">"A centralização de eventos numa única plataforma poupou-me muito tempo. Agora consigo planear melhor o meu desenvolvimento profissional."</p>
+              <div className="flex items-center gap-4"><div className="w-12 h-12 bg-orange-600 rounded-full flex items-center justify-center text-white font-semibold">AF</div><div><p className="font-semibold text-gray-900">Ana Fernandes</p><p className="text-gray-600 text-sm">Empreendedora</p></div></div>
+              <div className="flex gap-1 mt-4">{[...Array(5)].map((_, i) => (<Star key={i} className="w-5 h-5 fill-orange-600 text-orange-600" />))}</div>
             </div>
           </div>
         </div>
@@ -641,127 +558,25 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       <section className="py-20 bg-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-bold text-gray-900 mb-4">
-              Perguntas Frequentes
-            </h2>
-            <p className="text-xl text-gray-600">
-              Tire as suas dúvidas sobre a plataforma
-            </p>
+            <h2 className="text-4xl font-bold text-gray-900 mb-4">Perguntas Frequentes</h2>
+            <p className="text-xl text-gray-600">Tire as suas dúvidas sobre a plataforma</p>
           </div>
-
           <div className="space-y-4">
-            {/* FAQ 1 */}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
-              <button
-                onClick={() => toggleFaq(0)}
-                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="font-semibold text-lg text-gray-900">
-                  A plataforma é gratuita?
-                </span>
-                <ChevronDown
-                  className={`w-6 h-6 text-orange-600 cursor-pointer transition-transform ${openFaq === 0 ? 'rotate-180' : ''
-                    }`}
-                />
-              </button>
-              {openFaq === 0 && (
-                <div className="px-8 pb-6 text-gray-600">
-                  Sim! O Cresce.AO é totalmente gratuito para utilizadores que desejam explorar e participar em eventos.
-                  Organizadores também podem publicar eventos gratuitamente na plataforma.
-                </div>
-              )}
-            </div>
-
-            {/* FAQ 2 */}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
-              <button
-                onClick={() => toggleFaq(1)}
-                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="font-semibold text-lg text-gray-900">
-                  Como me inscrevo num evento?
-                </span>
-                <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 1 ? 'rotate-180' : ''
-                    }`}
-                />
-              </button>
-              {openFaq === 1 && (
-                <div className="px-8 pb-6 text-gray-600">
-                  É muito simples! Navegue pelos eventos disponíveis, clique no evento que lhe interessa para ver os detalhes completos,
-                  e siga as instruções de inscrição fornecidas pelo organizador. Algumas inscrições são feitas diretamente na plataforma,
-                  outras podem redirecionar para o site do organizador.
-                </div>
-              )}
-            </div>
-
-            {/* FAQ 3 */}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
-              <button
-                onClick={() => toggleFaq(2)}
-                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="font-semibold text-lg text-gray-900">
-                  Como publico um evento?
-                </span>
-                <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 2 ? 'rotate-180' : ''
-                    }`}
-                />
-              </button>
-              {openFaq === 2 && (
-                <div className="px-8 pb-6 text-gray-600">
-                  Para publicar um evento, primeiro faça o cadastro como organizador. Após o login, aceda ao painel do organizador
-                  e clique em "Criar Evento". Preencha as informações do evento (título, descrição, data, local, categoria) e publique.
-                  O seu evento ficará visível para todos os utilizadores da plataforma!
-                </div>
-              )}
-            </div>
-
-            {/* FAQ 4 */}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
-              <button
-                onClick={() => toggleFaq(3)}
-                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="font-semibold text-lg text-gray-900">
-                  Posso salvar eventos para ver mais tarde?
-                </span>
-                <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 3 ? 'rotate-180' : ''
-                    }`}
-                />
-              </button>
-              {openFaq === 3 && (
-                <div className="px-8 pb-6 text-gray-600">
-                  Sim! Utilize a funcionalidade de "curtidas" para marcar eventos do seu interesse.
-                  Todos os eventos que você curtir ficam salvos no seu perfil para fácil acesso posterior.
-                </div>
-              )}
-            </div>
-
-            {/* FAQ 5 */}
-            <div className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
-              <button
-                onClick={() => toggleFaq(4)}
-                className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors"
-              >
-                <span className="font-semibold text-lg text-gray-900">
-                  Que tipos de eventos posso encontrar?
-                </span>
-                <ChevronDown
-                  className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === 4 ? 'rotate-180' : ''
-                    }`}
-                />
-              </button>
-              {openFaq === 4 && (
-                <div className="px-8 pb-6 text-gray-600">
-                  No Cresce.AO você encontra diversos tipos de eventos: Palestras, Workshops práticos,
-                  Feiras corporativas e Masterclasses. Todos focados em desenvolvimento profissional,
-                  networking e aprendizagem contínua.
-                </div>
-              )}
-            </div>
+            {[
+              { q: "A plataforma é gratuita?", a: "Sim! O Cresce.AO é totalmente gratuito para utilizadores que desejam explorar e participar em eventos. Organizadores também podem publicar eventos gratuitamente na plataforma." },
+              { q: "Como me inscrevo num evento?", a: "É muito simples! Navegue pelos eventos disponíveis, clique no evento que lhe interessa para ver os detalhes completos, e siga as instruções de inscrição fornecidas pelo organizador." },
+              { q: "Como publico um evento?", a: "Para publicar um evento, primeiro faça o cadastro como organizador. Após o login, aceda ao painel do organizador e clique em 'Criar Evento'." },
+              { q: "Posso salvar eventos para ver mais tarde?", a: "Sim! Utilize a funcionalidade de 'curtidas' para marcar eventos do seu interesse." },
+              { q: "Que tipos de eventos posso encontrar?", a: "Palestras, Workshops práticos, Feiras corporativas e Masterclasses." }
+            ].map((faq, idx) => (
+              <div key={idx} className="bg-white rounded-xl overflow-hidden shadow-sm border border-gray-200">
+                <button onClick={() => toggleFaq(idx)} className="w-full px-8 py-6 flex items-center cursor-pointer justify-between text-left hover:bg-gray-50 transition-colors">
+                  <span className="font-semibold text-lg text-gray-900">{faq.q}</span>
+                  <ChevronDown className={`w-6 h-6 text-orange-600 transition-transform ${openFaq === idx ? 'rotate-180' : ''}`} />
+                </button>
+                {openFaq === idx && <div className="px-8 pb-6 text-gray-600">{faq.a}</div>}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -769,83 +584,38 @@ export function LandingPage({ onExplore, onNavigateToPrivacy, onNavigateToTerms 
       {/* Call to Action Final */}
       <section className="py-20 bg-gradient-to-r from-orange-600 to-red-600 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-4xl font-bold mb-6">
-            Pronto para Crescer?
-          </h2>
-          <p className="text-xl mb-8 opacity-95">
-            Junte-se à comunidade de profissionais angolanos que estão a investir no seu desenvolvimento
-          </p>
-          <button
-            onClick={onExplore}
-            className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl"
-          >
-            Começar Agora
-          </button>
+          <h2 className="text-4xl font-bold mb-6">Pronto para Crescer?</h2>
+          <p className="text-xl mb-8 opacity-95">Junte-se à comunidade de profissionais angolanos que estão a investir no seu desenvolvimento</p>
+          <button onClick={scrollToAtividades} className="bg-white text-orange-600 px-8 py-4 cursor-pointer rounded-lg font-semibold text-lg hover:bg-gray-100 transition-all transform hover:scale-105 shadow-xl">Começar Agora</button>
         </div>
       </section>
 
       {/* Parceiros */}
       <section className="py-16 bg-white border-t border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <h3 className="text-2xl font-semibold text-gray-900 mb-2">
-              Parceiros e Organizações
-            </h3>
-            <p className="text-gray-600">
-              Empresas e instituições que confiam na nossa plataforma
-            </p>
-          </div>
-
+          <div className="text-center mb-12"><h3 className="text-2xl font-semibold text-gray-900 mb-2">Parceiros e Organizações</h3><p className="text-gray-600">Empresas e instituições que confiam na nossa plataforma</p></div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8 items-center justify-items-center opacity-60">
-            {/* Parceiro 1 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">SONANGOL</span>
-            </div>
-
-            {/* Parceiro 2 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">YAMAL</span>
-            </div>
-
-            {/* Parceiro 3 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">INACOM</span>
-            </div>
-
-            {/* Parceiro 4 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">RAPHINHA</span>
-            </div>
-
-            {/* Parceiro 5 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">TAAG</span>
-            </div>
-
-            {/* Parceiro 6 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">FC BARCELONA</span>
-            </div>
-
-            {/* Parceiro 7 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">UNITEL</span>
-            </div>
-
-            {/* Parceiro 8 */}
-            <div className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
-              <span className="font-bold text-xl text-gray-700">LEO MESSI</span>
-            </div>
+            {["SONANGOL", "YAMAL", "INACOM", "RAPHINHA", "TAAG", "FC BARCELONA", "UNITEL", "LEO MESSI"].map((p) => (
+              <div key={p} className="flex items-center justify-center w-full h-20 bg-gray-50 border border-gray-200 rounded-lg px-6 hover:border-orange-600 transition-colors">
+                <span className="font-bold text-xl text-gray-700">{p}</span>
+              </div>
+            ))}
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <Footer
-        onExplore={scrollToAtividades}
-        onNavigateToPrivacy={onNavigateToPrivacy}
-        onNavigateToTerms={onNavigateToTerms}
-      />
+      {/* Botão Voltar ao Topo */}
+      {showScrollTop && (
+        <button
+          onClick={scrollToTop}
+          className="fixed bottom-6 right-6 z-50 bg-orange-600 hover:bg-orange-700 text-white p-3 rounded-full shadow-lg transition-all transform hover:scale-110 cursor-pointer"
+          aria-label="Voltar ao topo"
+        >
+          <ArrowUp className="w-6 h-6" />
+        </button>
+      )}
+
+      <Footer onExplore={scrollToAtividades} onNavigateToPrivacy={onNavigateToPrivacy} onNavigateToTerms={onNavigateToTerms} />
     </div>
   );
 }

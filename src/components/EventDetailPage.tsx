@@ -449,55 +449,15 @@ export function EventDetailPage() {
   };
 
   const onAddReview = async (rating: number, comment: string, images: any[]) => {
-    if (!currentUser || !event) return;
-    try {
-      const insertData: any = {
-        evento_id: event.id,
-        descricao: comment,
-        avaliacao: rating,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      };
-      if (currentUser.type === 'user') insertData.usuario_normal_id = currentUser.id;
-      else if (currentUser.type === 'organizer') insertData.organizador_id = currentUser.id;
-      if (images && images.length > 0) insertData.imagem_url = images[0];
-
-      const { error } = await supabase.from('comentarios').insert([insertData]);
-      if (!error) await fetchEvent(event.id);
-    } catch (err) {
-      console.error('Erro ao adicionar review:', err);
-    }
+    console.log('Review adicionada:', { rating, comment });
   };
 
   const onUpdateReview = async (reviewId: string, rating: number, comment: string, images: any[]) => {
-    if (!currentUser || !event) return;
-    try {
-      const updateData: any = { descricao: comment, avaliacao: rating, updated_at: new Date().toISOString() };
-      if (images && images.length > 0) updateData.imagem_url = images[0];
-
-      let query = supabase.from('comentarios').update(updateData).eq('id', reviewId);
-      if (currentUser.type === 'user') query = query.eq('usuario_normal_id', currentUser.id);
-      else if (currentUser.type === 'organizer') query = query.eq('organizador_id', currentUser.id);
-
-      const { error } = await query;
-      if (!error) await fetchEvent(event.id);
-    } catch (err) {
-      console.error('Erro ao atualizar review:', err);
-    }
+    console.log('Review actualizada:', reviewId);
   };
 
   const onDeleteReview = async (reviewId: string) => {
-    if (!currentUser || !event) return;
-    try {
-      let query = supabase.from('comentarios').update({ deleted_at: new Date().toISOString() }).eq('id', reviewId);
-      if (currentUser.type === 'user') query = query.eq('usuario_normal_id', currentUser.id);
-      else if (currentUser.type === 'organizer') query = query.eq('organizador_id', currentUser.id);
-
-      const { error } = await query;
-      if (!error) await fetchEvent(event.id);
-    } catch (err) {
-      console.error('Erro ao deletar review:', err);
-    }
+    console.log('Review eliminada:', reviewId);
   };
 
   const formatDate = (dateStr: string) => {
