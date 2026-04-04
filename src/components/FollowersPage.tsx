@@ -43,16 +43,27 @@ export function FollowersPage() {
   }, [navigate]);
 
   const fetchFollowers = async () => {
-    if (!currentUser || currentUser.type !== 'organizer') return;
-
+    if (!currentUser) return;
     try {
       setIsLoading(true);
       setError(null);
 
-      console.log('🔍 Buscando seguidores do organizador:', currentUser.id);
+      // 1. Buscar IDs dos eventos deste organizador
+      const { data: eventosDoOrg, error: evErr } = await supabase
+        .from('eventos')
+        .select('id, nome_evento')
+        .eq('organizador_id', currentUser.id)
+        .is('deleted_at', null);
 
-      // Buscar seguidores do organizador
-      const { data: seguidores, error: seguidoresError } = await supabase
+      if (evErr) throw evErr;
+
+      const idsEventosOrg = (eventosDoOrg ?? []).map((e) => e.id);
+      // Mapa id → nome para lookup rápido
+      const nomeEvento: Record<string, string> = {};
+      (eventosDoOrg ?? []).forEach((e) => { nomeEvento[e.id] = e.nome_evento; });
+
+      // 2. Buscar seguidores do organizador
+      const { data: seguidores, error: segErr } = await supabase
         .from('favoritos_organizadores')
         .select(`
           id,
@@ -68,91 +79,62 @@ export function FollowersPage() {
         .eq('organizador_favoritado_id', currentUser.id)
         .order('created_at', { ascending: false });
 
-      if (seguidoresError) {
-        console.error('Erro ao buscar seguidores:', seguidoresError);
-        setError('Erro ao carregar seguidores');
-        return;
-      }
-
-      console.log('📦 Seguidores encontrados:', seguidores);
-
-      if (!seguidores || seguidores.length === 0) {
-        setFollowers([]);
-        setTotalSeguidores(0);
-        return;
-      }
+      if (segErr) throw segErr;
+      if (!seguidores?.length) { setFollowers([]); setTotalSeguidores(0); return; }
 
       setTotalSeguidores(seguidores.length);
 
-      // Para cada seguidor, buscar informações adicionais
-      const followersWithStats = await Promise.all(
-        seguidores.map(async (seguidor) => {
-          const usuario = seguidor.usuario_normal;
-          
-          if (!usuario) {
-            console.log('⚠️ Usuário não encontrado para seguidor:', seguidor);
-            return null;
-          }
+      // 3. Para cada seguidor, buscar stats filtradas pelos eventos DESTE organizador
+      const withStats = await Promise.all(
+        seguidores.map(async (seg) => {
+          const usuario = seg.usuario_normal as any;
+          if (!usuario) return null;
 
-          // Buscar quantos eventos este usuário favoritou (tabela favoritos_eventos)
-          const { count: eventosFavoritados, error: eventosError } = await supabase
-            .from('favoritos_eventos')
-            .select('*', { count: 'exact', head: true })
-            .eq('usuario_normal_id', usuario.id);
+          let eventosFavoritados = 0;
+          let ultimoEventoNome: string | undefined;
 
-          if (eventosError) {
-            console.error('Erro ao buscar eventos favoritados:', eventosError);
-          }
+          if (idsEventosOrg.length > 0) {
+            // Quantos eventos DESTE organizador este utilizador favoritou
+            const { count } = await supabase
+              .from('favoritos_eventos')
+              .select('*', { count: 'exact', head: true })
+              .eq('usuario_normal_id', usuario.id)
+              .in('evento_id', idsEventosOrg);
 
-          // Buscar total de likes que este usuário deu (mesma tabela)
-          const { count: totalLikes, error: likesError } = await supabase
-            .from('favoritos_eventos')
-            .select('*', { count: 'exact', head: true })
-            .eq('usuario_normal_id', usuario.id);
+            eventosFavoritados = count ?? 0;
 
-          if (likesError) {
-            console.error('Erro ao buscar total de likes:', likesError);
-          }
+            // Último evento DESTE organizador favoritado por este utilizador
+            const { data: ultimoFav } = await supabase
+              .from('favoritos_eventos')
+              .select('evento_id, created_at')
+              .eq('usuario_normal_id', usuario.id)
+              .in('evento_id', idsEventosOrg)
+              .order('created_at', { ascending: false })
+              .limit(1);
 
-          // Buscar último evento favoritado
-          const { data: ultimoEvento, error: ultimoError } = await supabase
-            .from('favoritos_eventos')
-            .select(`
-              created_at,
-              evento:eventos (
-                nome_evento
-              )
-            `)
-            .eq('usuario_normal_id', usuario.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (ultimoError) {
-            console.error('Erro ao buscar último evento:', ultimoError);
+            if (ultimoFav?.[0]) {
+              ultimoEventoNome = nomeEvento[ultimoFav[0].evento_id];
+            }
           }
 
           return {
-            id: seguidor.id,
+            id: seg.id,
             user_id: usuario.id,
-            nome_completo: usuario.nome_completo || 'Usuário',
-            nome_utilizador: usuario.nome_utilizador || 'usuario',
+            nome_completo: usuario.nome_completo || 'Utilizador',
+            nome_utilizador: usuario.nome_utilizador || 'utilizador',
             email: usuario.email || '',
-            foto: null, // A tabela usuarios_normais não tem campo foto
-            seguindo_desde: seguidor.created_at,
-            eventos_favoritados: eventosFavoritados || 0,
-            total_likes: totalLikes || 0,
-            ultimo_evento_favoritado: ultimoEvento?.[0]?.evento?.nome_evento || 'Nenhum'
-          };
+            foto: null,
+            seguindo_desde: seg.created_at,
+            eventos_favoritados: eventosFavoritados,
+            ultimo_evento_favoritado: ultimoEventoNome,
+          } satisfies Follower;
         })
       );
 
-      // Filtrar nulls
-      const validFollowers = followersWithStats.filter(f => f !== null) as Follower[];
-      setFollowers(validFollowers);
-
-    } catch (err) {
-      console.error('Erro inesperado:', err);
-      setError('Ocorreu um erro ao carregar seguidores');
+      setFollowers(withStats.filter(Boolean) as Follower[]);
+    } catch (err: any) {
+      console.error('Erro ao carregar seguidores:', err);
+      setError('Erro ao carregar seguidores. Tente novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -195,11 +177,11 @@ export function FollowersPage() {
     const date = new Date(dateStr);
     const now = new Date();
     const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+
     if (diffDays === 0) return 'Hoje';
     if (diffDays === 1) return 'Ontem';
     if (diffDays < 7) return `${diffDays} dias atrás`;
-    
+
     return date.toLocaleDateString('pt-PT', {
       day: '2-digit',
       month: 'short',
@@ -287,10 +269,10 @@ export function FollowersPage() {
           <div className="flex-1 relative">
             <input
               type="text"
-              placeholder="Pesquisar seguidores por nome, usuário ou email..."
+              placeholder="Pesquisar seguidores..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+              className="w-xl pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
             />
             <div className="absolute left-3 top-1/2 -translate-y-1/2">
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -344,7 +326,7 @@ export function FollowersPage() {
                 </div>
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum seguidor ainda</h3>
                 <p className="text-gray-500 max-w-md mx-auto">
-                  Quando alguém começar a seguir você, aparecerá aqui. 
+                  Quando alguém começar a seguir você, aparecerá aqui.
                   Continue publicando eventos de qualidade para atrair mais seguidores!
                 </p>
               </div>
@@ -373,9 +355,9 @@ export function FollowersPage() {
                         <div className="flex items-start gap-4 mb-4">
                           <div className="w-16 h-16 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0 overflow-hidden shadow-md">
                             {follower.foto ? (
-                              <img 
-                                src={follower.foto} 
-                                alt={follower.nome_completo} 
+                              <img
+                                src={follower.foto}
+                                alt={follower.nome_completo}
                                 className="w-full h-full object-cover"
                               />
                             ) : (
@@ -397,16 +379,11 @@ export function FollowersPage() {
                         </div>
 
                         {/* Estatísticas */}
-                        <div className="grid grid-cols-2 gap-3 mb-4 pt-2">
+                        <div className="grid grid-cols gap-3 mb-4 pt-2">
                           <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-50 rounded-xl">
                             <Heart className="w-5 h-5 text-red-500 mx-auto mb-1 fill-red-500" />
                             <p className="text-xl font-bold text-gray-900">{follower.eventos_favoritados}</p>
                             <p className="text-xs text-gray-500">Eventos favoritados</p>
-                          </div>
-                          <div className="text-center p-3 bg-gradient-to-br from-orange-50 to-red-50 rounded-xl">
-                            <Star className="w-5 h-5 text-orange-500 mx-auto mb-1" />
-                            <p className="text-xl font-bold text-gray-900">{follower.total_likes}</p>
-                            <p className="text-xs text-gray-500">Likes dados</p>
                           </div>
                         </div>
 

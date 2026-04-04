@@ -1,15 +1,15 @@
 import logo from "../assets/logo.png";
-import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles, Users } from 'lucide-react';
+import { ArrowLeft, Calendar, MapPin, Heart, Building2, Ticket, Clock, Share2, CreditCard, Minus, Plus, Info, MessageCircle, GraduationCap, MessageSquare, Sparkles, Users, CheckCircle, Gift } from 'lucide-react';
 import { EventReviews } from './EventReviews';
 import { useState, useEffect, useCallback } from 'react';
 import { EventQuiz } from './EventQuiz';
-import { EventChat } from './EventChat';
 import { Footer } from './Footer';
 import { useNavigate, useParams, Link } from "react-router-dom";
 import { supabase } from '../lib/supabase';
 import { BuyTicketModal } from './BayTicketModal';
 import { getEventImageUrl, getEventVideoUrl, getEventPdfUrl } from '../lib/storage';
 import { UserPlus, UserCheck, User } from 'lucide-react';
+import { emailService } from '../services/emailService';
 
 type User = {
   id: string;
@@ -30,6 +30,7 @@ type Event = {
   name: string;
   date: string;
   time: string;
+  endTime: string;
   location: string;
   eventType: string;
   description: string;
@@ -44,6 +45,7 @@ type Event = {
   organizerPhone?: string;
   likes: number;
   price?: number;
+  isFree: boolean;
   estacoes?: Estacao[];
   reviews?: any[];
   averageRating?: number;
@@ -64,6 +66,9 @@ export function EventDetailPage() {
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [organizerAvatar, setOrganizerAvatar] = useState<string | null>(null);
+  const [isGettingFreeTicket, setIsGettingFreeTicket] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [generatedTicket, setGeneratedTicket] = useState<{ code: string; eventName: string; emailSent: boolean; userEmail: string } | null>(null);
 
   const [currentUser] = useState<User | null>(() => {
     try {
@@ -86,7 +91,6 @@ export function EventDetailPage() {
     if (!event) return true;
     const hoje = new Date();
     const dataEvento = new Date(event.date);
-    // Resetar horas para comparar apenas as datas
     hoje.setHours(0, 0, 0, 0);
     dataEvento.setHours(0, 0, 0, 0);
     return dataEvento < hoje;
@@ -95,9 +99,7 @@ export function EventDetailPage() {
   // Verificar se o usuário pode comprar ingresso
   const canBuyTicket = () => {
     if (!currentUser) return false;
-    // Não permitir se o evento já foi finalizado
     if (isEventFinished()) return false;
-    // Não permitir se o usuário é o próprio organizador
     if (currentUser.type === 'organizer' && currentUser.id === event?.organizerId) return false;
     return true;
   };
@@ -185,22 +187,25 @@ export function EventDetailPage() {
       })) || [];
 
       let estacoes = [];
-      if (evento.estacoes && Array.isArray(evento.estacoes)) {
+      let isFree = true;
+
+      if (evento.estacoes && Array.isArray(evento.estacoes) && evento.estacoes.length > 0) {
         estacoes = evento.estacoes;
-      } else if (evento.valor) {
+        isFree = estacoes.every(e => e.preco === 0);
+      } else if (evento.valor && evento.valor > 0) {
         estacoes = [{
           nome: 'Normal',
           quantidade: 100,
           preco: evento.valor,
           vantagens: ['Acesso geral']
         }];
+        isFree = false;
       }
 
       const imageUrl = getEventImageUrl(evento.imagem_url);
       const videoUrl = getEventVideoUrl(evento.video_url);
       const pdfUrl = getEventPdfUrl(evento.arquivo_pdf_url);
 
-      // Determinar status do evento baseado na data
       const hoje = new Date();
       const dataEvento = new Date(evento.data_evento);
       let status = 'A decorrer';
@@ -217,9 +222,11 @@ export function EventDetailPage() {
         category: evento.categoria,
         date: evento.data_evento,
         time: formatTime(evento.hora_evento),
+        endTime: formatTime(evento.hora_termino),
         eventType: evento.tipo_evento,
         location: evento.local || 'Local a definir',
         price: evento.valor || 0,
+        isFree,
         image: imageUrl,
         video: videoUrl,
         pdf: pdfUrl,
@@ -334,6 +341,110 @@ export function EventDetailPage() {
       }
     } catch (error) {
       console.error("Erro ao partilhar:", error);
+    }
+  };
+
+  const handleGetFreeTicket = async () => {
+    if (!currentUser || !event || !event.isFree) return;
+    if (!canBuyTicket()) {
+      alert(getBuyBlockMessage());
+      return;
+    }
+
+    setIsGettingFreeTicket(true);
+
+    try {
+      const pedidoId = crypto.randomUUID();
+
+      console.log('📦 Criando pedido gratuito com ID:', pedidoId);
+      console.log('📧 Enviando para usuário:', currentUser.email);
+      console.log('🎫 Evento:', event.name);
+
+      const { data: pedidoData, error: pedidoError } = await supabase
+        .from('pedidos')
+        .insert({
+          id: pedidoId,
+          evento_id: event.id,
+          usuario_id: currentUser.id,
+          estacao_nome: 'Gratuito',
+          quantidade: 1,
+          valor_total: 0,
+          status: 'pago',
+          pagamento_confirmado_em: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (pedidoError) {
+        console.error('❌ Erro detalhado ao criar pedido:', pedidoError);
+        throw new Error(`Erro ao criar pedido: ${pedidoError.message}`);
+      }
+
+      console.log('✅ Pedido criado com sucesso:', pedidoData);
+
+      const codigoTicket = `FREE_${event.id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
+
+      console.log('🎫 Gerando ticket com código:', codigoTicket);
+
+      const { data: ticketData, error: ticketError } = await supabase
+        .from('tickets')
+        .insert({
+          pedido_id: pedidoId,
+          codigo: codigoTicket,
+          utilizado: false,
+          created_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (ticketError) {
+        console.error('❌ Erro detalhado ao criar ticket:', ticketError);
+        throw new Error(`Erro ao criar ticket: ${ticketError.message}`);
+      }
+
+      console.log('✅ Ticket criado com sucesso:', ticketData);
+
+      // Tentar enviar email
+      let emailEnviado = false;
+      try {
+        if (emailService && typeof emailService.sendFreeTicketEmailSimple === 'function') {
+          const emailResult = await emailService.sendFreeTicketEmailSimple({
+            to_email: currentUser.email,
+            to_name: currentUser.name,
+            evento_nome: event.name,
+            evento_data: event.date,
+            evento_hora: event.time,
+            evento_local: event.location,
+            evento_imagem: event.image,
+            codigo_ticket: codigoTicket
+          });
+
+          if (emailResult.success) {
+            emailEnviado = true;
+          }
+        }
+      } catch (emailErr) {
+        console.error('Erro ao enviar email:', emailErr);
+      }
+
+      // Mostrar modal em vez de alert
+      setGeneratedTicket({
+        code: codigoTicket,
+        eventName: event.name,
+        emailSent: emailEnviado,
+        userEmail: currentUser.email
+      });
+      setShowTicketModal(true);
+
+      // await fetchEvent(event.id);
+
+    } catch (err: any) {
+      console.error('❌ Erro ao obter ingresso gratuito:', err);
+      alert(`Erro ao obter ingresso gratuito: ${err.message || 'Tente novamente.'}`);
+    } finally {
+      setIsGettingFreeTicket(false);
     }
   };
 
@@ -489,9 +600,11 @@ export function EventDetailPage() {
     }
   };
 
-  const hasIngressosDisponiveis = () => getTotalIngressos() > 0;
+  const hasIngressosDisponiveis = () => {
+    if (event?.isFree) return true;
+    return getTotalIngressos() > 0;
+  };
 
-  // Verificar se o evento está finalizado
   const isEventFinalizado = () => {
     if (!event) return true;
     const hoje = new Date();
@@ -501,16 +614,15 @@ export function EventDetailPage() {
     return dataEvento < hoje;
   };
 
-  // Verificar se o usuário é o próprio organizador
   const isOwnEvent = () => {
     if (!currentUser || !event) return false;
     return currentUser.type === 'organizer' && currentUser.id === event.organizerId;
   };
 
-  // Obter mensagem de bloqueio para compra
   const getBuyBlockMessage = () => {
     if (isEventFinalizado()) return "Este evento já foi realizado";
-    if (isOwnEvent()) return "Você não pode comprar ingressos para seu próprio evento";
+    if (isOwnEvent()) return "Você não pode adquirir ingressos para seu próprio evento";
+    if (!currentUser) return "Faça login para adquirir ingressos";
     return null;
   };
 
@@ -559,6 +671,7 @@ export function EventDetailPage() {
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Hero Section */}
         <div className="grid lg:grid-cols-2 gap-8 mb-8">
           <div className="bg-gradient-to-br from-gray-900 to-gray-800 rounded-2xl p-8 text-white flex flex-col justify-between min-h-[400px]">
             <div>
@@ -576,9 +689,18 @@ export function EventDetailPage() {
               </div>
             </div>
             <div className="mt-6">
-              <div className="inline-flex items-center gap-2 bg-orange-600 px-4 py-2 rounded-full text-sm font-semibold">
-                <Ticket className="w-4 h-4" />
-                {event.price ? `${event.price.toLocaleString('pt-AO')} Kz` : 'Gratuito'}
+              <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-semibold ${event.isFree ? 'bg-green-600' : 'bg-orange-600'}`}>
+                {event.isFree ? (
+                  <>
+                    <Gift className="w-4 h-4" />
+                    Evento Gratuito
+                  </>
+                ) : (
+                  <>
+                    <Ticket className="w-4 h-4" />
+                    {event.price?.toLocaleString('pt-AO')} Kz
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -597,7 +719,7 @@ export function EventDetailPage() {
             )}
             {isEventFinalizado() && event.status !== 'Cancelado' && (
               <div className="absolute top-6 left-6">
-                <span className="px-4 py-2 bg-gray-600 text-white rounded-full text-sm font-semibold shadow-lg">Evento Finalizado</span>
+                <span className="px-4 py-2 bg-gray-600 text-white rounded-full text-sm font-semibold shadow-lg">Evento Realizado</span>
               </div>
             )}
           </div>
@@ -605,6 +727,7 @@ export function EventDetailPage() {
 
         <div className="grid lg:grid-cols-3 gap-8">
           <div className="lg:col-span-2 space-y-6">
+            {/* Descrição */}
             <div className="bg-white rounded-xl shadow-md p-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Descrição do evento</h2>
               <div className="space-y-4 text-gray-700 leading-relaxed">
@@ -612,7 +735,8 @@ export function EventDetailPage() {
               </div>
             </div>
 
-            {event.estacoes && event.estacoes.length > 0 && (
+            {/* Tipos de Ingresso - SÓ MOSTRA SE NÃO FOR FINALIZADO E NÃO FOR GRATUITO */}
+            {!isEventFinalizado() && !event.isFree && event.estacoes && event.estacoes.length > 0 && (
               <div className="bg-white rounded-xl shadow-md p-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6 pb-4 border-b border-gray-200">Tipos de Ingresso</h2>
                 <div className="space-y-4">
@@ -637,7 +761,6 @@ export function EventDetailPage() {
                           <ul className="space-y-1">
                             {estacao.vantagens.map((vantagem, idx) => (
                               <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
-                                <Sparkles className="w-3 h-3 text-orange-500" />
                                 {vantagem}
                               </li>
                             ))}
@@ -659,6 +782,20 @@ export function EventDetailPage() {
               </div>
             )}
 
+            {/* Mensagem quando evento está finalizado */}
+            {isEventFinalizado() && (
+              <div className="bg-gray-50 rounded-xl shadow-md p-8 text-center">
+                <div className="w-20 h-20 bg-gray-200 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Ticket className="w-10 h-10 text-gray-400" />
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">Evento Realizado</h3>
+                <p className="text-gray-500">
+                  Este evento já foi realizado. Não é possível adquirir ingressos.
+                </p>
+              </div>
+            )}
+
+            {/* Quiz */}
             <div className="mt-8 pt-6 border-t border-gray-200">
               <div className="bg-gradient-to-br from-purple-50 to-purple-100 border border-purple-200 rounded-xl p-6">
                 <div className="flex items-center gap-4 mb-4">
@@ -681,6 +818,7 @@ export function EventDetailPage() {
               </div>
             </div>
 
+            {/* Vídeo Promocional */}
             {event.video && (
               <div className="bg-white rounded-xl shadow-md p-8">
                 <h2 className="text-2xl font-bold text-gray-900 mb-4">Vídeo Promocional</h2>
@@ -717,7 +855,7 @@ export function EventDetailPage() {
                       <img
                         src={organizerAvatar}
                         alt={event.organizerName}
-                        className="w-full h-full object-cover"
+                        className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                         onError={(e) => {
                           (e.target as HTMLImageElement).style.display = 'none';
                           const parent = (e.target as HTMLImageElement).parentElement;
@@ -747,8 +885,8 @@ export function EventDetailPage() {
                   <button
                     onClick={handleFollowToggle}
                     className={`flex items-center gap-2 cursor-pointer px-4 py-2 rounded-lg font-semibold transition-all whitespace-nowrap ${isFollowing
-                        ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
-                        : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
+                      ? 'bg-blue-50 text-blue-600 border border-blue-200 hover:bg-blue-100'
+                      : 'bg-orange-50 text-orange-600 border border-orange-200 hover:bg-orange-100'
                       }`}
                   >
                     {isFollowing ? (
@@ -775,6 +913,7 @@ export function EventDetailPage() {
             </div>
           </div>
 
+          {/* Sidebar - Informações e Contacto */}
           <div className="space-y-6">
             <div className="bg-white rounded-xl shadow-md p-6 sticky top-24">
               <h3 className="text-lg font-semibold text-gray-700 mb-4">Informações e Contacto</h3>
@@ -798,7 +937,19 @@ export function EventDetailPage() {
                         </div>
                         <div>
                           <p className="text-sm text-gray-600 font-medium">Horário</p>
-                          <p className="text-gray-900 font-semibold">{event.time}</p>
+                          <p className="text-gray-900 font-semibold">
+                            {event.time}
+                            {event.endTime ? ` - ${event.endTime}` : ''}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-start gap-3">
+                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <Building2 className="w-5 h-5 text-orange-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 font-medium">Modalidade</p>
+                          <p className="text-gray-900 font-semibold capitalize">{event.eventType}</p>
                         </div>
                       </div>
                       <div className="flex items-start gap-3">
@@ -814,30 +965,44 @@ export function EventDetailPage() {
                           )}
                         </div>
                       </div>
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <Building2 className="w-5 h-5 text-orange-600" />
-                        </div>
-                        <div>
-                          <p className="text-sm text-gray-600 font-medium">Modalidade</p>
-                          <p className="text-gray-900 font-semibold capitalize">{event.eventType}</p>
-                        </div>
-                      </div>
                     </div>
                   </div>
 
-                  {hasIngressosDisponiveis() && (
+                  {!isEventFinalizado() && hasIngressosDisponiveis() && (
                     <div className="bg-gradient-to-br from-orange-50 to-orange-100 border border-orange-200 rounded-lg p-5">
                       <div className="text-center mb-4">
-                        <h4 className="font-semibold text-gray-900 mb-2">Garanta seu lugar!</h4>
-                        <p className="text-sm text-gray-600">Escolha o tipo de ingresso que melhor se adequa a você</p>
+                        <h4 className="font-semibold text-gray-900 mb-2">
+                          {event.isFree ? 'Garanta seu ingresso gratuito!' : 'Garanta seu lugar!'}
+                        </h4>
+                        <p className="text-sm text-gray-600">
+                          {event.isFree
+                            ? 'Evento gratuito. Clique abaixo para garantir seu ingresso.'
+                            : 'Escolha o tipo de ingresso que melhor se adequa a você'}
+                        </p>
                       </div>
-                      
-                      {/* Botão de compra com restrições */}
+
                       {getBuyBlockMessage() ? (
                         <div className="text-center p-3 bg-gray-100 rounded-lg">
                           <p className="text-sm text-gray-600">{getBuyBlockMessage()}</p>
                         </div>
+                      ) : event.isFree ? (
+                        <button
+                          onClick={handleGetFreeTicket}
+                          disabled={isGettingFreeTicket}
+                          className="w-full py-3.5 px-6 rounded-lg font-semibold transition-colors flex items-center justify-center gap-3 shadow-md bg-green-600 hover:bg-green-700 cursor-pointer text-white disabled:opacity-50"
+                        >
+                          {isGettingFreeTicket ? (
+                            <>
+                              <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Processando...
+                            </>
+                          ) : (
+                            <>
+                              <Gift className="w-6 h-6" />
+                              Garantir Ingresso Gratuito
+                            </>
+                          )}
+                        </button>
                       ) : (
                         <>
                           <button
@@ -893,7 +1058,8 @@ export function EventDetailPage() {
           </div>
         </div>
 
-        {showBuyModal && event && (
+        {/* Modais */}
+        {showBuyModal && event && !event.isFree && (
           <BuyTicketModal
             isOpen={showBuyModal}
             onClose={() => setShowBuyModal(false)}
@@ -909,6 +1075,160 @@ export function EventDetailPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="max-w-2xl w-full max-h-[90vh] overflow-y-auto">
               <EventQuiz eventId={event.id} eventName={event.name} onClose={() => setShowQuiz(false)} />
+            </div>
+          </div>
+        )}
+
+        {showTicketModal && generatedTicket && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto">
+              <div className="text-center">
+                <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Gift className="w-10 h-10 text-green-600" />
+                </div>
+                <h3 className="text-2xl font-bold text-gray-900 mb-2">Ingresso Garantido!</h3>
+                <p className="text-gray-600 mb-4">
+                  Seu ingresso para <strong>{generatedTicket.eventName}</strong> foi gerado com sucesso.
+                </p>
+
+                {/* Imagem do evento no modal */}
+                <div className="mb-4 rounded-xl overflow-hidden bg-gray-100">
+                  <img
+                    src={getEventImageUrl(event?.image || '')}
+                    alt={generatedTicket.eventName}
+                    className="w-full h-40 object-cover"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+                    }}
+                  />
+                </div>
+
+                <div className="bg-gray-100 rounded-xl p-4 mb-4">
+                  <p className="text-sm text-gray-500 mb-1">Código do ingresso:</p>
+                  <p className="text-2xl font-mono font-bold text-orange-600 break-all">{generatedTicket.code}</p>
+                </div>
+
+                <div className="bg-blue-50 rounded-xl p-3 mb-4">
+                  <p className="text-sm text-blue-700">
+                    {generatedTicket.emailSent
+                      ? `📧 Um email foi enviado para ${generatedTicket.userEmail} com os detalhes do seu ingresso.`
+                      : `⚠️ Guarde este código! Você precisará dele para entrar no evento.`}
+                  </p>
+                </div>
+
+                {/* Botões */}
+                <div className="flex gap-3">
+                  <button
+                    onClick={async () => {
+                      // Função para gerar PDF com imagem
+                      const { jsPDF } = await import('jspdf');
+                      const html2canvas = (await import('html2canvas')).default;
+
+                      // Garantir que a imagem está carregada e usar a URL correta
+                      const imagemUrl = getEventImageUrl(event?.image || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800');
+
+                      // Pré-carregar a imagem para garantir que esteja disponível
+                      const preloadImage = async (url: string): Promise<string> => {
+                        return new Promise((resolve) => {
+                          const img = new Image();
+                          img.onload = () => resolve(url);
+                          img.onerror = () => resolve('https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800');
+                          img.src = url;
+                        });
+                      };
+
+                      const imagemFinal = await preloadImage(imagemUrl);
+
+                      // Criar elemento temporário para o PDF
+                      const pdfContent = document.createElement('div');
+                      pdfContent.style.width = '600px';
+                      pdfContent.style.padding = '20px';
+                      pdfContent.style.backgroundColor = 'white';
+                      pdfContent.style.fontFamily = 'Arial, sans-serif';
+                      pdfContent.innerHTML = `
+                <div style="text-align: center; margin-bottom: 20px;">
+                  <h1 style="color: #f97316; margin-bottom: 10px;">CRESCE.AO</h1>
+                  <h2 style="color: #333;">INGRESSO DE EVENTO</h2>
+                  <div style="width: 100px; height: 4px; background: linear-gradient(90deg, #f97316, #ea580c); margin: 10px auto;"></div>
+                </div>
+                
+                <div style="margin-bottom: 20px; text-align: center;">
+                  <img src="${imagemFinal}" alt="${generatedTicket.eventName}" style="width: 100%; max-height: 250px; object-fit: cover; border-radius: 12px; margin-bottom: 15px;" />
+                </div>
+                
+                <div style="background: #f9fafb; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                  <h3 style="color: #333; margin-bottom: 10px;">📋 INFORMAÇÕES DO EVENTO</h3>
+                  <p style="margin: 5px 0;"><strong>Evento:</strong> ${generatedTicket.eventName}</p>
+                  <p style="margin: 5px 0;"><strong>Data:</strong> ${event ? new Date(event.date).toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric' }) : ''}</p>
+                  <p style="margin: 5px 0;"><strong>Horário:</strong> ${event?.time || ''}</p>
+                  <p style="margin: 5px 0;"><strong>Local:</strong> ${event?.location || ''}</p>
+                </div>
+                
+                <div style="background: #fff3e0; border: 2px dashed #f97316; border-radius: 12px; padding: 20px; text-align: center; margin-bottom: 20px;">
+                  <p style="font-size: 12px; color: #666; margin-bottom: 5px;">CÓDIGO DO INGRESSO</p>
+                  <div style="font-size: 24px; font-weight: bold; color: #f97316; letter-spacing: 2px; font-family: monospace; word-break: break-all;">${generatedTicket.code}</div>
+                </div>
+                
+                <div style="background: #f0fdf4; padding: 15px; border-radius: 12px; margin-bottom: 20px;">
+                  <h3 style="color: #333; margin-bottom: 10px;">👤 DADOS DO PARTICIPANTE</h3>
+                  <p style="margin: 5px 0;"><strong>Nome:</strong> ${currentUser?.name || ''}</p>
+                  <p style="margin: 5px 0;"><strong>Email:</strong> ${currentUser?.email || ''}</p>
+                </div>
+                
+                <div style="text-align: center; padding-top: 20px; border-top: 1px solid #e5e7eb; margin-top: 10px;">
+                  <p style="font-size: 10px; color: #999;">Este ingresso é pessoal e intransferível. Apresente-o na entrada do evento.</p>
+                  <p style="font-size: 10px; color: #999; margin-top: 5px;">Cresce.AO - Plataforma de Eventos</p>
+                </div>
+              `;
+
+                      document.body.appendChild(pdfContent);
+
+                      try {
+                        // Aguardar um pouco para garantir que a imagem foi carregada no DOM
+                        await new Promise(resolve => setTimeout(resolve, 500));
+
+                        const canvas = await html2canvas(pdfContent, {
+                          scale: 2,
+                          backgroundColor: '#ffffff',
+                          logging: false,
+                          useCORS: true, // Permitir imagens de URLs externas
+                          allowTaint: false
+                        });
+
+                        const imgData = canvas.toDataURL('image/png');
+                        const pdf = new jsPDF({
+                          orientation: 'portrait',
+                          unit: 'mm',
+                          format: 'a4'
+                        });
+
+                        const imgWidth = 210;
+                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                        pdf.addImage(imgData, 'PNG', 0, 0, imgWidth, imgHeight);
+                        pdf.save(`ingresso_${generatedTicket.eventName.replace(/\s/g, '_')}.pdf`);
+                      } finally {
+                        document.body.removeChild(pdfContent);
+                      }
+                    }}
+                    className="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700 transition-colors flex items-center justify-center gap-2"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Baixar PDF
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowTicketModal(false);
+                      setGeneratedTicket(null);
+                    }}
+                    className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+                  >
+                    Fechar
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}

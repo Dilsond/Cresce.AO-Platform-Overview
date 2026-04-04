@@ -1,11 +1,11 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Upload, X, Image, Video, FileText, Loader2, Heart, Bell, Plus, Trash2, Ticket, DollarSign, Users } from 'lucide-react';
+import { ArrowLeft, Upload, X, Image, Video, Loader2, Heart, Bell, Plus, Trash2, Ticket, DollarSign, Users, Clock, Calendar as CalendarIcon, MapPin, Building2, Sparkles } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
 import { emailService } from '../services/emailService';
 import { showLocalNotification } from '../lib/pushNotifications';
-import logo from "../assets/logo.png";
+import logo from '../assets/logo.png';
 
 interface User {
     id: string;
@@ -35,32 +35,35 @@ export function CreateEvent() {
         nome_evento: '',
         categoria: 'palestra' as 'palestra' | 'workshop' | 'feiras' | 'masterclasse',
         data_evento: '',
-        hora_evento: '',
+        hora_inicio: '',
+        hora_termino: '',
         tipo_evento: 'presencial' as 'presencial' | 'online' | 'hibrido',
         local: '',
         descricao: '',
         contacto_whatsapp: '',
     });
 
-    // Estações (ingressos)
+    // Tipo de evento (pago ou gratuito)
+    const [isPaidEvent, setIsPaidEvent] = useState(false);
+
+    // Estações (ingressos) - só aparece se for evento pago
     const [estacoes, setEstacoes] = useState<Estacao[]>([
         {
             id: crypto.randomUUID(),
             nome: 'Normal',
-            quantidade: 0,
+            quantidade: 100,
             preco: 0,
             vantagens: ['Acesso geral']
         }
     ]);
 
     const [vantagemInput, setVantagemInput] = useState<Record<string, string>>({});
-    const [novaVantagem, setNovaVantagem] = useState('');
 
     // File states
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [videoFile, setVideoFile] = useState<File | null>(null);
-    const [pdfFile, setPdfFile] = useState<File | null>(null);
+    const [uploadProgress, setUploadProgress] = useState(0);
 
     // Buscar número de seguidores
     useEffect(() => {
@@ -92,13 +95,11 @@ export function CreateEvent() {
         if (storedUser) {
             try {
                 const parsedUser = JSON.parse(storedUser);
-
                 if (parsedUser.type !== 'organizer') {
                     setError('Apenas organizadores podem criar eventos');
                     setTimeout(() => navigate('/events'), 3000);
                     return;
                 }
-
                 setUser(parsedUser);
             } catch (err) {
                 console.error('Erro ao parsear usuário:', err);
@@ -133,34 +134,27 @@ export function CreateEvent() {
     };
 
     const atualizarEstacao = (id: string, campo: keyof Estacao, valor: any) => {
-        setEstacoes(estacoes.map(e => 
+        setEstacoes(estacoes.map(e =>
             e.id === id ? { ...e, [campo]: valor } : e
         ));
     };
 
     const adicionarVantagem = (estacaoId: string) => {
-        const vantagem = vantagemInput[estacaoId] || novaVantagem;
-        if (!vantagem.trim()) return;
+        const input = vantagemInput[estacaoId];
+        if (!input?.trim()) return;
 
-        setEstacoes(estacoes.map(e => 
-            e.id === estacaoId 
-                ? { ...e, vantagens: [...e.vantagens, vantagem.trim()] }
+        setEstacoes(estacoes.map(e =>
+            e.id === estacaoId
+                ? { ...e, vantagens: [...e.vantagens, input.trim()] }
                 : e
         ));
 
-        // Limpar input
-        if (vantagemInput[estacaoId]) {
-            const newInput = { ...vantagemInput };
-            delete newInput[estacaoId];
-            setVantagemInput(newInput);
-        } else {
-            setNovaVantagem('');
-        }
+        setVantagemInput({ ...vantagemInput, [estacaoId]: '' });
     };
 
     const removerVantagem = (estacaoId: string, index: number) => {
-        setEstacoes(estacoes.map(e => 
-            e.id === estacaoId 
+        setEstacoes(estacoes.map(e =>
+            e.id === estacaoId
                 ? { ...e, vantagens: e.vantagens.filter((_, i) => i !== index) }
                 : e
         ));
@@ -191,12 +185,6 @@ export function CreateEvent() {
                 setError('Por favor, selecione uma imagem válida');
                 return;
             }
-
-            // if (file.size > 5 * 1024 * 1024) {
-            //     setError('A imagem deve ter no máximo 5MB');
-            //     return;
-            // }
-
             setImageFile(file);
             const reader = new FileReader();
             reader.onloadend = () => {
@@ -214,31 +202,7 @@ export function CreateEvent() {
                 setError('Por favor, selecione um vídeo válido');
                 return;
             }
-
-            // if (file.size > 50 * 1024 * 1024) {
-            //     setError('O vídeo deve ter no máximo 50MB');
-            //     return;
-            // }
-
             setVideoFile(file);
-            setError(null);
-        }
-    };
-
-    const handlePdfChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (file) {
-            if (file.type !== 'application/pdf') {
-                setError('Por favor, selecione um arquivo PDF válido');
-                return;
-            }
-
-            if (file.size > 10 * 1024 * 1024) {
-                setError('O PDF deve ter no máximo 10MB');
-                return;
-            }
-
-            setPdfFile(file);
             setError(null);
         }
     };
@@ -250,10 +214,6 @@ export function CreateEvent() {
 
     const removeVideo = () => {
         setVideoFile(null);
-    };
-
-    const removePdf = () => {
-        setPdfFile(null);
     };
 
     const uploadFile = async (file: File, bucket: string): Promise<string | null> => {
@@ -271,10 +231,6 @@ export function CreateEvent() {
 
             if (uploadError) {
                 console.error(`Erro ao fazer upload para ${bucket}:`, uploadError);
-
-                if (uploadError.message.includes('row-level security')) {
-                    throw new Error(`Erro de permissão no bucket "${bucket}". Contacte o administrador.`);
-                }
                 throw uploadError;
             }
 
@@ -345,31 +301,51 @@ export function CreateEvent() {
             return;
         }
 
-        // Validar estações
-        const estacoesValidas = estacoes.every(e => 
-            e.nome.trim() && 
-            e.quantidade > 0 && 
-            e.preco >= 0
-        );
-
-        if (!estacoesValidas) {
-            setError('Preencha corretamente todas as informações das estações');
+        // Validações básicas
+        if (!formData.nome_evento) {
+            setError('O nome do evento é obrigatório');
             return;
+        }
+        if (!formData.data_evento) {
+            setError('A data do evento é obrigatória');
+            return;
+        }
+        if (!formData.hora_inicio) {
+            setError('A hora de início é obrigatória');
+            return;
+        }
+        if (!formData.local && formData.tipo_evento !== 'online') {
+            setError('O local do evento é obrigatório para eventos presenciais ou híbridos');
+            return;
+        }
+        if (!imageFile) {
+            setError('A imagem do evento é obrigatória');
+            return;
+        }
+
+        // Validar hora de término (se fornecida)
+        if (formData.hora_termino && formData.hora_termino <= formData.hora_inicio) {
+            setError('A hora de término deve ser posterior à hora de início');
+            return;
+        }
+
+        // Validar estações se for evento pago
+        if (isPaidEvent) {
+            const estacoesValidas = estacoes.every(e =>
+                e.nome.trim() &&
+                e.quantidade > 0 &&
+                e.preco > 0
+            );
+            if (!estacoesValidas) {
+                setError('Preencha corretamente todas as informações das estações (nome, quantidade e preço)');
+                return;
+            }
         }
 
         setIsLoading(true);
         setError(null);
 
         try {
-            // Validações básicas
-            if (!formData.nome_evento) throw new Error('O nome do evento é obrigatório');
-            if (!formData.data_evento) throw new Error('A data do evento é obrigatória');
-            if (!formData.hora_evento) throw new Error('A hora do evento é obrigatória');
-            if (!formData.local && formData.tipo_evento !== 'online') {
-                throw new Error('O local do evento é obrigatório para eventos presenciais ou híbridos');
-            }
-            if (!imageFile) throw new Error('A imagem do evento é obrigatória');
-
             // Upload da imagem
             const imageUrl = await uploadFile(imageFile, 'event-images');
             if (!imageUrl) throw new Error('Erro ao fazer upload da imagem');
@@ -381,38 +357,40 @@ export function CreateEvent() {
                 if (!videoUrl) throw new Error('Erro ao fazer upload do vídeo');
             }
 
-            // Upload do PDF (opcional)
-            let pdfUrl = null;
-            if (pdfFile) {
-                pdfUrl = await uploadFile(pdfFile, 'event-pdfs');
-                if (!pdfUrl) throw new Error('Erro ao fazer upload do PDF');
-            }
+            // Preparar estações para JSONB (apenas se for evento pago)
+            const estacoesJSON = isPaidEvent ? estacoes.map(({ id, ...rest }) => rest) : [];
 
-            // Preparar estações para JSONB
-            const estacoesJSON = estacoes.map(({ id, ...rest }) => rest);
+            // Dados do evento
+            const eventData: any = {
+                organizador_id: user.id,
+                nome_evento: formData.nome_evento,
+                categoria: formData.categoria,
+                data_evento: formData.data_evento,
+                hora_evento: formData.hora_inicio,
+                hora_termino: formData.hora_termino || null,
+                tipo_evento: formData.tipo_evento,
+                local: formData.local || null,
+                descricao: formData.descricao || null,
+                contacto_whatsapp: formData.contacto_whatsapp || null,
+                imagem_url: imageUrl,
+                video_url: videoUrl,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+
+            // Adicionar estações apenas se for evento pago
+            if (isPaidEvent) {
+                eventData.estacoes = estacoesJSON;
+                eventData.valor = estacoesJSON[0]?.preco || 0;
+            } else {
+                eventData.estacoes = [];
+                eventData.valor = 0;
+            }
 
             // Inserir evento no banco
             const { data: newEvent, error: insertError } = await supabase
                 .from('eventos')
-                .insert([
-                    {
-                        organizador_id: user.id,
-                        nome_evento: formData.nome_evento,
-                        categoria: formData.categoria,
-                        data_evento: formData.data_evento,
-                        hora_evento: formData.hora_evento,
-                        tipo_evento: formData.tipo_evento,
-                        local: formData.local || null,
-                        descricao: formData.descricao || null,
-                        contacto_whatsapp: formData.contacto_whatsapp || null,
-                        imagem_url: imageUrl,
-                        video_url: videoUrl,
-                        arquivo_pdf_url: pdfUrl,
-                        estacoes: estacoesJSON,
-                        created_at: new Date().toISOString(),
-                        updated_at: new Date().toISOString()
-                    }
-                ])
+                .insert([eventData])
                 .select()
                 .single();
 
@@ -538,18 +516,34 @@ export function CreateEvent() {
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                     />
                                 </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Hora *
+                                        Hora de Início *
                                     </label>
                                     <input
                                         type="time"
-                                        name="hora_evento"
-                                        value={formData.hora_evento}
+                                        name="hora_inicio"
+                                        value={formData.hora_inicio}
                                         onChange={handleInputChange}
                                         required
                                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                     />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                                        Hora de Término (opcional)
+                                    </label>
+                                    <input
+                                        type="time"
+                                        name="hora_termino"
+                                        value={formData.hora_termino}
+                                        onChange={handleInputChange}
+                                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Deixe em branco se não houver hora definida</p>
                                 </div>
                             </div>
 
@@ -657,125 +651,169 @@ export function CreateEvent() {
                         />
                     </div>
 
-                    {/* Estações / Ingressos */}
+                    {/* Tipo de Evento (Pago/Gratuito) */}
                     <div className="bg-white rounded-xl shadow-md p-6">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="text-lg font-semibold text-gray-900">Tipos de Ingresso</h2>
+                        <h2 className="text-lg font-semibold text-gray-900 mb-4">Configuração de Ingressos</h2>
+
+                        <div className="flex gap-4 mb-6">
                             <button
                                 type="button"
-                                onClick={adicionarEstacao}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors text-sm"
+                                onClick={() => setIsPaidEvent(false)}
+                                className={`flex-1 py-3 px-4 rounded-xl cursor-pointer font-semibold transition-all ${!isPaidEvent
+                                        ? 'bg-orange-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
                             >
-                                <Plus className="w-4 h-4" />
-                                Adicionar Estação
+                                🎟️ Evento Gratuito
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setIsPaidEvent(true)}
+                                className={`flex-1 py-3 px-4 rounded-xl cursor-pointer font-semibold transition-all ${isPaidEvent
+                                        ? 'bg-orange-600 text-white shadow-md'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                    }`}
+                            >
+                                💰 Evento Pago
                             </button>
                         </div>
 
-                        <div className="space-y-4">
-                            {estacoes.map((estacao, index) => (
-                                <div key={estacao.id} className="border border-gray-200 rounded-lg p-4">
-                                    <div className="flex items-center justify-between mb-4">
-                                        <h3 className="font-semibold text-gray-900">Estação {index + 1}</h3>
-                                        {estacoes.length > 1 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => removerEstacao(estacao.id)}
-                                                className="text-red-500 hover:text-red-700"
-                                            >
-                                                <Trash2 className="w-4 h-4" />
-                                            </button>
-                                        )}
-                                    </div>
+                        {isPaidEvent ? (
+                            <div className="border border-orange-200 rounded-lg p-4 bg-orange-50/30">
+                                <div className="flex items-center gap-2 mb-4">
+                                    <Ticket className="w-5 h-5 text-orange-600" />
+                                    <span className="font-medium text-gray-700">Configure os tipos de ingresso</span>
+                                </div>
 
-                                    <div className="grid grid-cols-3 gap-4 mb-4">
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Nome
-                                            </label>
-                                            <input
-                                                type="text"
-                                                value={estacao.nome}
-                                                onChange={(e) => atualizarEstacao(estacao.id, 'nome', e.target.value)}
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
-                                                placeholder="Ex: VIP"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Quantidade
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={estacao.quantidade}
-                                                onChange={(e) => atualizarEstacao(estacao.id, 'quantidade', parseInt(e.target.value) || 0)}
-                                                min="1"
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-xs font-medium text-gray-700 mb-1">
-                                                Preço (Kz)
-                                            </label>
-                                            <input
-                                                type="number"
-                                                value={estacao.preco}
-                                                onChange={(e) => atualizarEstacao(estacao.id, 'preco', parseInt(e.target.value) || 0)}
-                                                min="0"
-                                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
-                                            />
-                                        </div>
-                                    </div>
+                                <div className="flex justify-end mb-4">
+                                    <button
+                                        type="button"
+                                        onClick={adicionarEstacao}
+                                        className="flex items-center gap-2 px-3 py-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors text-sm"
+                                    >
+                                        <Plus className="w-4 h-4" />
+                                        Adicionar Tipo de Ingresso
+                                    </button>
+                                </div>
 
-                                    <div>
-                                        <label className="block text-xs font-medium text-gray-700 mb-2">
-                                            Vantagens
-                                        </label>
-                                        <div className="flex flex-wrap gap-2 mb-2">
-                                            {estacao.vantagens.map((vantagem, idx) => (
-                                                <span
-                                                    key={idx}
-                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs"
-                                                >
-                                                    {vantagem}
+                                <div className="space-y-4">
+                                    {estacoes.map((estacao, index) => (
+                                        <div key={estacao.id} className="bg-white border border-gray-200 rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-4">
+                                                <h3 className="font-semibold text-gray-900">Ingresso {index + 1}</h3>
+                                                {estacoes.length > 1 && (
                                                     <button
                                                         type="button"
-                                                        onClick={() => removerVantagem(estacao.id, idx)}
-                                                        className="text-gray-400 hover:text-red-500"
+                                                        onClick={() => removerEstacao(estacao.id)}
+                                                        className="text-red-500 hover:text-red-700"
                                                     >
-                                                        <X className="w-3 h-3" />
+                                                        <Trash2 className="w-4 h-4" />
                                                     </button>
-                                                </span>
-                                            ))}
+                                                )}
+                                            </div>
+
+                                            <div className="grid grid-cols-3 gap-4 mb-4">
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                        Nome
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={estacao.nome}
+                                                        onChange={(e) => atualizarEstacao(estacao.id, 'nome', e.target.value)}
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                                        placeholder="Ex: VIP"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                        Quantidade
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={estacao.quantidade}
+                                                        onChange={(e) => atualizarEstacao(estacao.id, 'quantidade', parseInt(e.target.value) || 0)}
+                                                        min="1"
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className="block text-xs font-medium text-gray-700 mb-1">
+                                                        Preço (Kz)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={estacao.preco}
+                                                        onChange={(e) => atualizarEstacao(estacao.id, 'preco', parseInt(e.target.value) || 0)}
+                                                        min="1"
+                                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                                    />
+                                                </div>
+                                            </div>
+
+                                            <div>
+                                                <label className="block text-xs font-medium text-gray-700 mb-2">
+                                                    Vantagens
+                                                </label>
+                                                <div className="flex flex-wrap gap-2 mb-2">
+                                                    {estacao.vantagens.map((vantagem, idx) => (
+                                                        <span
+                                                            key={idx}
+                                                            className="inline-flex items-center gap-1 px-2 py-1 bg-gray-100 text-gray-700 rounded-lg text-xs"
+                                                        >
+                                                            {vantagem}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => removerVantagem(estacao.id, idx)}
+                                                                className="text-gray-400 hover:text-red-500"
+                                                            >
+                                                                <X className="w-3 h-3" />
+                                                            </button>
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                                <div className="flex gap-2">
+                                                    <input
+                                                        type="text"
+                                                        value={vantagemInput[estacao.id] || ''}
+                                                        onChange={(e) => setVantagemInput({ ...vantagemInput, [estacao.id]: e.target.value })}
+                                                        onKeyPress={(e) => e.key === 'Enter' && adicionarVantagem(estacao.id)}
+                                                        placeholder="Adicionar vantagem..."
+                                                        className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => adicionarVantagem(estacao.id)}
+                                                        className="px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors"
+                                                    >
+                                                        <Plus className="w-4 h-4" />
+                                                    </button>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <div className="flex gap-2">
-                                            <input
-                                                type="text"
-                                                value={vantagemInput[estacao.id] || ''}
-                                                onChange={(e) => setVantagemInput({ ...vantagemInput, [estacao.id]: e.target.value })}
-                                                onKeyPress={(e) => e.key === 'Enter' && adicionarVantagem(estacao.id)}
-                                                placeholder="Adicionar vantagem..."
-                                                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
-                                            />
-                                            <button
-                                                type="button"
-                                                onClick={() => adicionarVantagem(estacao.id)}
-                                                className="px-3 py-2 bg-orange-50 text-orange-600 rounded-lg hover:bg-orange-100 transition-colors"
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                            </button>
-                                        </div>
+                                    ))}
+                                </div>
+
+                                <div className="mt-4 p-4 bg-orange-50 rounded-lg">
+                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                        <Ticket className="w-4 h-4" />
+                                        <span>Total de ingressos disponíveis: </span>
+                                        <strong>{estacoes.reduce((sum, e) => sum + e.quantidade, 0)}</strong>
                                     </div>
                                 </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                <Ticket className="w-4 h-4" />
-                                <span>Total de ingressos disponíveis: </span>
-                                <strong>{estacoes.reduce((sum, e) => sum + e.quantidade, 0)}</strong>
                             </div>
-                        </div>
+                        ) : (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-6 text-center">
+                                <div className="w-16 h-16 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                                    <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
+                                </div>
+                                <h3 className="text-lg font-semibold text-orange-800 mb-2">Evento Gratuito</h3>
+                                <p className="text-orange-600">
+                                    Seu evento será gratuito para todos os participantes.
+                                    Não será necessário configurar ingressos pagos.
+                                </p>
+                            </div>
+                        )}
                     </div>
 
                     {/* Upload de Arquivos */}
@@ -831,7 +869,7 @@ export function CreateEvent() {
                             {/* Vídeo */}
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Vídeo Promocional (opcional, máx. 50MB)
+                                    Vídeo Promocional (opcional)
                                 </label>
                                 {!videoFile ? (
                                     <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
@@ -864,50 +902,6 @@ export function CreateEvent() {
                                         <button
                                             type="button"
                                             onClick={removeVideo}
-                                            className="p-1 text-red-600 hover:text-red-700"
-                                        >
-                                            <X className="w-4 h-4" />
-                                        </button>
-                                    </div>
-                                )}
-                            </div>
-
-                            {/* PDF */}
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Material em PDF (opcional, máx. 10MB)
-                                </label>
-                                {!pdfFile ? (
-                                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
-                                        <input
-                                            type="file"
-                                            accept=".pdf"
-                                            onChange={handlePdfChange}
-                                            className="hidden"
-                                            id="pdf-upload"
-                                        />
-                                        <label
-                                            htmlFor="pdf-upload"
-                                            className="cursor-pointer flex flex-col items-center gap-2"
-                                        >
-                                            <FileText className="w-8 h-8 text-gray-400" />
-                                            <span className="text-sm text-gray-600">
-                                                Clique para selecionar um PDF
-                                            </span>
-                                            <span className="text-xs text-gray-500">
-                                                Arquivo PDF (máx. 10MB)
-                                            </span>
-                                        </label>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                                        <div className="flex items-center gap-2">
-                                            <FileText className="w-5 h-5 text-orange-600" />
-                                            <span className="text-sm text-gray-700">{pdfFile.name}</span>
-                                        </div>
-                                        <button
-                                            type="button"
-                                            onClick={removePdf}
                                             className="p-1 text-red-600 hover:text-red-700"
                                         >
                                             <X className="w-4 h-4" />

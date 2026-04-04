@@ -36,7 +36,6 @@ export function UserLayout() {
       <main>
         <Outlet />
       </main>
-      <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
     </div>
   );
 }

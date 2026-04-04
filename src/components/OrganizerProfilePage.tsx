@@ -429,7 +429,7 @@ export default function OrganizerProfilePage() {
                     <img
                       src={organizerAvatar}
                       alt={organizerName}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover transition-transform duration-300 hover:scale-105"
                       onError={(e) => {
                         (e.target as HTMLImageElement).style.display = 'none';
                         const parent = (e.target as HTMLImageElement).parentElement;

@@ -87,7 +87,7 @@ export function Footer({ onExplore, onNavigateToPrivacy, onNavigateToTerms }: Fo
           <div>
             <h4 className="font-semibold text-white mb-4">Contacto</h4>
             <ul className="space-y-2 text-sm">
-              <li>Email: info@cresce.ao</li>
+              <li>Email: crescaao@gmail.com</li>
               <li>Tel: +244 923 456 789</li>
               <li>Luanda, Angola</li>
             </ul>

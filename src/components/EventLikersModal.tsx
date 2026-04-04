@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Heart, User, Mail, Calendar, Loader2, Search, Building2, Crown } from 'lucide-react';
+import { X, Heart, User, Mail, Calendar, Loader2, Search, Building2, Crown, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface LikersModalProps {
@@ -17,6 +17,7 @@ interface Liker {
   email: string;
   liked_at: string;
   type: 'user' | 'organizer';
+  isEventOwner?: boolean;
   isCurrentUser?: boolean;
 }
 
@@ -26,6 +27,7 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [currentUser, setCurrentUser] = useState<{ id: string; type: string; name: string } | null>(null);
+  const [eventOwnerId, setEventOwnerId] = useState<string | null>(null);
 
   useEffect(() => {
     // Buscar usuário logado
@@ -40,11 +42,35 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
     }
   }, []);
 
+  // Buscar o dono do evento
+  useEffect(() => {
+    const fetchEventOwner = async () => {
+      if (!eventId) return;
+      try {
+        const { data: evento, error } = await supabase
+          .from('eventos')
+          .select('organizador_id')
+          .eq('id', eventId)
+          .single();
+
+        if (!error && evento) {
+          setEventOwnerId(evento.organizador_id);
+        }
+      } catch (err) {
+        console.error('Erro ao buscar dono do evento:', err);
+      }
+    };
+
+    if (isOpen && eventId) {
+      fetchEventOwner();
+    }
+  }, [isOpen, eventId]);
+
   useEffect(() => {
     if (isOpen && eventId) {
       fetchLikers();
     }
-  }, [isOpen, eventId]);
+  }, [isOpen, eventId, eventOwnerId]);
 
   const fetchLikers = async () => {
     try {
@@ -94,6 +120,7 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
               email: user.email || '',
               liked_at: fav.created_at,
               type: 'user' as const,
+              isEventOwner: false,
               isCurrentUser: currentUser?.id === user.id && currentUser?.type === 'user'
             };
           }
@@ -108,6 +135,7 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
               email: org.email_empresa || '',
               liked_at: fav.created_at,
               type: 'organizer' as const,
+              isEventOwner: eventOwnerId === org.id,
               isCurrentUser: currentUser?.id === org.id && currentUser?.type === 'organizer'
             };
           }
@@ -115,11 +143,14 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
         })
         .filter((liker): liker is Liker => liker !== null);
 
-      // Ordenar: primeiro o usuário atual, depois os mais recentes
+      // Ordenar: primeiro o dono do evento, depois o usuário atual (se não for o dono), depois os mais recentes
       const sortedLikers = [...processedLikers].sort((a, b) => {
-        // Usuário atual sempre no topo
-        if (a.isCurrentUser) return -1;
-        if (b.isCurrentUser) return 1;
+        // Dono do evento sempre no topo (se tiver curtido)
+        if (a.isEventOwner) return -1;
+        if (b.isEventOwner) return 1;
+        // Usuário atual em segundo (se não for o dono)
+        if (a.isCurrentUser && !a.isEventOwner) return -1;
+        if (b.isCurrentUser && !b.isEventOwner) return 1;
         // Depois ordenar por data (mais recente primeiro)
         return new Date(b.liked_at).getTime() - new Date(a.liked_at).getTime();
       });
@@ -163,10 +194,10 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 overflow-y-auto">
-      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[80vh] flex flex-col overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200 sticky top-0 bg-white rounded-t-2xl">
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[85vh] flex flex-col">
+        {/* Header - Fixo no topo */}
+        <div className="flex items-center justify-between p-6 border-b border-gray-200 rounded-t-2xl bg-white shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center">
               <Heart className="w-5 h-5 text-red-600" />
@@ -184,8 +215,8 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
           </button>
         </div>
 
-        {/* Estatísticas */}
-        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200">
+        {/* Estatísticas - Fixo */}
+        <div className="px-6 py-4 bg-gray-50 border-b border-gray-200 shrink-0">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Heart className="w-5 h-5 text-red-500 fill-red-500" />
@@ -205,12 +236,12 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
           </div>
         </div>
 
-        {/* Busca */}
-        <div className="px-6 py-4 border-b border-gray-200">
-          <div className="relative">
+        {/* Busca - Fixa */}
+        <div className="px-6 py-4 border-b border-gray-200 shrink-0">
+          <div className="relative flex-1">
             <input
               type="text"
-              placeholder="Buscar por nome, usuário ou email..."
+              placeholder="Pesquisar..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full pl-10 pr-4 py-3 rounded-xl border border-gray-200 bg-white focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none text-sm"
@@ -231,8 +262,8 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
           </div>
         </div>
 
-        {/* Lista de usuários */}
-        <div className="flex-1 overflow-y-auto p-6">
+        {/* Lista de usuários - Com scroll */}
+        <div className="flex-1 overflow-y-auto p-6 min-h-[200px]">
           {isLoading ? (
             <div className="flex flex-col items-center justify-center py-12">
               <Loader2 className="w-8 h-8 text-orange-600 animate-spin mb-4" />
@@ -272,15 +303,17 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
               {filteredLikers.map((liker) => (
                 <div
                   key={liker.id}
-                  className={`flex items-center justify-between p-4 rounded-xl transition-colors ${liker.isCurrentUser
-                    ? 'bg-orange-50 border-2 border-orange-200'
-                    : 'bg-gray-50 hover:bg-orange-50'
+                  className={`flex items-center justify-between p-4 rounded-xl transition-all ${liker.isEventOwner
+                      ? 'bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 shadow-md'
+                      : liker.isCurrentUser
+                        ? 'bg-orange-50 border-2 border-orange-200'
+                        : 'bg-gray-50 hover:bg-orange-50'
                     }`}
                 >
                   <div className="flex items-center gap-4">
                     <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg ${liker.type === 'organizer'
-                      ? 'bg-gradient-to-br from-blue-500 to-blue-600'
-                      : 'bg-gradient-to-br from-orange-500 to-red-600'
+                        ? 'bg-gradient-to-br from-blue-500 to-blue-600'
+                        : 'bg-gradient-to-br from-orange-500 to-red-600'
                       }`}>
                       {liker.type === 'organizer' ? (
                         <Building2 className="w-6 h-6" />
@@ -289,15 +322,21 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
                       )}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-900">{liker.name}</p>
-                        {liker.type === 'organizer' && (
+                        {liker.isEventOwner && (
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1">
+                            <Star className="w-3 h-3 fill-amber-500" />
+                            Dono do Evento
+                          </span>
+                        )}
+                        {liker.type === 'organizer' && !liker.isEventOwner && (
                           <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Building2 className="w-3 h-3" />
                             Organizador
                           </span>
                         )}
-                        {liker.isCurrentUser && (
+                        {liker.isCurrentUser && !liker.isEventOwner && (
                           <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full flex items-center gap-1">
                             <Crown className="w-3 h-3" />
                             Você
@@ -316,9 +355,6 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
                       <Calendar className="w-3 h-3" />
                       <span>{formatDate(liker.liked_at)}</span>
                     </div>
-                    {liker.type === 'organizer' && !liker.isCurrentUser && (
-                      <p className="text-xs text-blue-500 mt-1">Organizador</p>
-                    )}
                   </div>
                 </div>
               ))}
@@ -326,8 +362,8 @@ export function EventLikersModal({ isOpen, onClose, eventId, eventName }: Likers
           )}
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+        {/* Footer - Fixo na parte inferior */}
+        <div className="px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-500">
               Total: {filteredLikers.length} {filteredLikers.length === 1 ? 'resultado' : 'resultados'}

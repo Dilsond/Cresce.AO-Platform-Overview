@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import logo from '../assets/logo.png';
+import { Footer } from './Footer';
 
 const NAV_ITEMS = [
   { label: 'Dashboard', icon: LayoutDashboard, path: '/organizer-dashboard' },
@@ -29,10 +30,10 @@ export function OrganizerLayout() {
   const location = useLocation();
   const [collapsed, setCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [organizer, setOrganizer] = useState<{ 
+  const [organizer, setOrganizer] = useState<{
     id: string;
-    name: string; 
-    email: string; 
+    name: string;
+    email: string;
     avatarUrl?: string;
     type: string;
   } | null>(null);
@@ -46,7 +47,7 @@ export function OrganizerLayout() {
           setIsLoading(false);
           return;
         }
-        
+
         const parsedUser = JSON.parse(storedUser);
         if (parsedUser.type !== 'organizer') {
           setIsLoading(false);
@@ -78,7 +79,7 @@ export function OrganizerLayout() {
             avatarUrl: data.avatar_url,
             type: 'organizer'
           });
-          
+
           // Atualizar localStorage com a URL do avatar
           if (data.avatar_url) {
             const updatedUser = {
@@ -248,9 +249,9 @@ export function OrganizerLayout() {
           >
             <div className="w-8 h-8 rounded-full shrink-0 overflow-hidden bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xs font-bold">
               {organizer.avatarUrl ? (
-                <img 
-                  src={organizer.avatarUrl} 
-                  alt={organizer.name} 
+                <img
+                  src={organizer.avatarUrl}
+                  alt={organizer.name}
                   className="w-full h-full object-cover"
                   onError={(e) => {
                     // Fallback se a imagem não carregar
@@ -275,7 +276,10 @@ export function OrganizerLayout() {
       {/* Conteúdo principal */}
       <div className="flex-1 min-w-0 overflow-y-auto">
         <Outlet />
+
+        {/* <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} /> */}
       </div>
+
     </div>
   );
 }
