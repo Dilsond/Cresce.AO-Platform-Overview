@@ -1,8 +1,21 @@
 // public/sw.js
 // Service Worker para push notifications
 
+const CACHE_NAME = 'cresceao-v1';
+const URLS_TO_CACHE = [
+  '/',
+  '/index.html',
+  '/icon-192x192.png',
+  '/badge-72x72.png'
+];
+
 self.addEventListener('install', (event) => {
   console.log('[SW] Instalado');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(URLS_TO_CACHE);
+    })
+  );
   self.skipWaiting();
 });
 
@@ -20,12 +33,14 @@ self.addEventListener('push', (event) => {
     body: 'Você tem uma nova notificação',
     icon: '/icon-192x192.png',
     badge: '/badge-72x72.png',
-    url: '/'
+    url: '/',
+    timestamp: Date.now()
   };
 
   if (event.data) {
     try {
-      data = event.data.json();
+      const parsedData = event.data.json();
+      data = { ...data, ...parsedData };
     } catch (e) {
       data.body = event.data.text();
     }
@@ -37,8 +52,19 @@ self.addEventListener('push', (event) => {
     badge: data.badge,
     vibrate: [200, 100, 200],
     data: {
-      url: data.url
-    }
+      url: data.url,
+      dateOfArrival: data.timestamp
+    },
+    actions: [
+      {
+        action: 'open',
+        title: 'Abrir'
+      },
+      {
+        action: 'close',
+        title: 'Fechar'
+      }
+    ]
   };
 
   event.waitUntil(
@@ -52,6 +78,10 @@ self.addEventListener('notificationclick', (event) => {
   
   event.notification.close();
   
+  if (event.action === 'close') {
+    return;
+  }
+  
   const urlToOpen = event.notification.data?.url || '/';
   
   event.waitUntil(
@@ -59,16 +89,23 @@ self.addEventListener('notificationclick', (event) => {
       type: 'window',
       includeUncontrolled: true
     }).then((windowClients) => {
-      // Verifica se já tem uma janela aberta
       for (const client of windowClients) {
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
-      // Se não, abre uma nova
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
+    })
+  );
+});
+
+// Evento de fetch
+self.addEventListener('fetch', (event) => {
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
     })
   );
 });
