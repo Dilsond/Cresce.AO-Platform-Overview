@@ -839,7 +839,7 @@ export function OrganizerProfile() {
       setAvatarUrl(imageUrl);
       setOrganizerData({ ...organizerData, avatar_url: imageUrl });
       setSuccessMessage('Foto de perfil atualizada com sucesso!');
-      setTimeout(() => setSuccessMessage(null), 3000);
+      setTimeout(() => setSuccessMessage(null), 2000);
 
     } catch (err: any) {
       console.error('Erro ao fazer upload da foto:', err);

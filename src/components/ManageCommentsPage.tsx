@@ -92,7 +92,7 @@ export function ManageCommentsPage() {
                 const parsedUser = JSON.parse(storedUser);
                 if (parsedUser.type !== 'organizer') {
                     setError('Acesso não autorizado');
-                    setTimeout(() => navigate('/events'), 3000);
+                    setTimeout(() => navigate('/events'), 2000);
                     return;
                 }
                 setUser(parsedUser);

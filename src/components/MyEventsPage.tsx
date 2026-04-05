@@ -87,7 +87,7 @@ export function MyEventsPage() {
                 const parsedUser = JSON.parse(storedUser);
                 if (parsedUser.type !== 'organizer') {
                     setError('Apenas organizadores podem acessar esta página');
-                    setTimeout(() => navigate('/events'), 3000);
+                    setTimeout(() => navigate('/events'), 2000);
                     return;
                 }
                 setUser(parsedUser);

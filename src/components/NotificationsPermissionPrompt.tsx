@@ -21,7 +21,7 @@ export function NotificationPermissionPrompt({ userId, userType }: NotificationP
       // Aguardar 3 segundos antes de mostrar
       const timer = setTimeout(() => {
         setShow(true);
-      }, 3000);
+      }, 2000);
       
       return () => clearTimeout(timer);
     }

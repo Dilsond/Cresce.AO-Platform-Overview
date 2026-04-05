@@ -125,7 +125,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
             });
         }
 
-        const appUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'http://localhost:3000';
+        const appUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app/';
         const apiUrl = process.env.API_URL || `http://localhost:${PORT}`;
 
         const session = await stripe.checkout.sessions.create({
@@ -195,11 +195,11 @@ app.get('/fatura', (req, res) => {
         let html = readFileSync(filePath, 'utf-8');
 
         const apiUrl      = process.env.API_URL      || `http://localhost:${PORT}`;
-        const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'http://localhost:3000';
+        const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
 
         html = html
             .replace("window.CRESCE_API_URL = 'http://localhost:3002';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
-            .replace("window.CRESCE_FRONTEND_URL = 'http://localhost:3000';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
+            .replace("window.CRESCE_FRONTEND_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(html);

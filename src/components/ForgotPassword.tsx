@@ -444,7 +444,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
             setSuccess('Senha atualizada com sucesso!');
             setStep('success');
 
-            // Aguardar 3 segundos e redirecionar baseado no tipo de usuário
+            // Aguardar 2 segundos e redirecionar baseado no tipo de usuário
             setTimeout(() => {
                 if (onSuccess) {
                     onSuccess();
@@ -458,7 +458,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                         onBack();
                     }
                 }
-            }, 3000);
+            }, 2000);
 
         } catch (err) {
             console.error('❌ Erro inesperado:', err);
