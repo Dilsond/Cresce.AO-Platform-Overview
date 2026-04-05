@@ -125,7 +125,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
             });
         }
 
-        const appUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app/';
+        const appUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
         const apiUrl = process.env.API_URL || `http://localhost:${PORT}`;
 
         const session = await stripe.checkout.sessions.create({

@@ -771,7 +771,7 @@
             document.getElementById('ticketCode').textContent = code;
 
             // Botão voltar — aponta sempre para o frontend
-            const frontendUrl = window.CRESCE_FRONTEND_URL || 'https://cresce-ao.netlify.app/';
+            const frontendUrl = window.CRESCE_FRONTEND_URL || 'https://cresce-ao.netlify.app';
             const eventoIdBack = d.evento_id || eventoId;
             document.getElementById('backBtn').href = eventoIdBack
                 ? `${frontendUrl}/event/${eventoIdBack}`
