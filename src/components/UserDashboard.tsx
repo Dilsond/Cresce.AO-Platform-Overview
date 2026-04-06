@@ -321,6 +321,21 @@ function PasswordChangeModal({ isOpen, onClose, userId, userEmail, userName, onS
 
   if (!isOpen) return null;
 
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div
+            className="text-3xl font-bold text-orange-600 mb-4"
+            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+          >
+            <span className="text-gray-400">Cresce</span>.AO
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-md w-full shadow-2xl">
@@ -702,6 +717,21 @@ export function UserDashboard() {
   const initials = currentUser.name
     ? currentUser.name.split(' ').map((n: string) => n[0]).join('').toUpperCase()
     : 'U';
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div
+            className="text-3xl font-bold text-orange-600 mb-4"
+            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+          >
+            <span className="text-gray-400">Cresce</span>.AO
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50/20 to-gray-50">

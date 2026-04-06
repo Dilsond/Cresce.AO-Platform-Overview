@@ -295,10 +295,10 @@ export function ManageCommentsPage() {
                     ? { ...c, descricao: editText, avaliacao: editRating, updated_at: new Date().toISOString() }
                     : c
             ));
-            
+
             setEditingComment(null);
             applyFilters(comments, searchTerm, filterRating, filterEvent);
-            
+
         } catch (err) {
             console.error('Erro ao editar comentário:', err);
             alert('Erro ao editar comentário');
@@ -319,9 +319,9 @@ export function ManageCommentsPage() {
             // Atualizar lista local
             setComments(prev => prev.filter(c => c.id !== commentId));
             applyFilters(comments.filter(c => c.id !== commentId), searchTerm, filterRating, filterEvent);
-            
+
             setShowDeleteConfirm(null);
-            
+
         } catch (err) {
             console.error('Erro ao deletar comentário:', err);
             alert('Erro ao deletar comentário');
@@ -342,7 +342,7 @@ export function ManageCommentsPage() {
         if (diffMins < 60) return `${diffMins} min atrás`;
         if (diffHours < 24) return `${diffHours} h atrás`;
         if (diffDays < 7) return `${diffDays} dias atrás`;
-        
+
         return date.toLocaleDateString('pt-PT', {
             day: '2-digit',
             month: 'short',
@@ -356,11 +356,10 @@ export function ManageCommentsPage() {
                 {[1, 2, 3, 4, 5].map((star) => (
                     <Star
                         key={star}
-                        className={`w-4 h-4 ${
-                            star <= rating
-                                ? 'fill-yellow-400 text-yellow-400'
-                                : 'text-gray-300'
-                        }`}
+                        className={`w-4 h-4 ${star <= rating
+                            ? 'fill-yellow-400 text-yellow-400'
+                            : 'text-gray-300'
+                            }`}
                     />
                 ))}
             </div>
@@ -516,10 +515,14 @@ export function ManageCommentsPage() {
 
                 {/* Lista de Comentários */}
                 {isLoading ? (
-                    <div className="flex justify-center items-center h-64">
+                    <div className="min-h-screen flex items-center justify-center bg-gray-50">
                         <div className="text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
-                            <p className="text-gray-500">Carregando comentários...</p>
+                            <div
+                                className="text-3xl font-bold text-orange-600 mb-4"
+                                style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+                            >
+                                <span className="text-gray-400">Cresce</span>.AO
+                            </div>
                         </div>
                     </div>
                 ) : error ? (
@@ -568,11 +571,10 @@ export function ManageCommentsPage() {
                                                         className="focus:outline-none"
                                                     >
                                                         <Star
-                                                            className={`w-8 h-8 ${
-                                                                star <= editRating
-                                                                    ? 'fill-yellow-400 text-yellow-400'
-                                                                    : 'text-gray-300'
-                                                            } transition-colors`}
+                                                            className={`w-8 h-8 ${star <= editRating
+                                                                ? 'fill-yellow-400 text-yellow-400'
+                                                                : 'text-gray-300'
+                                                                } transition-colors`}
                                                         />
                                                     </button>
                                                 ))}
@@ -628,7 +630,7 @@ export function ManageCommentsPage() {
                                                         </div>
                                                     )}
                                                 </div>
-                                                
+
                                                 <div className="mb-3">
                                                     <span className="inline-flex items-center gap-1 px-2 py-1 bg-orange-100 text-orange-700 rounded-lg text-xs">
                                                         <Calendar className="w-3 h-3" />
@@ -639,11 +641,11 @@ export function ManageCommentsPage() {
                                                         {comment.evento_nome}
                                                     </span>
                                                 </div>
-                                                
+
                                                 <p className="text-gray-700 leading-relaxed">
                                                     {comment.descricao}
                                                 </p>
-                                                
+
                                                 {comment.imagem_url && (
                                                     <div className="mt-3">
                                                         <img
@@ -654,7 +656,7 @@ export function ManageCommentsPage() {
                                                     </div>
                                                 )}
                                             </div>
-                                            
+
                                             <div className="flex items-center gap-2 ml-4">
                                                 {showDeleteConfirm === comment.id ? (
                                                     <div className="flex items-center gap-2">
@@ -688,8 +690,9 @@ export function ManageCommentsPage() {
                             </motion.div>
                         ))}
                     </div>
-                )}
-            </main>
-        </div>
+                )
+                }
+            </main >
+        </div >
     );
 }

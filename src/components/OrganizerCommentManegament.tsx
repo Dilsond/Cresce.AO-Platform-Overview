@@ -209,9 +209,14 @@ export function OrganizerCommentManagement({ organizerId }: OrganizerCommentMana
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-8">
-        <div className="flex justify-center py-12">
-          <div className="w-10 h-10 border-4 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div
+            className="text-3xl font-bold text-orange-600 mb-4"
+            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+          >
+            <span className="text-gray-400">Cresce</span>.AO
+          </div>
         </div>
       </div>
     );
@@ -275,7 +280,7 @@ export function OrganizerCommentManagement({ organizerId }: OrganizerCommentMana
                     <div>
                       <p className="font-semibold text-gray-900">{comment.userName}</p>
                       <p className="text-sm text-gray-500">
-                        {new Date(comment.date).toLocaleDateString('pt-PT')} • 
+                        {new Date(comment.date).toLocaleDateString('pt-PT')} •
                         Evento: <span className="text-orange-600">{comment.eventName}</span>
                       </p>
                     </div>
@@ -348,7 +353,7 @@ export function OrganizerCommentManagement({ organizerId }: OrganizerCommentMana
                             {new Date(denuncia.created_at).toLocaleDateString('pt-PT')}
                           </span>
                         </div>
-                        
+
                         {denuncia.descricao && (
                           <p className="text-sm text-gray-600 mb-3 bg-gray-50 p-2 rounded">
                             "{denuncia.descricao}"

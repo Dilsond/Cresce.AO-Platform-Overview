@@ -292,10 +292,14 @@ export function FollowersPage() {
 
         {/* Loading State */}
         {isLoading && (
-          <div className="flex justify-center items-center h-64">
+          <div className="min-h-screen flex items-center justify-center bg-gray-50">
             <div className="text-center">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4"></div>
-              <p className="text-gray-500">Carregando seguidores...</p>
+              <div
+                className="text-3xl font-bold text-orange-600 mb-4"
+                style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+              >
+                <span className="text-gray-400">Cresce</span>.AO
+              </div>
             </div>
           </div>
         )}

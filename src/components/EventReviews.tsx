@@ -252,14 +252,14 @@ export function EventReviews({
         imagem_url: editImages[0] || null, updated_at: new Date().toISOString(),
       }).eq('id', reviewId);
       if (error) { alert('Erro ao actualizar avaliação.'); return; }
-      
+
       // Atualizar localmente primeiro para feedback instantâneo
-      setReviews(prev => prev.map(review => 
-        review.id === reviewId 
+      setReviews(prev => prev.map(review =>
+        review.id === reviewId
           ? { ...review, rating: editRating, comment: editComment, images: editImages }
           : review
       ));
-      
+
       onUpdateReview(reviewId, editRating, editComment, editImages);
       cancelEdit();
       await fetchReviews();
@@ -273,10 +273,10 @@ export function EventReviews({
       const { error } = await supabase.from('comentarios')
         .update({ deleted_at: new Date().toISOString() }).eq('id', reviewId);
       if (error) { alert('Erro ao eliminar avaliação.'); return; }
-      
+
       // Atualizar localmente
       setReviews(prev => prev.filter(review => review.id !== reviewId));
-      
+
       onDeleteReview(reviewId);
       await fetchReviews();
       setOpenMenuReviewId(null);
@@ -305,7 +305,7 @@ export function EventReviews({
     const sz = { sm: 'w-4 h-4', md: 'w-5 h-5', lg: 'w-6 h-6' }[size];
     return (
       <div className="flex gap-1">
-        {[1,2,3,4,5].map((star) => (
+        {[1, 2, 3, 4, 5].map((star) => (
           <Star key={star}
             className={`${sz} ${star <= (interactive ? (hoveredStar || rating) : rating) ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'} ${interactive ? 'cursor-pointer hover:scale-110 transition-transform' : ''}`}
             onClick={() => interactive && onRate?.(star)}
@@ -319,8 +319,15 @@ export function EventReviews({
 
   if (isLoading) {
     return (
-      <div className="bg-white rounded-xl shadow-sm p-8 flex justify-center">
-        <div className="w-8 h-8 border-4 border-orange-600 border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center">
+          <div
+            className="text-3xl font-bold text-orange-600 mb-4"
+            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+          >
+            <span className="text-gray-400">Cresce</span>.AO
+          </div>
+        </div>
       </div>
     );
   }
@@ -338,7 +345,7 @@ export function EventReviews({
               <p className="text-sm text-gray-600 mt-1">{reviews.length} {reviews.length === 1 ? 'avaliação' : 'avaliações'}</p>
             </div>
             <div className="flex-1">
-              {[5,4,3,2,1].map((stars) => {
+              {[5, 4, 3, 2, 1].map((stars) => {
                 const count = reviews.filter((r) => r.rating === stars).length;
                 const pct = reviews.length > 0 ? (count / reviews.length) * 100 : 0;
                 return (
@@ -431,7 +438,7 @@ export function EventReviews({
                 </div>
                 <div className="flex items-center gap-2">
                   <StarRating rating={review.rating} size="sm" />
-                  
+
                   {/* Botão de 3 pontos - apenas para dono do comentário */}
                   {canEditReview(review) && (
                     <div className="relative">
@@ -444,7 +451,7 @@ export function EventReviews({
                       >
                         <MoreVertical className="w-4 h-4 text-gray-500" />
                       </button>
-                      
+
                       {openMenuReviewId === review.id && (
                         <div className="absolute right-0 mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 z-10">
                           <button
@@ -467,9 +474,9 @@ export function EventReviews({
                   )}
                 </div>
               </div>
-              
+
               <p className="text-gray-700 leading-relaxed ml-13">{review.comment}</p>
-              
+
               {review.images && review.images.length > 0 && (
                 <div className="mt-4 ml-13 grid grid-cols-2 sm:grid-cols-4 gap-3">
                   {review.images.map((image, index) => (
@@ -485,7 +492,7 @@ export function EventReviews({
                   ))}
                 </div>
               )}
-              
+
               {/* Botão de denúncia - apenas para usuários que não são donos do comentário */}
               {currentUserId && !canEditReview(review) && (
                 <button onClick={() => setSelectedReportComment(review)} className="flex items-center gap-2 mt-4 ml-13 px-3 py-1.5 bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors text-sm font-medium">

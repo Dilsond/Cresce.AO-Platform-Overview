@@ -117,7 +117,7 @@ export function EventDetailPage() {
         .single();
 
       if (eventoError) {
-        console.error('Erro ao buscar evento:', eventoError);
+        // console.error('Erro ao buscar evento:', eventoError);
         setError('Evento não encontrado');
         setIsLoading(false);
         return;
@@ -588,10 +588,14 @@ export function EventDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-600">Carregando evento...</p>
+          <div
+            className="text-3xl font-bold text-orange-600 mb-4"
+            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
+          >
+            <span className="text-gray-400">Cresce</span>.AO
+          </div>
         </div>
       </div>
     );
