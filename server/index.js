@@ -11,7 +11,7 @@ dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-// const PORT = 'https://cresce-ao.netlify.app';
+const PORT = 3002;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ── Supabase com Service Role Key (necessário para contornar RLS no webhook) ──
@@ -144,7 +144,7 @@ app.post('/api/create-checkout-session', async (req, res) => {
                 },
             ],
             mode: 'payment',
-            success_url: `${process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app'}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
+            success_url: `${apiUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
             cancel_url: `${appUrl}/event/${evento_id}?payment_cancelled=true`,
             customer_email: usuario_email,
             metadata: {
@@ -198,7 +198,7 @@ app.get('/fatura', (req, res) => {
         const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
 
         html = html
-            .replace("window.CRESCE_API_URL = 'https://cresce-ao.netlify.app';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
+            .replace("window.CRESCE_API_URL = 'http://localhost:3002';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
             .replace("window.CRESCE_FRONTEND_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -424,12 +424,12 @@ app.post('/api/validate-ticket', async (req, res) => {
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
-// app.listen(PORT, () => {
-//     console.log(`\n🚀 Servidor Cresce.AO em http://localhost:${PORT}`);
-//     console.log(`   GET  /fatura?session_id=...`);
-//     console.log(`   GET  /api/invoice?session_id=...`);
-//     console.log(`   POST /api/create-checkout-session`);
-//     console.log(`   POST /api/stripe-webhook`);
-//     console.log(`   GET  /api/check-availability/:eventoId/:estacaoNome`);
-//     console.log(`   POST /api/validate-ticket\n`);
-// });
+app.listen(PORT, () => {
+    console.log(`\n🚀 Servidor Cresce.AO em http://localhost:${PORT}`);
+    console.log(`   GET  /fatura?session_id=...`);
+    console.log(`   GET  /api/invoice?session_id=...`);
+    console.log(`   POST /api/create-checkout-session`);
+    console.log(`   POST /api/stripe-webhook`);
+    console.log(`   GET  /api/check-availability/:eventoId/:estacaoNome`);
+    console.log(`   POST /api/validate-ticket\n`);
+});
