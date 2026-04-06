@@ -89,15 +89,21 @@ export function BuyTicketModal({
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
-          evento_id:    eventoId,
+          evento_id: eventoId,
           estacao_nome: selectedEstacao.nome,
           quantidade,
-          usuario_id:   usuario.id,
+          usuario_id: usuario.id,
           usuario_email: usuario.email,
-          usuario_nome:  usuario.name,
-          valor_total:   selectedEstacao.preco * quantidade,
+          usuario_nome: usuario.name,
+          valor_total: selectedEstacao.preco * quantidade,
         }),
       });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Erro do servidor:', errorText);
+        throw new Error('Falha na requisição');
+      }
 
       const data = await res.json();
 

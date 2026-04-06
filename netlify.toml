@@ -9,13 +9,7 @@
 [functions]
   node_bundler = "esbuild"
 
-# Redirects para SPA (React Router)
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
-# Redirects para as tuas APIs (Netlify Functions)
+# REDIRECTS PARA API DEVEM VIR ANTES do SPA fallback
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
@@ -24,4 +18,10 @@
 [[redirects]]
   from = "/fatura"
   to = "/.netlify/functions/api/fatura"
+  status = 200
+
+# SPA fallback (React Router) — deve ser o ÚLTIMO
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
   status = 200
