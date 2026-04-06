@@ -41,7 +41,7 @@ class EmailService {
       const isConfigured = this.checkConfig();
       
       if (!isConfigured) {
-        console.log('⚠️ EmailJS não configurado. Código gerado:', emailData.codigo);
+        // console.log('⚠️ EmailJS não configurado. Código gerado:', emailData.codigo);
         if (import.meta.env.DEV) {
           alert(`🔐 CÓDIGO (DEV): ${emailData.codigo}\n\nEmailJS não configurado. Use este código para teste.`);
         }
@@ -63,7 +63,7 @@ class EmailService {
         templateParams
       );
 
-      console.log('✅ Email enviado com sucesso:', response);
+      // console.log('✅ Email enviado com sucesso:', response);
       return { success: true };
 
     } catch (error: any) {

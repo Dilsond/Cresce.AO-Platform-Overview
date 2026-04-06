@@ -68,7 +68,7 @@ export function EventQuiz({
       setIsGenerating(true);
       setError(null);
 
-      console.log('🤖 Solicitando perguntas ao Gemini...');
+      // console.log('🤖 Solicitando perguntas ao Gemini...');
       
       const generatedQuestions = await generateQuizQuestions(
         eventName,
@@ -77,7 +77,7 @@ export function EventQuiz({
         5
       );
 
-      console.log('✅ Perguntas geradas:', generatedQuestions);
+      // console.log('✅ Perguntas geradas:', generatedQuestions);
 
       const formattedQuestions: QuizQuestion[] = generatedQuestions.map((q, index) => ({
         id: `q-${index}-${Date.now()}`,

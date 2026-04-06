@@ -27,7 +27,7 @@ export const requestNotificationPermission = async (): Promise<boolean> => {
     const granted = permission === 'granted';
     
     if (granted) {
-      // console.log('✅ Permissão concedida');
+      // // console.log('✅ Permissão concedida');
     }
     return granted;
   } catch (error) {
@@ -41,7 +41,7 @@ export const registerServiceWorker = async (): Promise<ServiceWorkerRegistration
 
   try {
     const registration = await navigator.serviceWorker.register('/sw.js');
-    console.log('✅ Service Worker registrado');
+    // console.log('✅ Service Worker registrado');
     return registration;
   } catch (error) {
     console.error('❌ Erro ao registrar Service Worker:', error);
@@ -86,7 +86,7 @@ export const subscribeUser = async (
       updated_at: new Date().toISOString()
     });
 
-    console.log('✅ Inscrito para push notifications');
+    // console.log('✅ Inscrito para push notifications');
     return true;
   } catch (error) {
     console.error('❌ Erro ao inscrever:', error);
@@ -124,7 +124,7 @@ export const sendPushNotification = async (
       .eq('tipo_usuario', userType);
 
     if (!subscriptions || subscriptions.length === 0) {
-      console.log('📱 Usuário não tem push subscriptions');
+      // console.log('📱 Usuário não tem push subscriptions');
       return false;
     }
 

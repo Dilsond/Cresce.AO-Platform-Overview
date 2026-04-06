@@ -73,7 +73,7 @@ async function reduzirIngressos(evento_id, estacao_nome, quantidade) {
 
     if (updateError) throw new Error(`Erro ao atualizar evento: ${updateError.message}`);
 
-    console.log(`✅ Ingressos reduzidos: ${estacao_nome} ${atual} → ${estacoes[idx].quantidade}`);
+    // console.log(`✅ Ingressos reduzidos: ${estacao_nome} ${atual} → ${estacoes[idx].quantidade}`);
     return estacoes[idx].quantidade;
 }
 
@@ -261,7 +261,7 @@ async function handleStripeWebhook(req, res) {
         return res.status(400).send(`Webhook Error: ${err.message}`);
     }
 
-    console.log('📨 Webhook recebido:', event.type);
+    // console.log('📨 Webhook recebido:', event.type);
 
     if (event.type === 'checkout.session.completed') {
         const session  = event.data.object;
@@ -271,7 +271,7 @@ async function handleStripeWebhook(req, res) {
         const quantidade   = parseInt(meta.quantidade, 10);
         const usuario_id   = meta.usuario_id || null;
 
-        console.log('✅ Pagamento confirmado:', session.id, { evento_id, estacao_nome, quantidade });
+        // console.log('✅ Pagamento confirmado:', session.id, { evento_id, estacao_nome, quantidade });
 
         // ── 1. Atualizar pedido → "pago" ──────────────────────────────────
         const { data: pedido, error: pedidoError } = await supabase
@@ -289,7 +289,7 @@ async function handleStripeWebhook(req, res) {
         if (pedidoError) {
             console.error('❌ Erro ao atualizar pedido:', pedidoError);
         } else {
-            console.log('✅ Pedido atualizado:', pedido?.id);
+            // console.log('✅ Pedido atualizado:', pedido?.id);
         }
 
         // ── 2. Reduzir quantidade em eventos.estacoes ─────────────────────
@@ -319,7 +319,7 @@ async function handleStripeWebhook(req, res) {
         if (vendaError) {
             console.error('❌ Erro ao inserir venda:', vendaError);
         } else {
-            console.log('✅ Venda registada em vendas_ingressos');
+            // console.log('✅ Venda registada em vendas_ingressos');
         }
 
         // ── 4. Gerar tickets individuais ──────────────────────────────────
@@ -338,7 +338,7 @@ async function handleStripeWebhook(req, res) {
             if (ticketError) {
                 console.error('❌ Erro ao gerar tickets:', ticketError);
             } else {
-                console.log(`✅ ${quantidade} ticket(s) gerado(s)`);
+                // console.log(`✅ ${quantidade} ticket(s) gerado(s)`);
             }
         }
     }
@@ -425,11 +425,11 @@ app.post('/api/validate-ticket', async (req, res) => {
 // ── Start ──────────────────────────────────────────────────────────────────
 
 app.listen(PORT, () => {
-    console.log(`\n🚀 Servidor Cresce.AO em http://localhost:${PORT}`);
-    console.log(`   GET  /fatura?session_id=...`);
-    console.log(`   GET  /api/invoice?session_id=...`);
-    console.log(`   POST /api/create-checkout-session`);
-    console.log(`   POST /api/stripe-webhook`);
-    console.log(`   GET  /api/check-availability/:eventoId/:estacaoNome`);
-    console.log(`   POST /api/validate-ticket\n`);
+    // console.log(`\n🚀 Servidor Cresce.AO em http://localhost:${PORT}`);
+    // console.log(`   GET  /fatura?session_id=...`);
+    // console.log(`   GET  /api/invoice?session_id=...`);
+    // console.log(`   POST /api/create-checkout-session`);
+    // console.log(`   POST /api/stripe-webhook`);
+    // console.log(`   GET  /api/check-availability/:eventoId/:estacaoNome`);
+    // console.log(`   POST /api/validate-ticket\n`);
 });

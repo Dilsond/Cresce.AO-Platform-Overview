@@ -273,7 +273,7 @@ export function MyEventsPage() {
     };
 
     const handleDeleteEvent = (event: Event) => {
-        console.log('🗑️ Abrindo modal para excluir:', event.id, event.name);
+        // console.log('🗑️ Abrindo modal para excluir:', event.id, event.name);
         setSelectedEventForDelete({
             id: event.id,
             name: event.name
@@ -283,7 +283,7 @@ export function MyEventsPage() {
 
     // Função chamada após deletar
     const handlePermanentDelete = async () => {
-        console.log('🔄 Recarregando lista de eventos...');
+        // console.log('🔄 Recarregando lista de eventos...');
         await fetchOrganizerEvents();
     };
 

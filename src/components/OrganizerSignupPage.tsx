@@ -33,7 +33,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
     setError(null);
 
     try {
-      console.log('1. Iniciando cadastro...');
+      // console.log('1. Iniciando cadastro...');
 
       // Validar NIF
       if (!/^\d{9,10}$/.test(nif)) {
@@ -49,7 +49,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      console.log('2. Verificando email existente...');
+      // console.log('2. Verificando email existente...');
 
       // Verificar se já existe organizador com este email
       const { data: existingOrganizerEmail, error: emailCheckError } = await supabase
@@ -91,7 +91,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      console.log('3. Verificando NIF existente...');
+      // console.log('3. Verificando NIF existente...');
 
       // Verificar se já existe organizador com este NIF
       const { data: existingNif, error: nifCheckError } = await supabase
@@ -113,11 +113,11 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      console.log('4. Gerando hash da senha...');
+      // console.log('4. Gerando hash da senha...');
       // Gerar hash da senha (igual ao mock_hash_password)
       const hashedPassword = '$2a$10$' + await sha256(password);
 
-      console.log('5. Inserindo novo organizador...');
+      // console.log('5. Inserindo novo organizador...');
 
       // Inserir diretamente
       const { data: newOrganizer, error: insertError } = await supabase
@@ -143,7 +143,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
 
         // Se for erro de RLS, tenta uma abordagem diferente
         if (insertError.message.includes('row-level security')) {
-          console.log('Tentando método alternativo...');
+          // console.log('Tentando método alternativo...');
 
           // Tentativa 2: Usar a API de autenticação do Supabase primeiro
           const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -214,7 +214,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      console.log('6. Organizador inserido com sucesso:', newOrganizer);
+      // console.log('6. Organizador inserido com sucesso:', newOrganizer);
 
       if (!newOrganizer || newOrganizer.length === 0) {
         setError('Erro ao criar conta. Nenhum dado retornado.');
@@ -231,7 +231,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         type: 'organizer' as const
       };
 
-      console.log('7. Salvando usuário no localStorage:', user);
+      // console.log('7. Salvando usuário no localStorage:', user);
       localStorage.setItem('user', JSON.stringify(user));
       navigate("/events");
 

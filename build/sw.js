@@ -10,7 +10,7 @@ const URLS_TO_CACHE = [
 ];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Instalado');
+  // console.log('[SW] Instalado');
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(URLS_TO_CACHE);
@@ -20,13 +20,13 @@ self.addEventListener('install', (event) => {
 });
 
 self.addEventListener('activate', (event) => {
-  console.log('[SW] Ativado');
+  // console.log('[SW] Ativado');
   event.waitUntil(clients.claim());
 });
 
 // Evento de push (recebido do servidor)
 self.addEventListener('push', (event) => {
-  console.log('[SW] Push recebido:', event);
+  // console.log('[SW] Push recebido:', event);
   
   let data = {
     title: 'Nova Notificação',

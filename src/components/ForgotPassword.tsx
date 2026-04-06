@@ -58,7 +58,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
 
     // Buscar usuário por email (em ambas as tabelas)
     const findUserByEmail = async (email: string) => {
-        console.log('🔍 Buscando email:', email);
+        // console.log('🔍 Buscando email:', email);
 
         // Primeiro, tentar na tabela de usuários normais
         const { data: userData, error: userError } = await supabase
@@ -72,7 +72,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         }
 
         if (userData && !userData.deleted_at) {
-            console.log('✅ Usuário normal encontrado:', userData);
+            // console.log('✅ Usuário normal encontrado:', userData);
             return {
                 type: 'usuario_normal' as const,
                 id: userData.id,
@@ -82,7 +82,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         }
 
         // Se não encontrou ou está deletado, tentar na tabela de organizadores
-        console.log('🔍 Tentando buscar organizador...');
+        // console.log('🔍 Tentando buscar organizador...');
         const { data: organizerData, error: organizerError } = await supabase
             .from('organizadores')
             .select('id, nome_empresa, email_empresa, deleted_at')
@@ -94,7 +94,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         }
 
         if (organizerData && !organizerData.deleted_at) {
-            console.log('✅ Organizador encontrado:', organizerData);
+            // console.log('✅ Organizador encontrado:', organizerData);
             return {
                 type: 'organizador' as const,
                 id: organizerData.id,
@@ -103,7 +103,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
             };
         }
 
-        console.log('❌ Nenhum usuário encontrado com este email');
+        // console.log('❌ Nenhum usuário encontrado com este email');
         return null;
     };
 
@@ -115,7 +115,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         setSuccess(null);
 
         try {
-            console.log('🔍 Verificando email:', email);
+            // console.log('🔍 Verificando email:', email);
 
             const user = await findUserByEmail(email);
 
@@ -141,8 +141,8 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
             const expiraEm = new Date();
             expiraEm.setMinutes(expiraEm.getMinutes() + 15);
 
-            console.log('🔑 Código gerado:', codigoGerado);
-            console.log('📧 Enviando para tipo:', user.type);
+            // console.log('🔑 Código gerado:', codigoGerado);
+            // console.log('📧 Enviando para tipo:', user.type);
 
             // Remover códigos antigos não utilizados para este email
             const { error: deleteError } = await supabase
@@ -170,7 +170,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 recoveryData.organizador_id = user.id;
             }
 
-            console.log('💾 Inserindo código no banco:', recoveryData);
+            // console.log('💾 Inserindo código no banco:', recoveryData);
 
             const { data: insertedData, error: insertError } = await supabase
                 .from('recuperacao_senha')
@@ -185,7 +185,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 return;
             }
 
-            console.log('✅ Código salvo com sucesso:', insertedData);
+            // console.log('✅ Código salvo com sucesso:', insertedData);
 
             // Guardar o ID do registro para uso posterior
             if (insertedData) {
@@ -193,7 +193,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
             }
 
             // Enviar email - CORREÇÃO: Converter o tipo para o formato esperado pelo serviço
-            console.log('📧 Enviando email...');
+            // console.log('📧 Enviando email...');
 
             const emailUserType = user.type === 'usuario_normal' ? 'user' : 'organizer';
 
@@ -208,7 +208,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 console.error('Falha no envio do email:', emailResult.message);
 
                 if (import.meta.env.DEV) {
-                    console.log('⚠️ MODO DESENVOLVIMENTO - Código:', codigoGerado);
+                    // console.log('⚠️ MODO DESENVOLVIMENTO - Código:', codigoGerado);
                     alert(`CÓDIGO (DEV): ${codigoGerado}\n\nO email não pôde ser enviado, mas aqui está seu código para teste.`);
                 } else {
                     setError('Erro ao enviar email. Verifique se o endereço está correto ou tente novamente.');
@@ -236,7 +236,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         setError(null);
 
         try {
-            console.log('🔍 Verificando código:', codigo, 'para email:', email);
+            // console.log('🔍 Verificando código:', codigo, 'para email:', email);
 
             // Buscar código válido - filtrar apenas os não utilizados e não expirados
             const { data: recovery, error: recoveryError } = await supabase
@@ -263,7 +263,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 return;
             }
 
-            console.log('✅ Código válido encontrado:', recovery);
+            // console.log('✅ Código válido encontrado:', recovery);
 
             // Armazenar IDs conforme o tipo
             if (recovery.tipo_usuario === 'usuario_normal') {
@@ -309,17 +309,17 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
         }
 
         try {
-            console.log('🔑 Gerando hash da nova senha...');
+            // console.log('🔑 Gerando hash da nova senha...');
 
             const hashedPassword = '$2a$10$' + await sha256(newPassword);
 
-            console.log('💾 Atualizando senha...');
-            console.log('📝 usuarioNormalId:', usuarioNormalId);
-            console.log('📝 organizadorId:', organizadorId);
+            // console.log('💾 Atualizando senha...');
+            // console.log('📝 usuarioNormalId:', usuarioNormalId);
+            // console.log('📝 organizadorId:', organizadorId);
 
             // ANTES de atualizar, verificar se o usuário existe
             if (usuarioNormalId) {
-                console.log('🔍 Verificando se usuário normal existe com ID:', usuarioNormalId);
+                // console.log('🔍 Verificando se usuário normal existe com ID:', usuarioNormalId);
 
                 const { data: existingUser, error: checkError } = await supabase
                     .from('usuarios_normais')
@@ -338,7 +338,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Usuário encontrado:', existingUser);
+                // console.log('✅ Usuário encontrado:', existingUser);
 
                 // Agora sim, atualizar a senha
                 const { error: updateError, data } = await supabase
@@ -357,7 +357,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Resultado da atualização:', data);
+                // console.log('✅ Resultado da atualização:', data);
 
                 if (!data || data.length === 0) {
                     console.error('❌ Nenhum dado retornado - possível erro de permissão RLS');
@@ -366,10 +366,10 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Senha do usuário normal atualizada com sucesso:', data);
+                // console.log('✅ Senha do usuário normal atualizada com sucesso:', data);
 
             } else if (organizadorId) {
-                console.log('🔍 Verificando se organizador existe com ID:', organizadorId);
+                // console.log('🔍 Verificando se organizador existe com ID:', organizadorId);
 
                 const { data: existingOrg, error: checkError } = await supabase
                     .from('organizadores')
@@ -388,7 +388,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Organizador encontrado:', existingOrg);
+                // console.log('✅ Organizador encontrado:', existingOrg);
 
                 const { error: updateError, data } = await supabase
                     .from('organizadores')
@@ -406,7 +406,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Resultado da atualização:', data);
+                // console.log('✅ Resultado da atualização:', data);
 
                 if (!data || data.length === 0) {
                     console.error('❌ Nenhum dado retornado - possível erro de permissão RLS');
@@ -415,7 +415,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                     return;
                 }
 
-                console.log('✅ Senha do organizador atualizada com sucesso:', data);
+                // console.log('✅ Senha do organizador atualizada com sucesso:', data);
 
             } else {
                 setError('Erro ao identificar o tipo de usuário.');
@@ -425,7 +425,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
 
             // Marcar código como utilizado
             if (recoveryId) {
-                console.log('📝 Marcando código como utilizado, ID:', recoveryId);
+                // console.log('📝 Marcando código como utilizado, ID:', recoveryId);
 
                 const { error: markUsedError } = await supabase
                     .from('recuperacao_senha')
@@ -435,11 +435,11 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
                 if (markUsedError) {
                     console.error('❌ Erro ao marcar código como utilizado:', markUsedError);
                 } else {
-                    console.log('✅ Código marcado como utilizado');
+                    // console.log('✅ Código marcado como utilizado');
                 }
             }
 
-            console.log('✅ Processo concluído com sucesso');
+            // console.log('✅ Processo concluído com sucesso');
 
             setSuccess('Senha atualizada com sucesso!');
             setStep('success');
@@ -538,7 +538,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
             }
 
             // if (import.meta.env.DEV) {
-            //     console.log('⚠️ MODO DESENVOLVIMENTO - Novo código:', codigoGerado);
+            //    console.log('⚠️ MODO DESENVOLVIMENTO - Novo código:', codigoGerado);
             //     alert(`NOVO CÓDIGO (DEV): ${codigoGerado}`);
             // }
 

@@ -36,7 +36,7 @@ class NotificationService {
       if (publicKey) {
         emailjs.init(publicKey);
         this.emailJsInitialized = true;
-        console.log('✅ EmailJS inicializado com sucesso');
+        // console.log('✅ EmailJS inicializado com sucesso');
       }
     }
   }
@@ -58,7 +58,7 @@ class NotificationService {
   // Buscar notificações do usuário
   async getUserNotifications(userId: string, userType: 'user' | 'organizer'): Promise<Notification[]> {
     try {
-      console.log(`🔍 Buscando notificações para ${userType}:`, userId);
+      // console.log(`🔍 Buscando notificações para ${userType}:`, userId);
       
       const { data, error } = await supabase
         .from('notificacoes')
@@ -150,13 +150,13 @@ class NotificationService {
       }
 
       if (!deveEnviar) {
-        console.log('ℹ️ Usuário optou por não receber este tipo de notificação');
+        // console.log('ℹ️ Usuário optou por não receber este tipo de notificação');
         return { success: true, message: 'Notificação ignorada por preferência do usuário' };
       }
 
       // Em desenvolvimento, mostrar no console
       if (import.meta.env.DEV) {
-        console.log('📧 [DEV] Notificação:', {
+        // console.log('📧 [DEV] Notificação:', {
           para: nome,
           email: email,
           assunto: assunto,
@@ -189,7 +189,7 @@ class NotificationService {
         reply_to: 'naoresponder@cresceao.com'
       };
 
-      // console.log('📧 Enviando email com params:', templateParams);
+      // // console.log('📧 Enviando email com params:', templateParams);
 
       const response = await emailjs.send(
         import.meta.env.VITE_EMAILJS_SERVICE_NOTIFICATION_ID,
@@ -208,7 +208,7 @@ class NotificationService {
           erro: null
         });
 
-      console.log('✅ Email enviado com sucesso:', response);
+      // console.log('✅ Email enviado com sucesso:', response);
       return { success: true };
 
     } catch (error: any) {

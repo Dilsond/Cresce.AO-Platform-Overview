@@ -107,7 +107,7 @@ export function FavoritesPage() {
 
   const fetchFavoriteEvents = async () => {
     try {
-      console.log('Buscando eventos favoritos do usuário:', currentUser?.id);
+      // console.log('Buscando eventos favoritos do usuário:', currentUser?.id);
 
       let query = supabase.from('favoritos_eventos').select('evento_id');
 
@@ -157,7 +157,7 @@ export function FavoritesPage() {
           .single();
 
         if (orgError || organizador?.deleted_at) {
-          console.log(`Evento ${evento.id} ignorado: organizador não disponível`);
+          // console.log(`Evento ${evento.id} ignorado: organizador não disponível`);
           continue;
         }
 
@@ -193,7 +193,7 @@ export function FavoritesPage() {
 
   const fetchFavoriteOrganizers = async () => {
     try {
-      console.log('Buscando organizadores favoritos do usuário normal:', currentUser?.id);
+      // console.log('Buscando organizadores favoritos do usuário normal:', currentUser?.id);
 
       const { data: favorites, error: favError } = await supabase
         .from('favoritos_organizadores')

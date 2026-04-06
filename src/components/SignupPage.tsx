@@ -32,7 +32,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
     setError(null);
 
     try {
-      console.log('1. Iniciando cadastro de usuário...');
+      // console.log('1. Iniciando cadastro de usuário...');
 
       // Validar username (apenas letras, números e underscore)
       if (!/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
@@ -48,7 +48,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         return;
       }
 
-      console.log('2. Verificando email existente...');
+      // console.log('2. Verificando email existente...');
 
       // Verificar se já existe usuário normal com este email
       const { data: existingUserEmail, error: userEmailCheckError } = await supabase
@@ -90,7 +90,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         return;
       }
 
-      console.log('3. Verificando username existente...');
+      // console.log('3. Verificando username existente...');
 
       // Verificar se já existe usuário com este username
       const { data: existingUsername, error: usernameCheckError } = await supabase
@@ -112,12 +112,12 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         return;
       }
 
-      console.log('4. Gerando hash da senha...');
+      // console.log('4. Gerando hash da senha...');
 
       // Gerar hash da senha (igual ao mock_hash_password)
       const hashedPassword = '$2a$10$' + await sha256(password);
 
-      console.log('5. Inserindo novo usuário...');
+      // console.log('5. Inserindo novo usuário...');
 
       // Inserir novo usuário
       const { data: newUser, error: insertError } = await supabase
@@ -149,7 +149,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         return;
       }
 
-      console.log('6. Usuário inserido com sucesso:', newUser);
+      // console.log('6. Usuário inserido com sucesso:', newUser);
 
       if (!newUser || newUser.length === 0) {
         setError('Erro ao criar conta. Nenhum dado retornado.');
@@ -166,7 +166,7 @@ export function SignupPage({ onSignup, onNavigateToLogin, onBack }: SignupPagePr
         type: 'user' as const
       };
 
-      console.log('7. Salvando usuário no localStorage:', user);
+      // console.log('7. Salvando usuário no localStorage:', user);
       localStorage.setItem('user', JSON.stringify(user));
       onSignup(user);
 

@@ -356,9 +356,9 @@ export function EventDetailPage() {
     try {
       const pedidoId = crypto.randomUUID();
 
-      console.log('📦 Criando pedido gratuito com ID:', pedidoId);
-      console.log('📧 Enviando para usuário:', currentUser.email);
-      console.log('🎫 Evento:', event.name);
+      // console.log('📦 Criando pedido gratuito com ID:', pedidoId);
+      // console.log('📧 Enviando para usuário:', currentUser.email);
+      // console.log('🎫 Evento:', event.name);
 
       const { data: pedidoData, error: pedidoError } = await supabase
         .from('pedidos')
@@ -382,11 +382,11 @@ export function EventDetailPage() {
         throw new Error(`Erro ao criar pedido: ${pedidoError.message}`);
       }
 
-      console.log('✅ Pedido criado com sucesso:', pedidoData);
+      // console.log('✅ Pedido criado com sucesso:', pedidoData);
 
       const codigoTicket = `FREE_${event.id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
 
-      console.log('🎫 Gerando ticket com código:', codigoTicket);
+      // console.log('🎫 Gerando ticket com código:', codigoTicket);
 
       const { data: ticketData, error: ticketError } = await supabase
         .from('tickets')
@@ -404,7 +404,7 @@ export function EventDetailPage() {
         throw new Error(`Erro ao criar ticket: ${ticketError.message}`);
       }
 
-      console.log('✅ Ticket criado com sucesso:', ticketData);
+      // console.log('✅ Ticket criado com sucesso:', ticketData);
 
       // Tentar enviar email
       let emailEnviado = false;
@@ -449,15 +449,15 @@ export function EventDetailPage() {
   };
 
   const onAddReview = async (rating: number, comment: string, images: any[]) => {
-    console.log('Review adicionada:', { rating, comment });
+    // console.log('Review adicionada:', { rating, comment });
   };
 
   const onUpdateReview = async (reviewId: string, rating: number, comment: string, images: any[]) => {
-    console.log('Review actualizada:', reviewId);
+    // console.log('Review actualizada:', reviewId);
   };
 
   const onDeleteReview = async (reviewId: string) => {
-    console.log('Review eliminada:', reviewId);
+    // console.log('Review eliminada:', reviewId);
   };
 
   const formatDate = (dateStr: string) => {

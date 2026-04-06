@@ -125,7 +125,7 @@ function PasswordChangeModal({ isOpen, onClose, userId, userEmail, userName, onS
       const codigoGerado = generateCode();
       const expiraEm = new Date();
       expiraEm.setMinutes(expiraEm.getMinutes() + 15);
-      console.log('🔑 Código gerado:', codigoGerado);
+      // console.log('🔑 Código gerado:', codigoGerado);
 
       // Remover códigos antigos
       await supabase
