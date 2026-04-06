@@ -19,6 +19,7 @@
   from = "/fatura"
   to = "/.netlify/functions/api/fatura"
   status = 200
+  force = true
 
 # SPA fallback (React Router) — deve ser o ÚLTIMO
 [[redirects]]
