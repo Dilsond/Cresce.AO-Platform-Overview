@@ -3,242 +3,118 @@ import cors from 'cors';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
 import { readFileSync } from 'fs';
-import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createClient } from '@supabase/supabase-js';
 import serverless from 'serverless-http';
 
 dotenv.config();
 
-// ==================== CONFIGURAÇÃO __dirname ====================
-let __dirname;
-try {
-    if (import.meta?.url) {
-        __dirname = dirname(fileURLToPath(import.meta.url));
-    } else {
-        __dirname = process.cwd();
-    }
-} catch (err) {
-    console.warn('⚠️ Não foi possível obter __dirname, usando process.cwd()');
-    __dirname = process.cwd();
-}
+// Configuração segura de __dirname para Netlify
+const __dirname = process.cwd();
 
-console.log('✅ Netlify Function carregada | __dirname:', __dirname);
+console.log('✅ Function API carregada | __dirname:', __dirname);
 
 const app = express();
-
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 const supabase = createClient(
-    process.env.VITE_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
+  process.env.VITE_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
 );
 
-const corsOptions = {
-    origin: '*',
-    methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept', 'ngrok-skip-browser-warning', 'stripe-signature'],
-};
-
-app.use(cors(corsOptions));
-
-// Logging para debug (podes remover depois)
+app.use(cors({ origin: '*' }));
 app.use((req, res, next) => {
-    console.log(`[API] ${req.method} ${req.url}`);
-    next();
+  console.log(`[API] ${req.method} ${req.url}`);
+  next();
 });
 
-// Webhook Stripe - raw body (deve vir ANTES do express.json())
+// Webhook Stripe (raw body) - deve vir antes do json()
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json());
 
-// ── Utilitário: reduzir ingressos ────────────────────────────
-async function reduzirIngressos(evento_id, estacao_nome, quantidade) {
-    const { data: evento, error: fetchError } = await supabase
-        .from('eventos')
-        .select('estacoes')
-        .eq('id', evento_id)
-        .single();
+// ==================== ROTAS ====================
 
-    if (fetchError) throw new Error(`Evento não encontrado: ${fetchError.message}`);
+app.get('/', (req, res) => res.json({ message: 'API Cresce.AO OK' }));
 
-    const estacoes = evento.estacoes || [];
-    const idx = estacoes.findIndex(e => e.nome === estacao_nome);
+app.get('/health', (req, res) => res.json({ status: 'healthy' }));
 
-    if (idx === -1) throw new Error(`Estação "${estacao_nome}" não encontrada`);
+// Rota de disponibilidade (a que estás a chamar)
+app.get('/api/check-availability/:eventoId/:estacaoNome', async (req, res) => {
+  try {
+    const { eventoId, estacaoNome } = req.params;
+    const nome = decodeURIComponent(estacaoNome);
 
-    const atual = estacoes[idx].quantidade;
-    if (atual < quantidade) {
-        throw new Error(`Ingressos insuficientes: disponível=${atual}, solicitado=${quantidade}`);
-    }
+    const { data: evento, error } = await supabase
+      .from('eventos')
+      .select('estacoes')
+      .eq('id', eventoId)
+      .single();
 
-    estacoes[idx].quantidade = atual - quantidade;
+    if (error || !evento) return res.status(404).json({ error: 'Evento não encontrado' });
 
-    const { error: updateError } = await supabase
-        .from('eventos')
-        .update({ estacoes, updated_at: new Date().toISOString() })
-        .eq('id', evento_id);
+    const estacao = (evento.estacoes || []).find(e => e.nome === nome);
+    if (!estacao) return res.status(404).json({ error: 'Estação não encontrada' });
 
-    if (updateError) throw new Error(`Erro ao atualizar evento: ${updateError.message}`);
+    res.json({
+      disponivel: estacao.quantidade > 0,
+      quantidade: estacao.quantidade,
+      nome: estacao.nome,
+      preco: estacao.preco
+    });
+  } catch (err) {
+    console.error('Erro check-availability:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
 
-    console.log(`✅ Ingressos reduzidos: ${estacao_nome} ${atual} → ${estacoes[idx].quantidade}`);
-    return estacoes[idx].quantidade;
-}
-
-// ── Rotas básicas ─────────────────────────────────────────────
-app.get('/', (req, res) => res.json({ message: 'Servidor Cresce.AO rodando!', status: 'ok' }));
-app.get('/health', (req, res) => res.json({ status: 'healthy', uptime: process.uptime() }));
-
-// ── Criar sessão de checkout ──────────────────────────────────
+// Rota principal de checkout
 app.post('/api/create-checkout-session', async (req, res) => {
-    try {
-        const {
-            evento_id,
-            estacao_nome,
-            quantidade,
-            usuario_id,
-            usuario_email,
-            usuario_nome,
-            valor_total
-        } = req.body;
+  try {
+    console.log('Recebido body:', req.body);
 
-        if (!evento_id || !estacao_nome || !quantidade || !valor_total) {
-            return res.status(400).json({ error: 'Dados incompletos' });
-        }
+    const { evento_id, estacao_nome, quantidade, usuario_email, valor_total } = req.body;
 
-        // Verificar disponibilidade
-        const { data: evento, error: eventoError } = await supabase
-            .from('eventos')
-            .select('estacoes, nome_evento')
-            .eq('id', evento_id)
-            .single();
-
-        if (eventoError) return res.status(404).json({ error: 'Evento não encontrado' });
-
-        const estacoes = evento.estacoes || [];
-        const estacao = estacoes.find(e => e.nome === estacao_nome);
-
-        if (!estacao) return res.status(400).json({ error: 'Estação não encontrada' });
-        if (estacao.quantidade < quantidade) {
-            return res.status(400).json({
-                error: `Apenas ${estacao.quantidade} ingresso(s) disponível(is) para "${estacao_nome}"`
-            });
-        }
-
-        const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
-
-        const session = await stripe.checkout.sessions.create({
-            payment_method_types: ['card'],
-            line_items: [{
-                price_data: {
-                    currency: 'aoa',
-                    product_data: {
-                        name: `${evento.nome_evento || evento_id} — ${estacao_nome}`,
-                        description: `${quantidade}x ingresso(s) · ${estacao_nome}`,
-                    },
-                    unit_amount: Math.round((valor_total / quantidade) * 100),
-                },
-                quantity: quantidade,
-            }],
-            mode: 'payment',
-            success_url: `${frontendUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
-            cancel_url: `${frontendUrl}/event/${evento_id}?payment_cancelled=true`,
-            customer_email: usuario_email,
-            metadata: {
-                evento_id,
-                usuario_id: usuario_id || '',
-                usuario_nome: usuario_nome || '',
-                estacao_nome,
-                quantidade: String(quantidade),
-                valor_total: String(valor_total),
-            },
-        });
-
-        // Salvar pedido pendente
-        const pedidoId = `pedido_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-
-        await supabase
-            .from('pedidos')
-            .insert({
-                id: pedidoId,
-                evento_id,
-                usuario_id: usuario_id || null,
-                estacao_nome,
-                quantidade,
-                valor_total,
-                status: 'pendente',
-                stripe_session_id: session.id,
-                created_at: new Date().toISOString(),
-                updated_at: new Date().toISOString()
-            });
-
-        res.json({ sessionId: session.id, url: session.url, pedido_id: pedidoId });
-
-    } catch (error) {
-        console.error('❌ Erro ao criar sessão Stripe:', error);
-        res.status(500).json({ error: error.message });
+    if (!evento_id || !estacao_nome || !quantidade || !valor_total) {
+      return res.status(400).json({ error: 'Dados incompletos' });
     }
+
+    const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [{
+        price_data: {
+          currency: 'aoa',
+          product_data: { name: `${estacao_nome} - Evento` },
+          unit_amount: Math.round((valor_total / quantidade) * 100),
+        },
+        quantity: quantidade,
+      }],
+      mode: 'payment',
+      success_url: `${frontendUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}`,
+      cancel_url: `${frontendUrl}/event/${evento_id}`,
+      customer_email: usuario_email,
+      metadata: req.body
+    });
+
+    res.json({ sessionId: session.id, url: session.url });
+  } catch (error) {
+    console.error('Erro create-checkout-session:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
-// ── Fatura HTML ───────────────────────────────────────────────
+// Fatura (simplificada)
 app.get('/fatura', (req, res) => {
-    try {
-        const filePath = join(__dirname, 'fatura.html');
-
-        let html = readFileSync(filePath, 'utf-8');
-
-        const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
-
-        html = html
-            .replace(/window\.CRESCE_API_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_API_URL = '/api'`)
-            .replace(/window\.CRESCE_FRONTEND_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)}`);
-
-        res.setHeader('Content-Type', 'text/html; charset=utf-8');
-        res.send(html);
-    } catch (err) {
-        console.error('❌ Erro ao servir fatura:', err.message);
-        res.status(500).send('Erro ao carregar a fatura.');
-    }
-});
-
-// ── Dados JSON da fatura ───────────────────────────────────────────────────
-
-app.get('/api/invoice', async (req, res) => {
-    const { session_id, evento_id, estacao_nome, quantidade } = req.query;
-
-    if (!session_id || session_id === '{CHECKOUT_SESSION_ID}') {
-        return res.status(400).json({ error: 'session_id inválido' });
-    }
-
-    try {
-        const session = await stripe.checkout.sessions.retrieve(session_id, {
-            expand: ['line_items', 'customer_details'],
-        });
-
-        const meta = session.metadata || {};
-        const lineItem = session.line_items?.data?.[0];
-        const qty = lineItem?.quantity || Number(meta.quantidade) || Number(quantidade) || 1;
-        const total = (session.amount_total || 0) / 100;
-
-        res.json({
-            session_id: session.id,
-            evento_id: meta.evento_id || evento_id || '',
-            event_name: lineItem?.description || meta.estacao_nome || 'Evento',
-            ticket_type: meta.estacao_nome || estacao_nome || lineItem?.description || 'Ingresso',
-            user_name: session.customer_details?.name || meta.usuario_nome || '',
-            user_email: session.customer_details?.email || '',
-            quantidade: qty,
-            valor_total: total,
-            created: session.created,
-            ticket_code: `${(meta.evento_id || evento_id || 'EVT').substring(0, 8).toUpperCase()}-${session.id.substring(3, 11).toUpperCase()}`,
-            status: session.payment_status,
-        });
-
-    } catch (err) {
-        console.error('❌ Erro ao buscar sessão Stripe:', err.message);
-        res.status(500).json({ error: err.message });
-    }
+  try {
+    const filePath = join(__dirname, 'fatura.html');
+    let html = readFileSync(filePath, 'utf-8');
+    res.setHeader('Content-Type', 'text/html');
+    res.send(html);
+  } catch (err) {
+    res.status(500).send('Erro ao carregar fatura');
+  }
 });
 
 // ── Verificar disponibilidade ──────────────────────────────────────────────
