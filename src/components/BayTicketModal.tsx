@@ -20,7 +20,7 @@ interface BuyTicketModalProps {
   onCompraRealizada?: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'https://cresce-ao.netlify.app';
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
 
 export function BuyTicketModal({
   isOpen,

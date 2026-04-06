@@ -1,4 +1,3 @@
-import express from 'express';
 import cors from 'cors';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
@@ -6,15 +5,15 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 import { createClient } from '@supabase/supabase-js';
+import serverless from 'serverless-http';
 
 dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-// const PORT = 'https://cresce-ao.netlify.app';
+
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// ── Supabase com Service Role Key (necessário para contornar RLS no webhook) ──
 const supabase = createClient(
     process.env.VITE_SUPABASE_URL,
     process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
@@ -23,18 +22,14 @@ const supabase = createClient(
 const corsOptions = {
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Accept', 'ngrok-skip-browser-warning'],
+    allowedHeaders: ['Content-Type', 'Accept', 'ngrok-skip-browser-warning', 'stripe-signature'],
     credentials: false
 };
 
 app.use(cors(corsOptions));
 
-// IMPORTANTE: O webhook precisa do body RAW — registar ANTES do express.json()
-app.post(
-    '/api/stripe-webhook',
-    express.raw({ type: 'application/json' }),
-    handleStripeWebhook
-);
+// Webhook Stripe - precisa de raw body (importante!)
+app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json());
 
@@ -149,11 +144,11 @@ app.post('/api/create-checkout-session', async (req, res) => {
             customer_email: usuario_email,
             metadata: {
                 evento_id,
-                usuario_id:   usuario_id   || '',
+                usuario_id: usuario_id || '',
                 usuario_nome: usuario_nome || '',
                 estacao_nome,
-                quantidade:   String(quantidade),
-                valor_total:  String(valor_total),
+                quantidade: String(quantidade),
+                valor_total: String(valor_total),
             },
         });
 
@@ -163,16 +158,16 @@ app.post('/api/create-checkout-session', async (req, res) => {
         const { error: insertError } = await supabase
             .from('pedidos')
             .insert({
-                id:               pedidoId,
+                id: pedidoId,
                 evento_id,
-                usuario_id:       usuario_id || null,
+                usuario_id: usuario_id || null,
                 estacao_nome,
                 quantidade,
                 valor_total,
-                status:           'pendente',
+                status: 'pendente',
                 stripe_session_id: session.id,
-                created_at:       new Date().toISOString(),
-                updated_at:       new Date().toISOString()
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             });
 
         if (insertError) {
@@ -194,11 +189,11 @@ app.get('/fatura', (req, res) => {
         const filePath = join(__dirname, 'public', 'fatura.html');
         let html = readFileSync(filePath, 'utf-8');
 
-        const apiUrl      = process.env.API_URL      || `http://localhost:${PORT}`;
+        const apiUrl = process.env.API_URL || `http://localhost:${PORT}`;
         const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
 
         html = html
-            .replace("window.CRESCE_API_URL = 'https://cresce-ao.netlify.app';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
+            .replace("window.CRESCE_API_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
             .replace("window.CRESCE_FRONTEND_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -223,23 +218,23 @@ app.get('/api/invoice', async (req, res) => {
             expand: ['line_items', 'customer_details'],
         });
 
-        const meta     = session.metadata || {};
+        const meta = session.metadata || {};
         const lineItem = session.line_items?.data?.[0];
-        const qty      = lineItem?.quantity || Number(meta.quantidade) || Number(quantidade) || 1;
-        const total    = (session.amount_total || 0) / 100;
+        const qty = lineItem?.quantity || Number(meta.quantidade) || Number(quantidade) || 1;
+        const total = (session.amount_total || 0) / 100;
 
         res.json({
-            session_id:  session.id,
-            evento_id:   meta.evento_id   || evento_id   || '',
-            event_name:  lineItem?.description || meta.estacao_nome || 'Evento',
-            ticket_type: meta.estacao_nome    || estacao_nome       || lineItem?.description || 'Ingresso',
-            user_name:   session.customer_details?.name  || meta.usuario_nome || '',
-            user_email:  session.customer_details?.email || '',
-            quantidade:  qty,
+            session_id: session.id,
+            evento_id: meta.evento_id || evento_id || '',
+            event_name: lineItem?.description || meta.estacao_nome || 'Evento',
+            ticket_type: meta.estacao_nome || estacao_nome || lineItem?.description || 'Ingresso',
+            user_name: session.customer_details?.name || meta.usuario_nome || '',
+            user_email: session.customer_details?.email || '',
+            quantidade: qty,
             valor_total: total,
-            created:     session.created,
+            created: session.created,
             ticket_code: `${(meta.evento_id || evento_id || 'EVT').substring(0, 8).toUpperCase()}-${session.id.substring(3, 11).toUpperCase()}`,
-            status:      session.payment_status,
+            status: session.payment_status,
         });
 
     } catch (err) {
@@ -264,12 +259,12 @@ async function handleStripeWebhook(req, res) {
     console.log('📨 Webhook recebido:', event.type);
 
     if (event.type === 'checkout.session.completed') {
-        const session  = event.data.object;
-        const meta     = session.metadata || {};
-        const evento_id    = meta.evento_id;
+        const session = event.data.object;
+        const meta = session.metadata || {};
+        const evento_id = meta.evento_id;
         const estacao_nome = meta.estacao_nome;
-        const quantidade   = parseInt(meta.quantidade, 10);
-        const usuario_id   = meta.usuario_id || null;
+        const quantidade = parseInt(meta.quantidade, 10);
+        const usuario_id = meta.usuario_id || null;
 
         console.log('✅ Pagamento confirmado:', session.id, { evento_id, estacao_nome, quantidade });
 
@@ -277,10 +272,10 @@ async function handleStripeWebhook(req, res) {
         const { data: pedido, error: pedidoError } = await supabase
             .from('pedidos')
             .update({
-                status:                    'pago',
-                stripe_payment_intent_id:  session.payment_intent,
-                pagamento_confirmado_em:   new Date().toISOString(),
-                updated_at:                new Date().toISOString()
+                status: 'pago',
+                stripe_payment_intent_id: session.payment_intent,
+                pagamento_confirmado_em: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             })
             .eq('stripe_session_id', session.id)
             .select()
@@ -306,14 +301,14 @@ async function handleStripeWebhook(req, res) {
             .insert({
                 evento_id,
                 usuario_id,
-                ingresso_nome:             estacao_nome,
+                ingresso_nome: estacao_nome,
                 quantidade,
-                valor_total:               Number(meta.valor_total) || (session.amount_total / 100),
-                status:                    'pago',
-                stripe_payment_intent_id:  session.payment_intent,
-                stripe_session_id:         session.id,
-                created_at:                new Date().toISOString(),
-                updated_at:                new Date().toISOString()
+                valor_total: Number(meta.valor_total) || (session.amount_total / 100),
+                status: 'pago',
+                stripe_payment_intent_id: session.payment_intent,
+                stripe_session_id: session.id,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
             });
 
         if (vendaError) {
@@ -325,9 +320,9 @@ async function handleStripeWebhook(req, res) {
         // ── 4. Gerar tickets individuais ──────────────────────────────────
         if (pedido) {
             const tickets = Array.from({ length: quantidade }, (_, i) => ({
-                pedido_id:  pedido.id,
-                codigo:     `${evento_id.substring(0, 8)}-${session.id.substring(3, 11)}-${i + 1}`.toUpperCase(),
-                utilizado:  false,
+                pedido_id: pedido.id,
+                codigo: `${evento_id.substring(0, 8)}-${session.id.substring(3, 11)}-${i + 1}`.toUpperCase(),
+                utilizado: false,
                 created_at: new Date().toISOString()
             }));
 
@@ -367,8 +362,8 @@ app.get('/api/check-availability/:eventoId/:estacaoNome', async (req, res) => {
         res.json({
             disponivel: estacao.quantidade > 0,
             quantidade: estacao.quantidade,
-            nome:       estacao.nome,
-            preco:      estacao.preco
+            nome: estacao.nome,
+            preco: estacao.preco
         });
 
     } catch (err) {
@@ -394,7 +389,7 @@ app.post('/api/validate-ticket', async (req, res) => {
 
         if (ticket.utilizado) {
             return res.status(400).json({
-                error:        'Ticket já utilizado',
+                error: 'Ticket já utilizado',
                 utilizado_em: ticket.utilizado_em
             });
         }
@@ -410,9 +405,9 @@ app.post('/api/validate-ticket', async (req, res) => {
             success: true,
             message: 'Ticket validado com sucesso!',
             ticket: {
-                codigo:    ticket.codigo,
+                codigo: ticket.codigo,
                 evento_id: ticket.pedidos?.evento_id,
-                estacao:   ticket.pedidos?.estacao_nome
+                estacao: ticket.pedidos?.estacao_nome
             }
         });
 
@@ -433,3 +428,5 @@ app.post('/api/validate-ticket', async (req, res) => {
 //     console.log(`   GET  /api/check-availability/:eventoId/:estacaoNome`);
 //     console.log(`   POST /api/validate-ticket\n`);
 // });
+
+export const handler = serverless(app);
