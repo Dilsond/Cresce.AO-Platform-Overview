@@ -11,7 +11,7 @@ dotenv.config();
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const app = express();
-const PORT = 3002;
+const PORT = 'https://cresce-ao.netlify.app';
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // ── Supabase com Service Role Key (necessário para contornar RLS no webhook) ──
@@ -198,7 +198,7 @@ app.get('/fatura', (req, res) => {
         const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
 
         html = html
-            .replace("window.CRESCE_API_URL = 'http://localhost:3002';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
+            .replace("window.CRESCE_API_URL = 'https://cresce-ao.netlify.app';",      `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
             .replace("window.CRESCE_FRONTEND_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
