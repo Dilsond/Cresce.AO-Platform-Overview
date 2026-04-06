@@ -1,24 +1,26 @@
 [build]
-  command = "npm run build"
+  command = "npm ci && node node_modules/vite/bin/vite.js build"
   publish = "dist"
   functions = "netlify/functions"
+
+[build.environment]
+  NPM_CONFIG_PRODUCTION = "false"  
 
 [functions]
   node_bundler = "esbuild"
 
-# SPA fallback (para React Router)
+# Redirects para SPA (React Router)
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
 
-# Redireciona todas as chamadas /api/* para a função
+# Redirects para as tuas APIs (Netlify Functions)
 [[redirects]]
   from = "/api/*"
   to = "/.netlify/functions/api/:splat"
   status = 200
 
-# Redireciona /fatura também (porque é uma rota do backend)
 [[redirects]]
   from = "/fatura"
   to = "/.netlify/functions/api/fatura"
