@@ -9,7 +9,18 @@ import serverless from 'serverless-http';
 
 dotenv.config();
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const require = createRequire(import.meta.url);
+
+// Solução robusta para __dirname em Netlify Functions (ESM)
+let __dirname;
+try {
+    __dirname = dirname(fileURLToPath(import.meta.url));
+} catch (err) {
+    // Fallback para Netlify Functions
+    __dirname = process.cwd();   // ou dirname(require.resolve('./api.js')) se necessário
+    console.warn('⚠️  Usando fallback para __dirname:', __dirname);
+}
+
 const app = express();
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
@@ -186,15 +197,16 @@ app.post('/api/create-checkout-session', async (req, res) => {
 
 app.get('/fatura', (req, res) => {
     try {
-        const filePath = join(__dirname, 'public', 'fatura.html');
+        // Caminho correto dentro da function
+        const filePath = join(__dirname, 'fatura.html');   // coloca o fatura.html dentro da pasta netlify/functions/
+
         let html = readFileSync(filePath, 'utf-8');
 
-        const apiUrl = process.env.API_URL || `http://localhost:${PORT}`;
-        const frontendUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
+        const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
 
         html = html
-            .replace("window.CRESCE_API_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_API_URL = ${JSON.stringify(apiUrl)};`)
-            .replace("window.CRESCE_FRONTEND_URL = 'https://cresce-ao.netlify.app';", `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)};`);
+            .replace(/window\.CRESCE_API_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_API_URL = ${JSON.stringify('/api')}`)
+            .replace(/window\.CRESCE_FRONTEND_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)}`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
         res.send(html);
