@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
 import { OrganizerLayout } from './OrganizerLayout';
 import { UserLayout } from './UserLayout';
+import logo from '../assets/logo.png';
 
 export function AppLayout() {
   const [userType, setUserType] = useState<'user' | 'organizer' | null>(null);
@@ -28,10 +29,8 @@ export function AppLayout() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <div
-            className="text-3xl font-bold text-orange-600 mb-4"
-            style={{ animation: 'pulse 1.5s ease-in-out infinite' }}
-          >
+          <div className="text-5xl font-bold text-orange-600 mb-4 flex items-center" style={{ animation: 'pulse 1.5s ease-in-out infinite' }}>
+            <img src={logo} alt="Cresce.AO Logo" className="h-16 w-auto object-contain" />
             <span className="text-gray-400">Cresce</span>.AO
           </div>
         </div>

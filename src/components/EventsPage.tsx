@@ -388,7 +388,7 @@ export function EventsPage() {
           <button className="p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white hover:scale-110 transition-all shadow-sm" onClick={(e) => handleLikeToggle(event.id, e)}>
             <Heart className={`w-5 h-5 transition-all duration-200 ${likedEvents.includes(event.id) ? 'text-red-500 fill-red-500' : 'text-gray-600 hover:text-red-500'}`} />
           </button>
-        </div>
+        </div>1
         <div className="absolute bottom-3 right-3">
           <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'}`}>{event.status}</span>
         </div>
