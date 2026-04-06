@@ -1,3 +1,4 @@
+import express from 'express';
 import cors from 'cors';
 import Stripe from 'stripe';
 import dotenv from 'dotenv';
@@ -9,17 +10,20 @@ import serverless from 'serverless-http';
 
 dotenv.config();
 
-const require = createRequire(import.meta.url);
-
-// Solução robusta para __dirname em Netlify Functions (ESM)
+// ==================== CONFIGURAÇÃO __dirname ====================
 let __dirname;
 try {
-    __dirname = dirname(fileURLToPath(import.meta.url));
+    if (import.meta?.url) {
+        __dirname = dirname(fileURLToPath(import.meta.url));
+    } else {
+        __dirname = process.cwd();
+    }
 } catch (err) {
-    // Fallback para Netlify Functions
-    __dirname = process.cwd();   // ou dirname(require.resolve('./api.js')) se necessário
-    console.warn('⚠️  Usando fallback para __dirname:', __dirname);
+    console.warn('⚠️ Não foi possível obter __dirname, usando process.cwd()');
+    __dirname = process.cwd();
 }
+
+console.log('✅ Netlify Function carregada | __dirname:', __dirname);
 
 const app = express();
 
@@ -34,24 +38,26 @@ const corsOptions = {
     origin: '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Accept', 'ngrok-skip-browser-warning', 'stripe-signature'],
-    credentials: false
 };
 
 app.use(cors(corsOptions));
 
-// Webhook Stripe - precisa de raw body (importante!)
+// Logging para debug (podes remover depois)
+app.use((req, res, next) => {
+    console.log(`[API] ${req.method} ${req.url}`);
+    next();
+});
+
+// Webhook Stripe - raw body (deve vir ANTES do express.json())
 app.post('/api/stripe-webhook', express.raw({ type: 'application/json' }), handleStripeWebhook);
 
 app.use(express.json());
 
-// ── Utilitário: reduzir ingressos atomicamente ────────────────────────────
-
+// ── Utilitário: reduzir ingressos ────────────────────────────
 async function reduzirIngressos(evento_id, estacao_nome, quantidade) {
-    // Usar RPC para update atómico (evita race conditions)
-    // Se não tiveres a função RPC, usamos a abordagem fetch + update
     const { data: evento, error: fetchError } = await supabase
         .from('eventos')
-        .select('estacoes, ingressos')
+        .select('estacoes')
         .eq('id', evento_id)
         .single();
 
@@ -71,10 +77,7 @@ async function reduzirIngressos(evento_id, estacao_nome, quantidade) {
 
     const { error: updateError } = await supabase
         .from('eventos')
-        .update({
-            estacoes,
-            updated_at: new Date().toISOString()
-        })
+        .update({ estacoes, updated_at: new Date().toISOString() })
         .eq('id', evento_id);
 
     if (updateError) throw new Error(`Erro ao atualizar evento: ${updateError.message}`);
@@ -83,18 +86,11 @@ async function reduzirIngressos(evento_id, estacao_nome, quantidade) {
     return estacoes[idx].quantidade;
 }
 
-// ── Rotas básicas ──────────────────────────────────────────────────────────
+// ── Rotas básicas ─────────────────────────────────────────────
+app.get('/', (req, res) => res.json({ message: 'Servidor Cresce.AO rodando!', status: 'ok' }));
+app.get('/health', (req, res) => res.json({ status: 'healthy', uptime: process.uptime() }));
 
-app.get('/', (req, res) => {
-    res.json({ message: 'Servidor Cresce.AO rodando!', status: 'ok' });
-});
-
-app.get('/health', (req, res) => {
-    res.json({ status: 'healthy', uptime: process.uptime() });
-});
-
-// ── Criar sessão de checkout ───────────────────────────────────────────────
-
+// ── Criar sessão de checkout ──────────────────────────────────
 app.post('/api/create-checkout-session', async (req, res) => {
     try {
         const {
@@ -124,34 +120,30 @@ app.post('/api/create-checkout-session', async (req, res) => {
         const estacao = estacoes.find(e => e.nome === estacao_nome);
 
         if (!estacao) return res.status(400).json({ error: 'Estação não encontrada' });
-
         if (estacao.quantidade < quantidade) {
             return res.status(400).json({
                 error: `Apenas ${estacao.quantidade} ingresso(s) disponível(is) para "${estacao_nome}"`
             });
         }
 
-        const appUrl = process.env.FRONTEND_URL || process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
-        const apiUrl = process.env.API_URL || `http://localhost:${PORT}`;
+        const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
 
         const session = await stripe.checkout.sessions.create({
             payment_method_types: ['card'],
-            line_items: [
-                {
-                    price_data: {
-                        currency: 'aoa',
-                        product_data: {
-                            name: `${evento.nome_evento || evento_id} — ${estacao_nome}`,
-                            description: `${quantidade}x ingresso(s) · ${estacao_nome}`,
-                        },
-                        unit_amount: Math.round((valor_total / quantidade) * 100),
+            line_items: [{
+                price_data: {
+                    currency: 'aoa',
+                    product_data: {
+                        name: `${evento.nome_evento || evento_id} — ${estacao_nome}`,
+                        description: `${quantidade}x ingresso(s) · ${estacao_nome}`,
                     },
-                    quantity: quantidade,
+                    unit_amount: Math.round((valor_total / quantidade) * 100),
                 },
-            ],
+                quantity: quantidade,
+            }],
             mode: 'payment',
-            success_url: `${process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app'}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
-            cancel_url: `${appUrl}/event/${evento_id}?payment_cancelled=true`,
+            success_url: `${frontendUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
+            cancel_url: `${frontendUrl}/event/${evento_id}?payment_cancelled=true`,
             customer_email: usuario_email,
             metadata: {
                 evento_id,
@@ -163,10 +155,10 @@ app.post('/api/create-checkout-session', async (req, res) => {
             },
         });
 
-        // Salvar pedido como "pendente"
+        // Salvar pedido pendente
         const pedidoId = `pedido_${Date.now()}_${Math.random().toString(36).substring(7)}`;
 
-        const { error: insertError } = await supabase
+        await supabase
             .from('pedidos')
             .insert({
                 id: pedidoId,
@@ -181,31 +173,25 @@ app.post('/api/create-checkout-session', async (req, res) => {
                 updated_at: new Date().toISOString()
             });
 
-        if (insertError) {
-            console.error('❌ Erro ao salvar pedido:', insertError);
-        }
-
         res.json({ sessionId: session.id, url: session.url, pedido_id: pedidoId });
 
     } catch (error) {
-        console.error('❌ Erro ao criar sessão Stripe:', error.message);
+        console.error('❌ Erro ao criar sessão Stripe:', error);
         res.status(500).json({ error: error.message });
     }
 });
 
-// ── Fatura HTML ────────────────────────────────────────────────────────────
-
+// ── Fatura HTML ───────────────────────────────────────────────
 app.get('/fatura', (req, res) => {
     try {
-        // Caminho correto dentro da function
-        const filePath = join(__dirname, 'fatura.html');   // coloca o fatura.html dentro da pasta netlify/functions/
+        const filePath = join(__dirname, 'fatura.html');
 
         let html = readFileSync(filePath, 'utf-8');
 
         const frontendUrl = process.env.FRONTEND_URL || 'https://cresce-ao.netlify.app';
 
         html = html
-            .replace(/window\.CRESCE_API_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_API_URL = ${JSON.stringify('/api')}`)
+            .replace(/window\.CRESCE_API_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_API_URL = '/api'`)
             .replace(/window\.CRESCE_FRONTEND_URL\s*=\s*['"].*?['"]/i, `window.CRESCE_FRONTEND_URL = ${JSON.stringify(frontendUrl)}`);
 
         res.setHeader('Content-Type', 'text/html; charset=utf-8');
@@ -251,6 +237,82 @@ app.get('/api/invoice', async (req, res) => {
 
     } catch (err) {
         console.error('❌ Erro ao buscar sessão Stripe:', err.message);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Verificar disponibilidade ──────────────────────────────────────────────
+
+app.get('/api/check-availability/:eventoId/:estacaoNome', async (req, res) => {
+    try {
+        const { eventoId, estacaoNome } = req.params;
+        const nome = decodeURIComponent(estacaoNome);
+
+        const { data: evento, error } = await supabase
+            .from('eventos')
+            .select('estacoes')
+            .eq('id', eventoId)
+            .single();
+
+        if (error) return res.status(404).json({ error: 'Evento não encontrado' });
+
+        const estacao = (evento.estacoes || []).find(e => e.nome === nome);
+        if (!estacao) return res.status(404).json({ error: 'Estação não encontrada' });
+
+        res.json({
+            disponivel: estacao.quantidade > 0,
+            quantidade: estacao.quantidade,
+            nome: estacao.nome,
+            preco: estacao.preco
+        });
+
+    } catch (err) {
+        console.error('❌ Erro ao verificar disponibilidade:', err);
+        res.status(500).json({ error: err.message });
+    }
+});
+
+// ── Validar ticket ─────────────────────────────────────────────────────────
+
+app.post('/api/validate-ticket', async (req, res) => {
+    try {
+        const { codigo } = req.body;
+        if (!codigo) return res.status(400).json({ error: 'Código do ticket é obrigatório' });
+
+        const { data: ticket, error } = await supabase
+            .from('tickets')
+            .select('*, pedidos(*)')
+            .eq('codigo', codigo.toUpperCase())
+            .single();
+
+        if (error || !ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
+
+        if (ticket.utilizado) {
+            return res.status(400).json({
+                error: 'Ticket já utilizado',
+                utilizado_em: ticket.utilizado_em
+            });
+        }
+
+        const { error: updateError } = await supabase
+            .from('tickets')
+            .update({ utilizado: true, utilizado_em: new Date().toISOString() })
+            .eq('id', ticket.id);
+
+        if (updateError) return res.status(500).json({ error: 'Erro ao validar ticket' });
+
+        res.json({
+            success: true,
+            message: 'Ticket validado com sucesso!',
+            ticket: {
+                codigo: ticket.codigo,
+                evento_id: ticket.pedidos?.evento_id,
+                estacao: ticket.pedidos?.estacao_nome
+            }
+        });
+
+    } catch (err) {
+        console.error('❌ Erro ao validar ticket:', err);
         res.status(500).json({ error: err.message });
     }
 });
@@ -352,82 +414,6 @@ async function handleStripeWebhook(req, res) {
 
     res.json({ received: true });
 }
-
-// ── Verificar disponibilidade ──────────────────────────────────────────────
-
-app.get('/api/check-availability/:eventoId/:estacaoNome', async (req, res) => {
-    try {
-        const { eventoId, estacaoNome } = req.params;
-        const nome = decodeURIComponent(estacaoNome);
-
-        const { data: evento, error } = await supabase
-            .from('eventos')
-            .select('estacoes')
-            .eq('id', eventoId)
-            .single();
-
-        if (error) return res.status(404).json({ error: 'Evento não encontrado' });
-
-        const estacao = (evento.estacoes || []).find(e => e.nome === nome);
-        if (!estacao) return res.status(404).json({ error: 'Estação não encontrada' });
-
-        res.json({
-            disponivel: estacao.quantidade > 0,
-            quantidade: estacao.quantidade,
-            nome: estacao.nome,
-            preco: estacao.preco
-        });
-
-    } catch (err) {
-        console.error('❌ Erro ao verificar disponibilidade:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
-
-// ── Validar ticket ─────────────────────────────────────────────────────────
-
-app.post('/api/validate-ticket', async (req, res) => {
-    try {
-        const { codigo } = req.body;
-        if (!codigo) return res.status(400).json({ error: 'Código do ticket é obrigatório' });
-
-        const { data: ticket, error } = await supabase
-            .from('tickets')
-            .select('*, pedidos(*)')
-            .eq('codigo', codigo.toUpperCase())
-            .single();
-
-        if (error || !ticket) return res.status(404).json({ error: 'Ticket não encontrado' });
-
-        if (ticket.utilizado) {
-            return res.status(400).json({
-                error: 'Ticket já utilizado',
-                utilizado_em: ticket.utilizado_em
-            });
-        }
-
-        const { error: updateError } = await supabase
-            .from('tickets')
-            .update({ utilizado: true, utilizado_em: new Date().toISOString() })
-            .eq('id', ticket.id);
-
-        if (updateError) return res.status(500).json({ error: 'Erro ao validar ticket' });
-
-        res.json({
-            success: true,
-            message: 'Ticket validado com sucesso!',
-            ticket: {
-                codigo: ticket.codigo,
-                evento_id: ticket.pedidos?.evento_id,
-                estacao: ticket.pedidos?.estacao_nome
-            }
-        });
-
-    } catch (err) {
-        console.error('❌ Erro ao validar ticket:', err);
-        res.status(500).json({ error: err.message });
-    }
-});
 
 // ── Start ──────────────────────────────────────────────────────────────────
 
