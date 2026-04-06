@@ -157,15 +157,15 @@ class NotificationService {
       // Em desenvolvimento, mostrar no console
       if (import.meta.env.DEV) {
         // console.log('📧 [DEV] Notificação:', {
-          para: nome,
-          email: email,
-          assunto: assunto,
-          titulo: notification.titulo,
-          mensagem: notification.mensagem
-        });
+        //   para: nome,
+        //   email: email,
+        //   assunto: assunto,
+        //   titulo: notification.titulo,
+        //   mensagem: notification.mensagem
+        // });
         
         // Mostrar alerta em desenvolvimento
-        alert(`🔔 NOVA NOTIFICAÇÃO (DEV)\n\nPara: ${nome}\nAssunto: ${assunto}\n\n${notification.titulo}\n${notification.mensagem}`);
+        // alert(`🔔 NOVA NOTIFICAÇÃO (DEV)\n\nPara: ${nome}\nAssunto: ${assunto}\n\n${notification.titulo}\n${notification.mensagem}`);
         
         return { success: true };
       }

@@ -337,7 +337,7 @@ export function EventDetailPage() {
         await navigator.share(shareData);
       } else {
         await navigator.clipboard.writeText(window.location.href);
-        alert("Link do evento copiado para a área de transferência!");
+        // alert("Link do evento copiado para a área de transferência!");
       }
     } catch (error) {
       console.error("Erro ao partilhar:", error);

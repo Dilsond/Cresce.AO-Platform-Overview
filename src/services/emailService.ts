@@ -43,7 +43,7 @@ class EmailService {
       if (!isConfigured) {
         // console.log('⚠️ EmailJS não configurado. Código gerado:', emailData.codigo);
         if (import.meta.env.DEV) {
-          alert(`🔐 CÓDIGO (DEV): ${emailData.codigo}\n\nEmailJS não configurado. Use este código para teste.`);
+          // alert(`🔐 CÓDIGO (DEV): ${emailData.codigo}\n\nEmailJS não configurado. Use este código para teste.`);
         }
         return { success: true };
       }

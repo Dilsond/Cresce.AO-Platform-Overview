@@ -209,7 +209,7 @@ export function ForgotPassword({ onBack, onSuccess, userType = 'usuario_normal' 
 
                 if (import.meta.env.DEV) {
                     // console.log('⚠️ MODO DESENVOLVIMENTO - Código:', codigoGerado);
-                    alert(`CÓDIGO (DEV): ${codigoGerado}\n\nO email não pôde ser enviado, mas aqui está seu código para teste.`);
+                    // alert(`CÓDIGO (DEV): ${codigoGerado}\n\nO email não pôde ser enviado, mas aqui está seu código para teste.`);
                 } else {
                     setError('Erro ao enviar email. Verifique se o endereço está correto ou tente novamente.');
                     setIsLoading(false);
