@@ -1,19 +1,46 @@
-
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
-import { copyFileSync } from 'fs';
+import fs from 'fs';
 
 export default defineConfig({
-  plugins: [react(), {
-    name: 'copy-fatura',
-    writeBundle() {
-      copyFileSync('public/fatura.html', 'dist/fatura.html');
+  plugins: [
+    react(),
+    {
+      name: 'copy-fatura',
+      writeBundle() {
+        const src = path.resolve(__dirname, 'public/fatura.html');
+        const dest = path.resolve(__dirname, 'dist/fatura.html');
+
+        // Verificar se o arquivo existe antes de copiar
+        if (!fs.existsSync(src)) {
+          console.warn('⚠️ public/fatura.html não encontrado. Pulando cópia.');
+          return;
+        }
+
+        try {
+          // Garantir que a pasta dist existe
+          if (!fs.existsSync(path.resolve(__dirname, 'dist'))) {
+            fs.mkdirSync(path.resolve(__dirname, 'dist'), { recursive: true });
+          }
+
+          fs.copyFileSync(src, dest);
+          console.log('✅ fatura.html copiado para dist/');
+        } catch (err) {
+          console.error('❌ Erro ao copiar fatura.html:', err);
+        }
+      },
     }
-  }],
+  ],
   resolve: {
     extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
     alias: {
+      '@': path.resolve(__dirname, './src'),
+      // Assets
+      'figma:asset/d48dbf308596a19f3efe4145eb156c4fa0bae765.png': path.resolve(__dirname, './src/assets/d48dbf308596a19f3efe4145eb156c4fa0bae765.png'),
+      'figma:asset/60c6c4feca86a0a2717d134942980a7a4f5c7e88.png': path.resolve(__dirname, './src/assets/60c6c4feca86a0a2717d134942980a7a4f5c7e88.png'),
+      'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png': path.resolve(__dirname, './src/assets/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png'),
+      // Bibliotecas - versões específicas
       'vaul@1.1.2': 'vaul',
       'sonner@2.0.3': 'sonner',
       'recharts@2.15.2': 'recharts',
@@ -23,12 +50,10 @@ export default defineConfig({
       'next-themes@0.4.6': 'next-themes',
       'lucide-react@0.487.0': 'lucide-react',
       'input-otp@1.4.2': 'input-otp',
-      'figma:asset/d48dbf308596a19f3efe4145eb156c4fa0bae765.png': path.resolve(__dirname, './src/assets/d48dbf308596a19f3efe4145eb156c4fa0bae765.png'),
-      'figma:asset/60c6c4feca86a0a2717d134942980a7a4f5c7e88.png': path.resolve(__dirname, './src/assets/60c6c4feca86a0a2717d134942980a7a4f5c7e88.png'),
-      'figma:asset/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png': path.resolve(__dirname, './src/assets/2b98f25257b1238c48d47c9236d12c5ed6e3cffe.png'),
       'embla-carousel-react@8.6.0': 'embla-carousel-react',
       'cmdk@1.1.1': 'cmdk',
       'class-variance-authority@0.7.1': 'class-variance-authority',
+      // Radix UI
       '@radix-ui/react-tooltip@1.1.8': '@radix-ui/react-tooltip',
       '@radix-ui/react-toggle@1.1.2': '@radix-ui/react-toggle',
       '@radix-ui/react-toggle-group@1.1.2': '@radix-ui/react-toggle-group',
@@ -55,17 +80,44 @@ export default defineConfig({
       '@radix-ui/react-aspect-ratio@1.1.2': '@radix-ui/react-aspect-ratio',
       '@radix-ui/react-alert-dialog@1.1.6': '@radix-ui/react-alert-dialog',
       '@radix-ui/react-accordion@1.2.3': '@radix-ui/react-accordion',
-      '@': path.resolve(__dirname, './src'),
     },
   },
   build: {
-    target: 'esnext',
+    target: 'es2015', // Melhor compatibilidade com navegadores antigos
     outDir: 'dist',
+    assetsDir: 'assets',
+    sourcemap: false,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: false,
+        drop_debugger: true
+      }
+    },
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          supabase: ['@supabase/supabase-js'],
+          icons: ['lucide-react'],
+          motion: ['motion']
+        }
+      }
+    }
   },
   server: {
     port: 3000,
     open: true,
-    allowedHosts: true,
+    host: true,
     hmr: true
   },
+  optimizeDeps: {
+    include: ['react', 'react-dom', 'react-router-dom', '@supabase/supabase-js']
+  },
+  esbuild: {
+    target: 'es2015',
+    supported: {
+      'top-level-await': true
+    }
+  }
 });

@@ -1,5 +1,5 @@
 [build]
-  command = "npm ci && node node_modules/vite/bin/vite.js build"
+  command = "npm ci && npm run build"
   publish = "dist"
   functions = "netlify/functions"
 
@@ -10,12 +10,11 @@
   NODE_VERSION = "20"
   NPM_VERSION = "10"
 
-# Redirecionar chamadas /api/* para a Netlify Function
 [[redirects]]
-  from   = "/api/*"
-  to     = "/.netlify/functions/api/:splat"
+  from = "/api/*"
+  to = "/.netlify/functions/api/:splat"
   status = 200
-  
+
 [[redirects]]
   from = "/*"
   to = "/index.html"
