@@ -16,11 +16,20 @@ interface BuyTicketModalProps {
   eventoNome: string;
   estacoes: Estacao[];
   usuario: { id: string; name: string; email: string } | null;
-  /** Chamado após compra para a página pai recarregar o evento */
   onCompraRealizada?: () => void;
 }
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3002';
+// Função para obter a URL correta da API
+const getApiUrl = () => {
+  // Em produção no Netlify
+  if (import.meta.env.PROD) {
+    return '/.netlify/functions/api';
+  }
+  // Em desenvolvimento
+  return import.meta.env.VITE_API_URL || 'http://localhost:3002';
+};
+
+const API_URL = getApiUrl();
 
 export function BuyTicketModal({
   isOpen,
@@ -36,12 +45,9 @@ export function BuyTicketModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-
-  // Cópia local das estações para atualização otimista
   const [estacoes, setEstacoes] = useState<Estacao[]>(estacoesIniciais);
 
-  // Sincronizar quando o pai passar novas estações (ex: após refetch)
-  // Só atualiza se não houver uma seleção em curso
+  // Sincronizar quando o pai passar novas estações
   if (!isLoading && !success && JSON.stringify(estacoesIniciais) !== JSON.stringify(estacoes) && !selectedEstacao) {
     setEstacoes(estacoesIniciais);
   }
@@ -67,15 +73,16 @@ export function BuyTicketModal({
 
     try {
       // ── 1. Verificar disponibilidade real antes de pagar ────────────────
-      const availRes = await fetch(
-        `${API_URL}/api/check-availability/${eventoId}/${encodeURIComponent(selectedEstacao.nome)}`
-      ).catch(() => null);
+      // CORRIGIDO: Não adicionar /api extra
+      const checkUrl = `${API_URL}/check-availability/${eventoId}/${encodeURIComponent(selectedEstacao.nome)}`;
+      console.log('🔍 Verificando disponibilidade:', checkUrl);
+      
+      const availRes = await fetch(checkUrl).catch(() => null);
 
       if (availRes?.ok) {
         const avail = await availRes.json();
         if (!avail.disponivel || avail.quantidade < quantidade) {
           setError(`Apenas ${avail.quantidade} ingresso(s) disponível(is) agora. Atualize a página.`);
-          // Atualizar estado local com dados reais
           setEstacoes(prev =>
             prev.map(e => e.nome === selectedEstacao.nome ? { ...e, quantidade: avail.quantidade } : e)
           );
@@ -85,7 +92,11 @@ export function BuyTicketModal({
       }
 
       // ── 2. Criar sessão de checkout ─────────────────────────────────────
-      const res = await fetch(`${API_URL}/api/create-checkout-session`, {
+      // CORRIGIDO: Não adicionar /api extra
+      const createUrl = `${API_URL}/create-checkout-session`;
+      console.log('💰 Criando sessão de checkout:', createUrl);
+      
+      const res = await fetch(createUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
         body: JSON.stringify({
@@ -106,7 +117,6 @@ export function BuyTicketModal({
       }
 
       // ── 3. Atualização otimista local ───────────────────────────────────
-      // O webhook vai reduzir no servidor, mas já mostramos ao utilizador
       setEstacoes(prev =>
         prev.map(e =>
           e.nome === selectedEstacao.nome
@@ -119,13 +129,11 @@ export function BuyTicketModal({
 
       // ── 4. Abrir Stripe Checkout ────────────────────────────────────────
       if (data.url) {
-        // Pequeno delay para o utilizador ver a mensagem de sucesso
         setTimeout(() => {
-          window.location.href = data.url; // Redirecionar na mesma aba (melhor UX)
+          window.location.href = data.url;
         }, 800);
       }
 
-      // ── 5. Notificar a página pai para refetch ──────────────────────────
       onCompraRealizada?.();
 
     } catch (err: any) {
@@ -142,7 +150,7 @@ export function BuyTicketModal({
   };
 
   const handleClose = () => {
-    if (isLoading) return; // Não fechar enquanto processa
+    if (isLoading) return;
     setSelectedEstacao(null);
     setQuantidade(1);
     setError(null);
