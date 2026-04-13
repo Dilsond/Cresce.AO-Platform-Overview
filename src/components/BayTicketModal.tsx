@@ -73,7 +73,6 @@ export function BuyTicketModal({
 
     try {
       // ── 1. Verificar disponibilidade real antes de pagar ────────────────
-      // CORRIGIDO: Não adicionar /api extra
       const checkUrl = `${API_URL}/check-availability/${eventoId}/${encodeURIComponent(selectedEstacao.nome)}`;
       console.log('🔍 Verificando disponibilidade:', checkUrl);
       
@@ -92,7 +91,6 @@ export function BuyTicketModal({
       }
 
       // ── 2. Criar sessão de checkout ─────────────────────────────────────
-      // CORRIGIDO: Não adicionar /api extra
       const createUrl = `${API_URL}/create-checkout-session`;
       console.log('💰 Criando sessão de checkout:', createUrl);
       
@@ -129,6 +127,7 @@ export function BuyTicketModal({
 
       // ── 4. Abrir Stripe Checkout ────────────────────────────────────────
       if (data.url) {
+        console.log('🔄 Redirecionando para Stripe:', data.url);
         setTimeout(() => {
           window.location.href = data.url;
         }, 800);

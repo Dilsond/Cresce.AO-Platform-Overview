@@ -48,7 +48,7 @@ export const handler = async (event) => {
     const evento_id = queryStringParameters?.evento_id || '';
     const estacao_nome = queryStringParameters?.estacao_nome || '';
     const quantidade = queryStringParameters?.quantidade || '1';
-    
+
     // HTML da fatura (será servido como string)
     const faturaHTML = `
 <!DOCTYPE html>
@@ -200,7 +200,7 @@ export const handler = async (event) => {
 </body>
 </html>
     `;
-    
+
     return html(200, faturaHTML);
   }
 
@@ -209,31 +209,31 @@ export const handler = async (event) => {
     try {
       const session_id = queryStringParameters?.session_id;
       const evento_id = queryStringParameters?.evento_id;
-      
+
       if (!session_id) {
         return json(400, { error: 'session_id é obrigatório' });
       }
-      
+
       // Buscar sessão no Stripe
       const session = await stripe.checkout.sessions.retrieve(session_id, {
         expand: ['line_items', 'customer_details']
       });
-      
+
       const meta = session.metadata || {};
       const lineItem = session.line_items?.data?.[0];
       const qty = lineItem?.quantity || Number(meta.quantidade) || 1;
       const total = (session.amount_total || 0) / 100;
       const unitPrice = total / qty;
-      
+
       // Buscar pedido no Supabase para obter o código do ticket
       let ticketCode = `${(meta.evento_id || evento_id || 'EVT').substring(0, 8)}-${session.id.substring(3, 11)}`.toUpperCase();
-      
+
       const { data: pedido } = await supabase
         .from('pedidos')
         .select('id')
         .eq('stripe_session_id', session_id)
         .single();
-      
+
       if (pedido) {
         const { data: ticket } = await supabase
           .from('tickets')
@@ -241,12 +241,12 @@ export const handler = async (event) => {
           .eq('pedido_id', pedido.id)
           .limit(1)
           .single();
-        
+
         if (ticket) {
           ticketCode = ticket.codigo;
         }
       }
-      
+
       return json(200, {
         session_id: session.id,
         evento_id: meta.evento_id || evento_id || '',
@@ -259,7 +259,7 @@ export const handler = async (event) => {
         created: session.created,
         ticket_code: ticketCode
       });
-      
+
     } catch (err) {
       console.error('Erro ao buscar dados da fatura:', err);
       return json(500, { error: err.message });
@@ -270,7 +270,7 @@ export const handler = async (event) => {
   if (httpMethod === 'GET' && cleanPath.startsWith('/check-availability/')) {
     try {
       const parts = cleanPath.split('/').filter(Boolean);
-      const eventoId    = parts[1];
+      const eventoId = parts[1];
       const estacaoNome = decodeURIComponent(parts[2] || '');
 
       const { data: evento, error } = await supabase
@@ -323,6 +323,8 @@ export const handler = async (event) => {
       if (pedidoError) return json(500, { error: pedidoError.message });
 
       const baseUrl = process.env.URL || 'https://cresce-ao.netlify.app';
+      const frontendUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
+
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
         line_items: [{
@@ -335,13 +337,14 @@ export const handler = async (event) => {
         }],
         mode: 'payment',
         customer_email: usuario_email,
-        success_url: `${baseUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
-        cancel_url:  `${baseUrl}/event/${evento_id}`,
+        // CORRIGIDO: Usar a URL da fatura no Netlify
+        success_url: `${frontendUrl}/fatura?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
+        cancel_url: `${frontendUrl}/event/${evento_id}?payment_cancelled=true`,
         metadata: {
-          pedido_id:    pedidoId,
+          pedido_id: pedidoId,
           evento_id,
           estacao_nome,
-          quantidade:   String(quantidade),
+          quantidade: String(quantidade),
           usuario_id,
         },
       });
@@ -359,7 +362,7 @@ export const handler = async (event) => {
 
   // ── POST /stripe-webhook ────────────────────────────────────────────────────
   if (httpMethod === 'POST' && cleanPath === '/stripe-webhook') {
-    const sig           = headers['stripe-signature'];
+    const sig = headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     let stripeEvent;
@@ -371,13 +374,13 @@ export const handler = async (event) => {
 
     if (stripeEvent.type === 'checkout.session.completed') {
       const session = stripeEvent.data.object;
-      const meta    = session.metadata || {};
+      const meta = session.metadata || {};
 
       await supabase.from('pedidos').update({
         status: 'pago',
         stripe_payment_intent_id: session.payment_intent,
-        pagamento_confirmado_em:  new Date().toISOString(),
-        updated_at:               new Date().toISOString(),
+        pagamento_confirmado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }).eq('stripe_session_id', session.id);
 
       const { data: ev } = await supabase
@@ -419,7 +422,7 @@ export const handler = async (event) => {
         .from('tickets').select('*').eq('codigo', codigo).single();
 
       if (error || !ticket) return json(404, { valido: false, mensagem: 'Ticket não encontrado' });
-      if (ticket.utilizado)  return json(200, { valido: false, mensagem: 'Ticket já utilizado' });
+      if (ticket.utilizado) return json(200, { valido: false, mensagem: 'Ticket já utilizado' });
 
       await supabase.from('tickets')
         .update({ utilizado: true, utilizado_em: new Date().toISOString() })
