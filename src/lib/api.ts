@@ -1,6 +1,14 @@
-const API_URL = import.meta.env.PROD 
-  ? '/.netlify/functions/api'
-  : 'http://localhost:3002';
+// Determinar a URL da API baseado no ambiente
+const getApiUrl = () => {
+  // Em produção no Netlify, usar as functions
+  if (import.meta.env.PROD) {
+    return '/.netlify/functions/api';
+  }
+  // Em desenvolvimento, usar o servidor local
+  return import.meta.env.VITE_API_URL || 'http://localhost:3002';
+};
+
+export const API_URL = getApiUrl();
 
 export const api = {
   createCheckoutSession: async (data: any) => {
@@ -23,6 +31,11 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codigo })
     });
+    return response.json();
+  },
+  
+  getHealth: async () => {
+    const response = await fetch(`${API_URL}/health`);
     return response.json();
   }
 };
