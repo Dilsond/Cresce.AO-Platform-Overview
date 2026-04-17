@@ -51,10 +51,10 @@ export const handler = async (event) => {
   if (httpMethod === 'GET' && cleanPath === '/payment-success') {
     const session_id = queryStringParameters?.session_id || '';
     const evento_id = queryStringParameters?.evento_id || '';
-    
+
     // Redirecionar para a fatura com os parâmetros
     const frontendUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
-    
+
     return {
       statusCode: 302,
       headers: {
@@ -71,14 +71,14 @@ export const handler = async (event) => {
       // Tentar ler o arquivo da pasta dist
       const filePath = path.resolve(process.cwd(), 'dist/fatura.html');
       let htmlContent;
-      
+
       try {
         htmlContent = fs.readFileSync(filePath, 'utf-8');
       } catch {
         // Fallback: HTML inline
         htmlContent = getFaturaHTML();
       }
-      
+
       return html(200, htmlContent);
     } catch (err) {
       console.error('Erro ao servir fatura:', err);
@@ -107,10 +107,19 @@ export const handler = async (event) => {
   }
 
   // ── POST /create-checkout-session ─────────────────────────────────────────
+  // netlify/functions/api.js - parte do create-checkout-session
   if (httpMethod === 'POST' && cleanPath === '/create-checkout-session') {
     try {
       const data = JSON.parse(body || '{}');
-      const { evento_id, itens, usuario_id, usuario_email, valor_total, line_items } = data;
+      const {
+        evento_id,
+        itens,
+        usuario_id,
+        usuario_email,
+        usuario_nome,    // <-- PEGAR O NOME DO USUÁRIO
+        valor_total,
+        line_items
+      } = data;
 
       if (!evento_id || !itens?.length || !usuario_id) {
         return json(400, { error: 'Dados incompletos' });
@@ -128,7 +137,7 @@ export const handler = async (event) => {
         }
       }
 
-      // Criar pedido
+      // Criar pedido - INCLUIR usuario_nome e usuario_email
       const pedidoId = crypto.randomUUID();
       const totalFinal = valor_total || itens.reduce((s, i) => s + (i.preco * i.quantidade), 0);
 
@@ -136,6 +145,8 @@ export const handler = async (event) => {
         id: pedidoId,
         evento_id,
         usuario_id,
+        usuario_nome: usuario_nome || '',      // <-- ADICIONAR CAMPO
+        usuario_email: usuario_email || '',    // <-- ADICIONAR CAMPO
         itens_json: JSON.stringify(itens),
         quantidade_total: itens.reduce((s, i) => s + i.quantidade, 0),
         valor_total: totalFinal,
@@ -143,7 +154,11 @@ export const handler = async (event) => {
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });
-      if (pedidoError) return json(500, { error: pedidoError.message });
+
+      if (pedidoError) {
+        console.error('Erro ao criar pedido:', pedidoError);
+        return json(500, { error: pedidoError.message });
+      }
 
       // Line items para o Stripe
       const stripeLineItems = line_items || itens.map(item => ({
@@ -167,6 +182,8 @@ export const handler = async (event) => {
           pedido_id: pedidoId,
           evento_id,
           usuario_id,
+          usuario_nome: usuario_nome || '',    // <-- ADICIONAR METADATA
+          usuario_email: usuario_email || '',  // <-- ADICIONAR METADATA
           itens_json: JSON.stringify(itens),
         },
       });
@@ -198,19 +215,29 @@ export const handler = async (event) => {
       const session = stripeEvent.data.object;
       const meta = session.metadata || {};
 
-      await supabase.from('pedidos').update({
+      // Atualizar pedido com os dados do Stripe
+      const { error: updateError } = await supabase.from('pedidos').update({
         status: 'pago',
         stripe_payment_intent_id: session.payment_intent,
         pagamento_confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString(),
+        // Garantir que os dados do usuário estão salvos
+        usuario_nome: meta.usuario_nome || session.customer_details?.name || '',
+        usuario_email: meta.usuario_email || session.customer_details?.email || '',
       }).eq('stripe_session_id', session.id);
+
+      if (updateError) {
+        console.error('Erro ao atualizar pedido:', updateError);
+      }
 
       // Processar itens
       let itemsToProcess = [];
       try {
         itemsToProcess = JSON.parse(meta.itens_json || '[]');
       } catch {
-        itemsToProcess = [{ estacao_nome: meta.estacao_nome, quantidade: parseInt(meta.quantidade || '1') }];
+        if (meta.estacao_nome) {
+          itemsToProcess = [{ estacao_nome: meta.estacao_nome, quantidade: parseInt(meta.quantidade || '1') }];
+        }
       }
 
       if (itemsToProcess.length > 0) {
@@ -259,11 +286,10 @@ export const handler = async (event) => {
   if (httpMethod === 'GET' && cleanPath === '/invoice-data') {
     try {
       const session_id = queryStringParameters?.session_id;
-      const evento_id = queryStringParameters?.evento_id;
 
       if (!session_id) return json(400, { error: 'session_id obrigatório' });
 
-      // Buscar pedido
+      // Buscar pedido pelo stripe_session_id
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
         .select('*')
@@ -271,8 +297,15 @@ export const handler = async (event) => {
         .single();
 
       if (pedidoError || !pedido) {
+        console.error('Pedido não encontrado:', pedidoError);
         return json(404, { error: 'Pedido não encontrado' });
       }
+
+      console.log('📦 Pedido encontrado:', {
+        id: pedido.id,
+        usuario_nome: pedido.usuario_nome,
+        usuario_email: pedido.usuario_email
+      });
 
       // Buscar evento
       const { data: evento } = await supabase
@@ -292,7 +325,7 @@ export const handler = async (event) => {
       try {
         itens = JSON.parse(pedido.itens_json || '[]');
       } catch {
-        itens = [{ estacao_nome: pedido.estacao_nome || 'Ingresso', quantidade: pedido.quantidade || 1 }];
+        itens = [{ estacao_nome: 'Ingresso', quantidade: pedido.quantidade_total || 1, preco: pedido.valor_total / (pedido.quantidade_total || 1) }];
       }
 
       return json(200, {
