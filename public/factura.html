@@ -5,168 +5,431 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Fatura — Cresce.AO</title>
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+    <link rel="shortcut icon" href="./logo.png" type="image/x-icon">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        :root { --orange: #F15A2B; --orange-light: #FF7A4D; --dark: #0F0D0B; --ink: #1C1917; --muted: #78716C; --line: #E7E5E4; --bg: #FAFAF9; --white: #FFFFFF; --success: #16A34A; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: translateY(0); } }
-        body { font-family: 'Syne', sans-serif; background: var(--bg); color: var(--ink); min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 40px 16px 80px; }
-        .badge-wrap { animation: fadeUp 0.5s ease both; margin-bottom: 32px; }
-        .badge { display: inline-flex; align-items: center; gap: 8px; background: #DCFCE7; color: var(--success); border: 1px solid #BBF7D0; border-radius: 999px; padding: 8px 20px; font-size: 13px; font-weight: 600; }
-        .badge svg { width: 16px; height: 16px; }
-        .card { width: 100%; max-width: 640px; background: var(--white); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; animation: fadeUp 0.5s ease 0.1s both; box-shadow: 0 4px 40px rgba(0,0,0,.06); }
-        .card-header { background: var(--dark); padding: 32px 40px; display: flex; align-items: center; justify-content: space-between; }
-        .logo-name { color: #fff; font-size: 18px; font-weight: 700; }
-        .invoice-num { font-family: 'DM Mono', monospace; color: rgba(255,255,255,.5); font-size: 12px; text-align: right; }
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        :root {
+            --orange: #F15A2B; --orange-light: #FF7A4D;
+            --dark: #0F0D0B; --ink: #1C1917; --muted: #78716C;
+            --line: #E7E5E4; --bg: #FAFAF9; --white: #FFFFFF; --success: #16A34A;
+        }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(24px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes dash { to { stroke-dashoffset: 0; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        body {
+            font-family: 'Syne', sans-serif;
+            background: var(--bg); color: var(--ink);
+            min-height: 100vh; display: flex; flex-direction: column;
+            align-items: center; padding: 40px 16px 80px;
+        }
+
+        /* LOADING STATE */
+        .loading-screen {
+            display: flex; flex-direction: column; align-items: center;
+            justify-content: center; gap: 16px; padding: 80px 0;
+        }
+        .spinner {
+            width: 40px; height: 40px;
+            border: 3px solid var(--line);
+            border-top-color: var(--orange);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        .loading-screen p { color: var(--muted); font-size: 14px; }
+
+        /* ERROR STATE */
+        .error-screen {
+            display: none; flex-direction: column; align-items: center;
+            gap: 12px; padding: 60px 0; text-align: center;
+        }
+        .error-screen .icon { font-size: 40px; }
+        .error-screen p { color: #dc2626; font-size: 14px; max-width: 320px; }
+        .error-screen .retry-btn {
+            margin-top: 8px; padding: 10px 24px;
+            background: var(--orange); color: #fff;
+            border: none; border-radius: 10px;
+            font-family: 'Syne', sans-serif; font-weight: 700;
+            font-size: 13px; cursor: pointer;
+        }
+
+        /* BADGE */
+        .badge-wrap { animation: fadeUp 0.5s ease both; margin-bottom: 32px; display: none; }
+        .badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            background: #DCFCE7; color: var(--success);
+            border: 1px solid #BBF7D0; border-radius: 999px;
+            padding: 8px 20px; font-size: 13px; font-weight: 600; letter-spacing: .04em;
+        }
+        .badge svg { width: 16px; height: 16px; stroke-dasharray: 50; stroke-dashoffset: 50; animation: dash 0.6s ease 0.4s forwards; }
+
+        /* CARD */
+        .card { width: 100%; max-width: 640px; background: var(--white); border: 1px solid var(--line); border-radius: 20px; overflow: hidden; animation: fadeUp 0.5s ease 0.1s both; box-shadow: 0 4px 40px rgba(0,0,0,.06); display: none; }
+
+        /* HEADER */
+        .card-header {
+            background: var(--dark); padding: 32px 40px;
+            display: flex; align-items: center; justify-content: space-between;
+            position: relative; overflow: hidden;
+        }
+        .card-header::before {
+            content: ''; position: absolute; right: -40px; top: -40px;
+            width: 200px; height: 200px; border-radius: 50%;
+            background: radial-gradient(circle, rgba(241,90,43,.25) 0%, transparent 70%);
+        }
+        .logo-name { color: #fff; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+        .invoice-num { font-family: 'DM Mono', monospace; color: rgba(255,255,255,.5); font-size: 12px; letter-spacing: .06em; text-align: right; }
         .invoice-num strong { display: block; color: rgba(255,255,255,.9); font-size: 14px; margin-top: 2px; }
+
+        /* BODY */
         .card-body { padding: 36px 40px; }
         .label { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+
+        /* META GRID */
         .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; padding-bottom: 28px; border-bottom: 1px solid var(--line); margin-bottom: 28px; }
         .meta-item .value { font-size: 15px; font-weight: 600; color: var(--ink); }
-        .event-box { background: #FFF7F4; border: 1px solid #FFD5C2; border-radius: 14px; padding: 20px 24px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px; }
+
+        /* EVENT BOX */
+        .event-box {
+            background: #FFF7F4; border: 1px solid #FFD5C2; border-radius: 14px;
+            padding: 20px 24px; margin-bottom: 28px; display: flex; align-items: center; gap: 16px;
+        }
         .event-icon { width: 44px; height: 44px; background: var(--orange); border-radius: 12px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
         .event-icon svg { width: 22px; height: 22px; color: #fff; }
-        .event-name { font-size: 17px; font-weight: 700; color: var(--ink); }
+        .event-name { font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.3; }
         .event-sub { font-size: 13px; color: var(--muted); margin-top: 3px; }
+
+        /* TABLE */
         .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
         .items-table thead th { font-family: 'DM Mono', monospace; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 400; padding: 0 0 10px; text-align: left; border-bottom: 1px solid var(--line); }
         .items-table thead th:last-child { text-align: right; }
         .items-table tbody td { padding: 14px 0; border-bottom: 1px solid var(--line); font-size: 14px; vertical-align: middle; }
         .items-table tbody td:last-child { text-align: right; font-weight: 600; }
         .item-name { font-weight: 600; color: var(--ink); }
+        .item-desc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+
+        /* TOTALS */
         .totals { margin-top: 4px; }
         .total-row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; color: var(--muted); }
         .total-row.final { border-top: 2px solid var(--ink); margin-top: 8px; padding-top: 16px; font-size: 20px; font-weight: 800; color: var(--ink); }
         .total-row.final span:last-child { color: var(--orange); }
+
+        /* STATUS */
         .status-row { display: flex; align-items: center; justify-content: space-between; margin-top: 28px; padding: 16px 20px; background: var(--bg); border-radius: 12px; border: 1px solid var(--line); }
-        .status-pill { display: inline-flex; align-items: center; gap: 6px; background: #DCFCE7; color: var(--success); border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700; }
+        .status-label { font-size: 13px; color: var(--muted); }
+        .status-pill { display: inline-flex; align-items: center; gap: 6px; background: #DCFCE7; color: var(--success); border-radius: 999px; padding: 5px 14px; font-size: 12px; font-weight: 700; letter-spacing: .04em; }
         .status-dot { width: 7px; height: 7px; background: var(--success); border-radius: 50%; }
-        .card-footer { background: var(--bg); border-top: 1px solid var(--line); padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+
+        /* TICKETS / QR */
+        .tickets-section { margin-top: 28px; }
+        .tickets-section .label { margin-bottom: 16px; }
+        .ticket-item {
+            border: 1.5px solid var(--line); border-radius: 14px;
+            padding: 20px 24px; margin-bottom: 12px;
+            display: flex; align-items: center; gap: 20px;
+        }
+        .ticket-item:last-child { margin-bottom: 0; }
+        .qr-box { padding: 10px; background: #fff; border: 1.5px solid var(--line); border-radius: 10px; flex-shrink: 0; }
+        .qr-box img { display: block; border-radius: 4px; width: 90px; height: 90px; }
+        .ticket-info { flex: 1; min-width: 0; }
+        .ticket-estacao { font-weight: 700; font-size: 15px; color: var(--ink); margin-bottom: 6px; }
+        .ticket-code { font-family: 'DM Mono', monospace; font-size: 11px; color: var(--muted); letter-spacing: .04em; word-break: break-all; }
+        .ticket-badge { display: inline-flex; align-items: center; gap: 5px; background: #DCFCE7; color: var(--success); border-radius: 999px; padding: 3px 10px; font-size: 11px; font-weight: 600; margin-top: 6px; }
+        .ticket-badge-dot { width: 5px; height: 5px; background: var(--success); border-radius: 50%; }
+
+        /* FOOTER */
+        .card-footer { background: var(--bg); border-top: 1px solid var(--line); padding: 24px 40px; display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
         .footer-note { font-size: 12px; color: var(--muted); line-height: 1.6; }
         .footer-note strong { color: var(--ink); }
-        .actions { max-width: 640px; width: 100%; display: flex; gap: 12px; margin-top: 24px; animation: fadeUp 0.5s ease 0.25s both; }
+
+        /* ACTIONS */
+        .actions { max-width: 640px; width: 100%; display: flex; gap: 12px; margin-top: 24px; animation: fadeUp 0.5s ease 0.25s both; display: none; }
         .btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 20px; border-radius: 12px; font-family: 'Syne', sans-serif; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all .15s ease; text-decoration: none; }
         .btn-primary { background: var(--orange); color: #fff; }
         .btn-primary:hover { background: var(--orange-light); transform: translateY(-1px); }
         .btn-secondary { background: var(--white); color: var(--ink); border: 1.5px solid var(--line); }
-        .qr-section { text-align: center; padding: 20px 0 4px; }
-        .qr-box { display: inline-block; padding: 12px; background: #fff; border: 1.5px solid var(--line); border-radius: 12px; margin-bottom: 8px; }
-        .qr-code-label { font-size: 11px; color: var(--muted); font-family: 'DM Mono', monospace; }
-        .loading { text-align: center; padding: 40px; color: var(--muted); }
-        .error { text-align: center; padding: 40px; color: #dc2626; }
+        .btn-secondary:hover { border-color: #ccc; transform: translateY(-1px); }
+        .btn svg { width: 16px; height: 16px; }
+
         @media (max-width: 520px) {
             .card-header, .card-body, .card-footer { padding-left: 24px; padding-right: 24px; }
             .meta-grid { grid-template-columns: 1fr; gap: 16px; }
             .actions { flex-direction: column; }
+            .ticket-item { flex-direction: column; align-items: flex-start; gap: 12px; }
         }
-        @media print { body { padding: 0; background: #fff; } .actions, .badge-wrap { display: none; } .card { box-shadow: none; border: none; } }
+        @media print {
+            body { padding: 0; background: #fff; }
+            .actions, .badge-wrap, .loading-screen, .error-screen { display: none !important; }
+            .card { box-shadow: none; border: none; }
+        }
     </style>
 </head>
 <body>
-    <div class="badge-wrap"><div class="badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>Pagamento confirmado</div></div>
-    <div class="card">
-        <div class="card-header"><div class="logo-mark"><span class="logo-name">Cresce.AO</span></div><div class="invoice-num">FATURA<strong id="invoiceNumber">—</strong></div></div>
+
+    <!-- LOADING -->
+    <div class="loading-screen" id="loadingScreen">
+        <div class="spinner"></div>
+        <p>A carregar a tua fatura…</p>
+    </div>
+
+    <!-- ERROR -->
+    <div class="error-screen" id="errorScreen">
+        <div class="icon">❌</div>
+        <p id="errorMsg">Erro ao carregar a fatura.</p>
+        <button class="retry-btn" onclick="loadInvoice()">Tentar novamente</button>
+    </div>
+
+    <!-- BADGE -->
+    <div class="badge-wrap" id="badgeWrap">
+        <div class="badge">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+            Pagamento confirmado
+        </div>
+    </div>
+
+    <!-- CARD -->
+    <div class="card" id="invoiceCard">
+
+        <div class="card-header">
+            <div class="logo-name">Cresce.AO</div>
+            <div class="invoice-num">FATURA<strong id="invoiceNumber">—</strong></div>
+        </div>
+
         <div class="card-body">
-            <div id="invoiceContent">
-                <div class="loading">Carregando informações da fatura...</div>
+
+            <div class="meta-grid">
+                <div class="meta-item"><div class="label">Comprador</div><div class="value" id="userName">—</div></div>
+                <div class="meta-item"><div class="label">Email</div><div class="value" id="userEmail" style="font-size:13px;word-break:break-all;">—</div></div>
+                <div class="meta-item"><div class="label">Data</div><div class="value" id="invoiceDate">—</div></div>
+                <div class="meta-item"><div class="label">Método de Pagamento</div><div class="value">Cartão de Crédito</div></div>
+            </div>
+
+            <div class="event-box">
+                <div class="event-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="16" y1="2" x2="16" y2="6"></line>
+                        <line x1="8" y1="2" x2="8" y2="6"></line>
+                        <line x1="3" y1="10" x2="21" y2="10"></line>
+                    </svg>
+                </div>
+                <div>
+                    <div class="event-name" id="eventName">—</div>
+                    <div class="event-sub" id="eventSub">—</div>
+                </div>
+            </div>
+
+            <table class="items-table">
+                <thead>
+                    <tr>
+                        <th>Descrição</th><th>Qtd.</th><th>Unit.</th><th>Total</th>
+                    </tr>
+                </thead>
+                <tbody id="lineItems"></tbody>
+            </table>
+
+            <div class="totals">
+                <div class="total-row"><span>Subtotal</span><span id="subtotal">—</span></div>
+                <div class="total-row"><span>Taxa de processamento</span><span>0 Kz</span></div>
+                <div class="total-row final"><span>Total Pago</span><span id="totalPaid">—</span></div>
+            </div>
+
+            <div class="status-row">
+                <span class="status-label">Estado do pagamento</span>
+                <span class="status-pill"><span class="status-dot"></span>PAGO</span>
+            </div>
+
+            <!-- TICKETS COM QR -->
+            <div class="tickets-section" id="ticketsSection" style="display:none;">
+                <div class="label" style="margin-bottom:16px;">Os teus ingressos</div>
+                <div id="ticketsList"></div>
+            </div>
+
+        </div>
+
+        <div class="card-footer">
+            <div class="footer-note">
+                <strong>Cresce.AO</strong><br>
+                Este documento serve como comprovativo oficial de compra.<br>
+                Guarda este ingresso para apresentar no evento.
+            </div>
+            <div class="footer-note" style="text-align:right;">
+                <strong id="sessionIdEl" style="font-family:'DM Mono',monospace;font-size:11px;">—</strong><br>
+                Powered by Stripe
             </div>
         </div>
-        <div class="card-footer"><div class="footer-note"><strong>Cresce.AO</strong><br>Este documento serve como comprovativo oficial de compra.<br>Guarda este ingresso para apresentar no evento.</div><div class="footer-note" style="text-align:right;"><strong id="sessionId">—</strong><br>Powered by Stripe</div></div>
+
     </div>
-    <div class="actions"><button class="btn btn-primary" onclick="window.print()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>Imprimir / Salvar PDF</button><a class="btn btn-secondary" id="backBtn" href="/"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>Voltar ao Evento</a></div>
+
+    <!-- ACTIONS -->
+    <div class="actions" id="actionsBar">
+        <button class="btn btn-primary" onclick="window.print()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="6 9 6 2 18 2 18 9"></polyline>
+                <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path>
+                <rect x="6" y="14" width="12" height="8"></rect>
+            </svg>
+            Imprimir / Salvar PDF
+        </button>
+        <a class="btn btn-secondary" id="backBtn" href="/">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"></line>
+                <polyline points="12 19 5 12 12 5"></polyline>
+            </svg>
+            Voltar ao Evento
+        </a>
+    </div>
+
     <script>
-        const API_URL = window.location.origin + '/.netlify/functions/api';
-        const params = new URLSearchParams(window.location.search);
+        // ── API URL — detecta automaticamente ambiente ──────────────────────────
+        const API_URL = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? (window.location.port === '3002' ? 'http://localhost:3002' : 'http://localhost:3002')
+            : window.location.origin + '/.netlify/functions/api';
+
+        const params    = new URLSearchParams(window.location.search);
         const sessionId = params.get('session_id') || '';
-        const eventoId = params.get('evento_id') || '';
-        
-        console.log('🔍 API_URL:', API_URL);
-        console.log('🔍 sessionId:', sessionId);
-        
-        function fmt(value) { return Number(value).toLocaleString('pt-AO') + ' Kz'; }
-        function fmtDate(ts) { const d = ts ? new Date(ts * 1000) : new Date(); return d.toLocaleDateString('pt-PT', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
-        function drawSimpleQR(canvas, text) { 
-            const img = new Image(); 
-            img.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(text)}&bgcolor=ffffff&color=0f0d0b&margin=4`; 
-            img.onload = () => { canvas.getContext('2d').drawImage(img, 0, 0, 120, 120); }; 
-            img.onerror = () => { 
-                const ctx = canvas.getContext('2d'); 
-                ctx.fillStyle = '#f5f5f4'; 
-                ctx.fillRect(0, 0, 120, 120); 
-                ctx.fillStyle = '#78716c'; 
-                ctx.font = '10px monospace'; 
-                ctx.textAlign = 'center'; 
-                ctx.fillText('QR indisponível', 60, 65); 
-            }; 
+        const eventoId  = params.get('evento_id')  || '';
+
+        function fmt(v) { return Number(v).toLocaleString('pt-AO') + ' Kz'; }
+        function fmtDate(ts) {
+            const d = ts ? new Date(ts * 1000) : new Date();
+            return d.toLocaleDateString('pt-AO', { day:'2-digit', month:'long', year:'numeric', hour:'2-digit', minute:'2-digit' });
         }
-        
+        function qrUrl(code) {
+            return `https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(code)}&bgcolor=ffffff&color=0f0d0b&margin=4`;
+        }
+
+        function showError(msg) {
+            document.getElementById('loadingScreen').style.display = 'none';
+            const el = document.getElementById('errorScreen');
+            el.style.display = 'flex';
+            document.getElementById('errorMsg').textContent = msg;
+        }
+
+        function showInvoice() {
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('errorScreen').style.display = 'none';
+            document.getElementById('badgeWrap').style.display = 'block';
+            document.getElementById('invoiceCard').style.display = 'block';
+            document.getElementById('actionsBar').style.display = 'flex';
+        }
+
         function renderInvoice(d) {
-            const qty = d.quantidade || 1;
             const total = d.valor_total || 0;
-            const unitPrice = qty > 0 ? total / qty : total;
-            const code = d.ticket_code || d.session_id?.substring(0, 16) || '—';
             const invNum = 'INV-' + (d.session_id || Date.now()).toString().substring(3, 13).toUpperCase();
-            
-            const html = `
-                <div class="meta-grid">
-                    <div class="meta-item"><div class="label">Comprador</div><div class="value">${d.user_name || '—'}</div></div>
-                    <div class="meta-item"><div class="label">Email</div><div class="value" style="font-size:13px;">${d.user_email || '—'}</div></div>
-                    <div class="meta-item"><div class="label">Data</div><div class="value">${fmtDate(d.created)}</div></div>
-                    <div class="meta-item"><div class="label">Método de Pagamento</div><div class="value">Cartão de Crédito</div></div>
-                </div>
-                <div class="event-box">
-                    <div class="event-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg></div>
-                    <div><div class="event-name">${d.event_name || '—'}</div><div class="event-sub">ID: ${d.evento_id || '—'}</div></div>
-                </div>
-                <table class="items-table">
-                    <thead><tr><th>Descrição</th><th>Qtd.</th><th>Unit.</th><th>Total</th></tr></thead>
-                    <tbody><tr><td><div class="item-name">${d.ticket_type || 'Ingresso'}</div></td><td>${qty}x</td><td>${fmt(unitPrice)}</td><td>${fmt(total)}</td></tr></tbody>
-                </table>
-                <div class="totals">
-                    <div class="total-row"><span>Subtotal</span><span>${fmt(total)}</span></div>
-                    <div class="total-row"><span>Taxa de processamento</span><span>0 Kz</span></div>
-                    <div class="total-row final"><span>Total Pago</span><span>${fmt(total)}</span></div>
-                </div>
-                <div class="status-row"><span class="status-label">Estado do pagamento</span><span class="status-pill"><span class="status-dot"></span>PAGO</span></div>
-                <div class="qr-section" id="qrSection" style="${code && code !== '—' ? '' : 'display:none;'}">
-                    <div class="label">Código do Ingresso</div>
-                    <div class="qr-box"><canvas id="qrCanvas" width="120" height="120"></canvas></div>
-                    <div class="qr-code-label">${code}</div>
-                </div>
-            `;
-            
-            document.getElementById('invoiceContent').innerHTML = html;
+
             document.getElementById('invoiceNumber').textContent = invNum;
-            document.getElementById('sessionId').textContent = (d.session_id || '').substring(0, 28) + '...';
-            
-            const frontendUrl = window.location.origin;
-            document.getElementById('backBtn').href = d.evento_id ? `${frontendUrl}/event/${d.evento_id}` : frontendUrl;
-            
-            if (code && code !== '—') {
-                drawSimpleQR(document.getElementById('qrCanvas'), code);
+            document.getElementById('userName').textContent     = d.user_name  || '—';
+            document.getElementById('userEmail').textContent    = d.user_email || '—';
+            document.getElementById('invoiceDate').textContent  = fmtDate(d.created);
+            document.getElementById('eventName').textContent    = d.event_name || '—';
+            document.getElementById('eventSub').textContent     = 'ID: ' + (d.evento_id || '—');
+            document.getElementById('subtotal').textContent     = fmt(total);
+            document.getElementById('totalPaid').textContent    = fmt(total);
+            document.getElementById('sessionIdEl').textContent  = (d.session_id || '').substring(0, 30) + '…';
+
+            // Botão voltar
+            const frontendBase = window.location.origin.includes('localhost')
+                ? window.location.origin
+                : 'https://cresce-ao.netlify.app';
+            document.getElementById('backBtn').href = d.evento_id
+                ? `${frontendBase}/event/${d.evento_id}`
+                : frontendBase;
+
+            // Line items — suporta múltiplos itens (itens[]) ou item único
+            const tbody = document.getElementById('lineItems');
+            tbody.innerHTML = '';
+
+            const itens = d.itens && d.itens.length > 0
+                ? d.itens
+                : [{ estacao_nome: d.ticket_type || 'Ingresso', quantidade: d.quantidade || 1, preco: d.quantidade > 0 ? total / d.quantidade : total }];
+
+            itens.forEach(item => {
+                const unit = item.preco || (item.quantidade > 0 ? total / item.quantidade : total);
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td><div class="item-name">${item.estacao_nome}</div><div class="item-desc">Ingresso para o evento</div></td>
+                    <td>${item.quantidade}x</td>
+                    <td>${fmt(unit)}</td>
+                    <td>${fmt(unit * item.quantidade)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+
+            // Tickets com QR code
+            const tickets = d.tickets || [];
+            if (tickets.length > 0) {
+                document.getElementById('ticketsSection').style.display = 'block';
+                const list = document.getElementById('ticketsList');
+                list.innerHTML = '';
+
+                tickets.forEach(t => {
+                    const div = document.createElement('div');
+                    div.className = 'ticket-item';
+                    div.innerHTML = `
+                        <div class="qr-box">
+                            <img src="${qrUrl(t.codigo)}" alt="QR ${t.codigo}" loading="lazy" />
+                        </div>
+                        <div class="ticket-info">
+                            <div class="ticket-estacao">${t.estacao || 'Ingresso'}</div>
+                            <div class="ticket-code">${t.codigo}</div>
+                            <div class="ticket-badge"><span class="ticket-badge-dot"></span>Válido</div>
+                        </div>
+                    `;
+                    list.appendChild(div);
+                });
+            } else if (d.ticket_code && d.ticket_code !== '—') {
+                // Fallback: um único código
+                document.getElementById('ticketsSection').style.display = 'block';
+                document.getElementById('ticketsList').innerHTML = `
+                    <div class="ticket-item">
+                        <div class="qr-box">
+                            <img src="${qrUrl(d.ticket_code)}" alt="QR" loading="lazy" />
+                        </div>
+                        <div class="ticket-info">
+                            <div class="ticket-estacao">${d.ticket_type || 'Ingresso'}</div>
+                            <div class="ticket-code">${d.ticket_code}</div>
+                            <div class="ticket-badge"><span class="ticket-badge-dot"></span>Válido</div>
+                        </div>
+                    </div>
+                `;
             }
+
+            showInvoice();
         }
-        
+
         async function loadInvoice() {
+            document.getElementById('loadingScreen').style.display = 'flex';
+            document.getElementById('errorScreen').style.display  = 'none';
+            document.getElementById('invoiceCard').style.display  = 'none';
+            document.getElementById('actionsBar').style.display   = 'none';
+            document.getElementById('badgeWrap').style.display    = 'none';
+
             if (!sessionId) {
-                document.getElementById('invoiceContent').innerHTML = '<div class="error">❌ Sessão não encontrada</div>';
+                showError('Sessão não encontrada. Verifica o link e tenta novamente.');
                 return;
             }
-            
+
             try {
-                const url = `${API_URL}/invoice-data?session_id=${sessionId}&evento_id=${eventoId}`;
-                console.log('📡 Buscando dados:', url);
-                
+                const url = `${API_URL}/invoice-data?session_id=${encodeURIComponent(sessionId)}&evento_id=${encodeURIComponent(eventoId)}`;
+                console.log('📡 A buscar fatura em:', url);
+
                 const res = await fetch(url);
-                if (!res.ok) throw new Error(`HTTP ${res.status}`);
                 const data = await res.json();
-                console.log('📦 Dados:', data);
+
+                if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+                console.log('📦 Dados recebidos:', data);
                 renderInvoice(data);
+
             } catch (err) {
-                console.error('❌ Erro:', err);
-                document.getElementById('invoiceContent').innerHTML = `<div class="error">❌ Erro ao carregar fatura: ${err.message}</div>`;
+                console.error('❌ Erro ao carregar fatura:', err);
+                showError(`Não foi possível carregar a fatura: ${err.message}`);
             }
         }
-        
+
         loadInvoice();
     </script>
 </body>
