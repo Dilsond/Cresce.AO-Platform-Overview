@@ -39,9 +39,9 @@ export const handler = async (event) => {
   // ── GET /check-availability/:eventoId/:estacaoNome ────────────────────────
   if (httpMethod === 'GET' && cleanPath.startsWith('/check-availability/')) {
     try {
-      const parts    = cleanPath.split('/').filter(Boolean);
+      const parts = cleanPath.split('/').filter(Boolean);
       const eventoId = parts[1];
-      const estNome  = decodeURIComponent(parts[2] || '');
+      const estNome = decodeURIComponent(parts[2] || '');
 
       const { data: ev, error } = await supabase
         .from('eventos').select('estacoes').eq('id', eventoId).single();
@@ -95,20 +95,20 @@ export const handler = async (event) => {
       }
 
       // Criar pedido
-      const pedidoId   = crypto.randomUUID();
+      const pedidoId = crypto.randomUUID();
       const totalFinal = valor_total || itemsToProcess.reduce((s, i) => s + i.preco * i.quantidade, 0);
 
       const { error: pedidoError } = await supabase.from('pedidos').insert({
-        id:           pedidoId,
+        id: pedidoId,
         evento_id,
         usuario_id,
         estacao_nome: itemsToProcess.map(i => i.estacao_nome).join(', '),
-        quantidade:   itemsToProcess.reduce((s, i) => s + i.quantidade, 0),
-        valor_total:  totalFinal,
-        status:       'pendente',
-        itens_json:   JSON.stringify(itemsToProcess),
-        created_at:   new Date().toISOString(),
-        updated_at:   new Date().toISOString(),
+        quantidade: itemsToProcess.reduce((s, i) => s + i.quantidade, 0),
+        valor_total: totalFinal,
+        status: 'pendente',
+        itens_json: JSON.stringify(itemsToProcess),
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       });
       if (pedidoError) return json(500, { error: pedidoError.message });
 
@@ -125,13 +125,13 @@ export const handler = async (event) => {
       const baseUrl = process.env.URL || 'https://cresce-ao.netlify.app';
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
-        line_items:    lineItems,
-        mode:          'payment',
+        line_items: lineItems,
+        mode: 'payment',
         customer_email: usuario_email,
-        success_url:   `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url:    `${baseUrl}/event/${evento_id}`,
+        success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${baseUrl}/event/${evento_id}`,
         metadata: {
-          pedido_id:  pedidoId,
+          pedido_id: pedidoId,
           evento_id,
           usuario_id,
           itens_json: JSON.stringify(itemsToProcess),
@@ -151,7 +151,7 @@ export const handler = async (event) => {
 
   // ── POST /stripe-webhook ──────────────────────────────────────────────────
   if (httpMethod === 'POST' && cleanPath === '/stripe-webhook') {
-    const sig           = headers['stripe-signature'];
+    const sig = headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
 
     let stripeEvent;
@@ -163,13 +163,13 @@ export const handler = async (event) => {
 
     if (stripeEvent.type === 'checkout.session.completed') {
       const session = stripeEvent.data.object;
-      const meta    = session.metadata || {};
+      const meta = session.metadata || {};
 
       await supabase.from('pedidos').update({
-        status:                   'pago',
+        status: 'pago',
         stripe_payment_intent_id: session.payment_intent,
-        pagamento_confirmado_em:  new Date().toISOString(),
-        updated_at:               new Date().toISOString(),
+        pagamento_confirmado_em: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
       }).eq('stripe_session_id', session.id);
 
       // Processar itens
@@ -202,10 +202,10 @@ export const handler = async (event) => {
           for (let i = 0; i < item.quantidade; i++) {
             const codigo = `TKT_${meta.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`.toUpperCase();
             await supabase.from('tickets').insert({
-              pedido_id:  meta.pedido_id,
+              pedido_id: meta.pedido_id,
               codigo,
-              estacao:    item.estacao_nome,
-              utilizado:  false,
+              estacao: item.estacao_nome,
+              utilizado: false,
               created_at: new Date().toISOString(),
             });
           }
@@ -226,7 +226,7 @@ export const handler = async (event) => {
         .from('tickets').select('*').eq('codigo', codigo).single();
 
       if (error || !ticket) return json(404, { valido: false, mensagem: 'Ticket não encontrado' });
-      if (ticket.utilizado)  return json(200, { valido: false, mensagem: 'Ticket já utilizado' });
+      if (ticket.utilizado) return json(200, { valido: false, mensagem: 'Ticket já utilizado' });
 
       await supabase.from('tickets')
         .update({ utilizado: true, utilizado_em: new Date().toISOString() })
@@ -234,6 +234,67 @@ export const handler = async (event) => {
 
       return json(200, { valido: true, mensagem: 'Ticket válido e marcado como utilizado' });
     } catch (err) {
+      return json(500, { error: err.message });
+    }
+  }
+
+  // ── GET /invoice-data ─────────────────────────────────────────────────────
+  if (httpMethod === 'GET' && cleanPath.startsWith('/invoice-data')) {
+    try {
+      const urlParams = new URLSearchParams(cleanPath.split('?')[1] || '');
+      const session_id = urlParams.get('session_id');
+      const evento_id = urlParams.get('evento_id');
+
+      if (!session_id) return json(400, { error: 'session_id obrigatório' });
+
+      // Buscar pedido pelo stripe_session_id
+      const { data: pedido, error: pedidoError } = await supabase
+        .from('pedidos')
+        .select('*')
+        .eq('stripe_session_id', session_id)
+        .single();
+
+      if (pedidoError || !pedido) {
+        return json(404, { error: 'Pedido não encontrado' });
+      }
+
+      // Buscar evento
+      const { data: evento } = await supabase
+        .from('eventos')
+        .select('nome_evento, organizador_id')
+        .eq('id', pedido.evento_id)
+        .single();
+
+      // Buscar usuário
+      const { data: userData } = await supabase.auth.admin.getUserById(pedido.usuario_id);
+
+      // Buscar tickets do pedido
+      const { data: tickets } = await supabase
+        .from('tickets')
+        .select('codigo, estacao')
+        .eq('pedido_id', pedido.id);
+
+      // Parsear itens
+      let itens = [];
+      try { itens = JSON.parse(pedido.itens_json || '[]'); } catch { }
+
+      return json(200, {
+        session_id,
+        evento_id: pedido.evento_id,
+        event_name: evento?.nome_evento || '—',
+        user_name: userData?.user?.user_metadata?.name || userData?.user?.email || '—',
+        user_email: userData?.user?.email || pedido.usuario_email || '—',
+        ticket_type: pedido.estacao_nome || 'Ingresso',
+        quantidade: pedido.quantidade,
+        valor_total: pedido.valor_total,
+        status: pedido.status,
+        ticket_code: tickets?.[0]?.codigo || null,
+        tickets: tickets || [],
+        itens,
+        created: Math.floor(new Date(pedido.created_at).getTime() / 1000),
+      });
+    } catch (err) {
+      console.error('Erro invoice-data:', err);
       return json(500, { error: err.message });
     }
   }
