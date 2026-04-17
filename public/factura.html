@@ -420,8 +420,6 @@
                 const data = await res.json();
 
                 if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-
-                console.log('📦 Dados recebidos:', data);
                 renderInvoice(data);
 
             } catch (err) {
