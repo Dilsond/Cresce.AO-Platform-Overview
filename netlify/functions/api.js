@@ -11,24 +11,36 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
 );
 
-// Configuração do EmailJS para envio de ingressos
-const emailjsConfig = {
-  publicKey: process.env.VITE_EMAILJS_PUBLIC_KEY,
-  privateKey: process.env.EMAILJS_PRIVATE_KEY || process.env.VITE_EMAILJS_PUBLIC_KEY,
-  serviceId: process.env.VITE_EMAILJS_SERVICE_ID,
-  templateId: 'template_ticket', // Template para envio de ingressos
-};
+// Configuração do EmailJS para Node.js
+const EMAILJS_SERVICE_ID = process.env.VITE_EMAILJS_SERVICE_ID;
+const EMAILJS_TEMPLATE_TICKET_ID = 'template_ticket'; // Template para ingressos
+const EMAILJS_PUBLIC_KEY = process.env.VITE_EMAILJS_PUBLIC_KEY;
+const EMAILJS_PRIVATE_KEY = process.env.EMAILJS_PRIVATE_KEY || process.env.VITE_EMAILJS_PUBLIC_KEY;
 
-// Função para enviar email de ingresso via EmailJS
+// Função para enviar email de ingresso via EmailJS (Node.js)
 async function sendTicketEmail(toEmail, toName, eventId, eventName, eventDate, eventTime, eventLocation, ticketCode, ticketEstacao) {
+  console.log('📧 Iniciando envio de email para:', toEmail);
+  
+  // Formatar data
   const formattedDate = new Date(eventDate).toLocaleDateString('pt-PT', {
     day: '2-digit',
     month: 'long',
     year: 'numeric'
   });
   
-  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(ticketCode)}`;
+  // URL do QR Code
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(ticketCode)}`;
   const appUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
+  
+  // Verificar se as configurações estão presentes
+  if (!EMAILJS_SERVICE_ID || !EMAILJS_TEMPLATE_TICKET_ID || !EMAILJS_PUBLIC_KEY) {
+    console.error('❌ Configuração do EmailJS incompleta:', {
+      serviceId: !!EMAILJS_SERVICE_ID,
+      templateId: !!EMAILJS_TEMPLATE_TICKET_ID,
+      publicKey: !!EMAILJS_PUBLIC_KEY
+    });
+    return { success: false, error: 'EmailJS não configurado' };
+  }
   
   const templateParams = {
     to_email: toEmail,
@@ -45,26 +57,26 @@ async function sendTicketEmail(toEmail, toName, eventId, eventName, eventDate, e
     subject: `🎫 Seu ingresso para ${eventName} - Cresce.AO`,
   };
   
-  console.log('📧 Enviando email de ingresso para:', toEmail);
-  
   try {
+    console.log('📤 Enviando email via EmailJS...');
     const response = await emailjs.send(
-      emailjsConfig.serviceId,
-      emailjsConfig.templateId,
+      EMAILJS_SERVICE_ID,
+      EMAILJS_TEMPLATE_TICKET_ID,
       templateParams,
       {
-        publicKey: emailjsConfig.publicKey,
-        privateKey: emailjsConfig.privateKey,
+        publicKey: EMAILJS_PUBLIC_KEY,
+        privateKey: EMAILJS_PRIVATE_KEY,
       }
     );
-    console.log('✅ Email enviado com sucesso:', response.status);
+    console.log('✅ Email enviado com sucesso! Status:', response.status);
     return { success: true, response };
   } catch (error) {
-    console.error('❌ Erro ao enviar email:', error);
+    console.error('❌ Erro detalhado ao enviar email:', error);
     return { success: false, error: error.message };
   }
 }
 
+// Função auxiliar para respostas JSON
 const json = (statusCode, body) => ({
   statusCode,
   headers: {
@@ -106,7 +118,6 @@ export const handler = async (event) => {
   if (httpMethod === 'GET' && cleanPath === '/payment-success') {
     const session_id = queryStringParameters?.session_id || '';
     const evento_id = queryStringParameters?.evento_id || '';
-
     const frontendUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
 
     return {
@@ -253,7 +264,7 @@ export const handler = async (event) => {
     }
   }
 
-  // ── POST /stripe-webhook (com envio de email) ──────────────────────────────
+  // ── POST /stripe-webhook (COM ENVIO DE EMAIL) ──────────────────────────────
   if (httpMethod === 'POST' && cleanPath === '/stripe-webhook') {
     const sig = headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -262,6 +273,7 @@ export const handler = async (event) => {
     try {
       stripeEvent = stripe.webhooks.constructEvent(body, sig, webhookSecret);
     } catch (err) {
+      console.error('Webhook signature error:', err.message);
       return json(400, { error: `Webhook error: ${err.message}` });
     }
 
@@ -270,6 +282,7 @@ export const handler = async (event) => {
       const meta = session.metadata || {};
 
       console.log('💰 Pagamento confirmado para sessão:', session.id);
+      console.log('📦 Metadata:', meta);
 
       // Buscar o pedido existente
       const { data: pedidoExistente, error: findError } = await supabase
@@ -282,6 +295,8 @@ export const handler = async (event) => {
         console.error('Pedido não encontrado:', findError);
         return json(404, { error: 'Pedido não encontrado' });
       }
+
+      console.log('📦 Pedido encontrado:', pedidoExistente.id);
 
       // Atualizar pedido
       const { error: updateError } = await supabase.from('pedidos').update({
@@ -304,6 +319,10 @@ export const handler = async (event) => {
         .eq('id', pedidoExistente.evento_id)
         .single();
 
+      if (!evento) {
+        console.error('Evento não encontrado:', pedidoExistente.evento_id);
+      }
+
       // Processar itens
       let itemsToProcess = [];
       try {
@@ -314,32 +333,26 @@ export const handler = async (event) => {
         }
       }
 
+      console.log('📦 Itens a processar:', itemsToProcess);
+
       if (itemsToProcess.length > 0 && evento) {
-        // Reduzir ingressos
-        const { data: ev } = await supabase
-          .from('eventos').select('estacoes').eq('id', meta.evento_id).single();
-
-        if (ev?.estacoes) {
-          const novasEstacoes = ev.estacoes.map(e => {
-            const item = itemsToProcess.find(i => i.estacao_nome === e.nome);
-            return item ? { ...e, quantidade: Math.max(0, e.quantidade - item.quantidade) } : e;
-          });
-          await supabase.from('eventos')
-            .update({ estacoes: novasEstacoes })
-            .eq('id', meta.evento_id);
-        }
-
         // Dados do usuário
         const usuarioEmail = pedidoExistente.usuario_email || session.customer_details?.email || meta.usuario_email;
         const usuarioNome = pedidoExistente.usuario_nome || session.customer_details?.name || meta.usuario_nome || 'Cliente';
 
+        console.log('📧 Destinatário:', { email: usuarioEmail, nome: usuarioNome });
+
+        if (!usuarioEmail) {
+          console.error('❌ Email do usuário não encontrado!');
+        }
+
         // Gerar tickets e enviar email
         for (const item of itemsToProcess) {
           for (let i = 0; i < item.quantidade; i++) {
-            const codigo = `TKT_${meta.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
+            const codigo = `TKT_${pedidoExistente.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
             
             // Salvar ticket
-            await supabase.from('tickets').insert({
+            const { error: ticketError } = await supabase.from('tickets').insert({
               pedido_id: pedidoExistente.id,
               codigo,
               estacao: item.estacao_nome,
@@ -347,9 +360,15 @@ export const handler = async (event) => {
               created_at: new Date().toISOString(),
             });
             
+            if (ticketError) {
+              console.error('Erro ao salvar ticket:', ticketError);
+            } else {
+              console.log('✅ Ticket salvo:', codigo);
+            }
+            
             // Enviar email apenas para o primeiro ticket
             if (i === 0 && usuarioEmail) {
-              console.log('📧 Enviando email de ingresso para:', usuarioEmail);
+              console.log('📧 Enviando email de ingresso...');
               const emailResult = await sendTicketEmail(
                 usuarioEmail,
                 usuarioNome,
@@ -363,13 +382,15 @@ export const handler = async (event) => {
               );
               
               if (emailResult.success) {
-                console.log('✅ Email enviado com sucesso!');
+                console.log('✅ Email enviado com sucesso para:', usuarioEmail);
               } else {
                 console.error('❌ Falha ao enviar email:', emailResult.error);
               }
             }
           }
         }
+      } else {
+        console.warn('⚠️ Nenhum item para processar ou evento não encontrado');
       }
     }
 
@@ -465,114 +486,31 @@ function getFaturaHTML() {
     <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Syne', sans-serif;
-            background: #FAFAF9;
-            padding: 40px 20px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
-        }
-        .container {
-            max-width: 800px;
-            width: 100%;
-            background: white;
-            border-radius: 20px;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-            overflow: hidden;
-        }
-        .header {
-            background: #0F0D0B;
-            color: white;
-            padding: 30px 40px;
-        }
+        body { font-family: 'Syne', sans-serif; background: #FAFAF9; padding: 40px 20px; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .container { max-width: 800px; width: 100%; background: white; border-radius: 20px; box-shadow: 0 10px 40px rgba(0,0,0,0.1); overflow: hidden; }
+        .header { background: #0F0D0B; color: white; padding: 30px 40px; }
         .header h1 { font-size: 24px; font-weight: 700; }
         .header p { color: #78716C; margin-top: 5px; }
         .content { padding: 40px; }
-        .info-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 1px solid #E7E5E4;
-        }
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid #E7E5E4; }
         .info-item .label { font-size: 11px; text-transform: uppercase; color: #78716C; letter-spacing: 1px; margin-bottom: 5px; }
         .info-item .value { font-size: 16px; font-weight: 600; color: #1C1917; }
-        .event-box {
-            background: #FFF7F4;
-            border: 1px solid #FFD5C2;
-            border-radius: 16px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
+        .event-box { background: #FFF7F4; border: 1px solid #FFD5C2; border-radius: 16px; padding: 20px; margin-bottom: 30px; }
         .event-name { font-size: 18px; font-weight: 700; color: #1C1917; }
         .event-sub { font-size: 13px; color: #78716C; margin-top: 5px; }
-        .items-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-        .items-table th {
-            text-align: left;
-            padding: 10px 0;
-            color: #78716C;
-            font-size: 11px;
-            text-transform: uppercase;
-            border-bottom: 1px solid #E7E5E4;
-        }
-        .items-table td {
-            padding: 12px 0;
-            border-bottom: 1px solid #E7E5E4;
-        }
+        .items-table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+        .items-table th { text-align: left; padding: 10px 0; color: #78716C; font-size: 11px; text-transform: uppercase; border-bottom: 1px solid #E7E5E4; }
+        .items-table td { padding: 12px 0; border-bottom: 1px solid #E7E5E4; }
         .items-table td:last-child { text-align: right; }
-        .total-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 10px 0;
-        }
-        .total-final {
-            border-top: 2px solid #1C1917;
-            margin-top: 10px;
-            padding-top: 15px;
-            font-size: 20px;
-            font-weight: 800;
-        }
+        .total-row { display: flex; justify-content: space-between; padding: 10px 0; }
+        .total-final { border-top: 2px solid #1C1917; margin-top: 10px; padding-top: 15px; font-size: 20px; font-weight: 800; }
         .total-final span:last-child { color: #F15A2B; }
-        .ticket {
-            background: #F9FAFB;
-            border-radius: 12px;
-            padding: 15px;
-            margin-top: 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .ticket { background: #F9FAFB; border-radius: 12px; padding: 15px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; }
         .ticket-code { font-family: monospace; font-size: 14px; font-weight: bold; color: #F15A2B; }
-        .status {
-            display: inline-block;
-            background: #DCFCE7;
-            color: #16A34A;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-        }
-        .loading {
-            text-align: center;
-            padding: 60px;
-            color: #78716C;
-        }
-        .error {
-            text-align: center;
-            padding: 60px;
-            color: #DC2626;
-        }
-        @media (max-width: 600px) {
-            .header, .content { padding: 20px; }
-            .info-grid { grid-template-columns: 1fr; gap: 15px; }
-        }
+        .status { display: inline-block; background: #DCFCE7; color: #16A34A; padding: 5px 15px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .loading { text-align: center; padding: 60px; color: #78716C; }
+        .error { text-align: center; padding: 60px; color: #DC2626; }
+        @media (max-width: 600px) { .header, .content { padding: 20px; } .info-grid { grid-template-columns: 1fr; gap: 15px; } }
     </style>
 </head>
 <body>
@@ -590,13 +528,10 @@ function getFaturaHTML() {
                 document.getElementById('container').innerHTML = '<div class="error">❌ Sessão não encontrada</div>';
                 return;
             }
-            
             try {
                 const res = await fetch(\`\${API_URL}/invoice-data?session_id=\${sessionId}&evento_id=\${eventoId}\`);
                 const data = await res.json();
-                
                 if (!res.ok) throw new Error(data.error);
-                
                 renderInvoice(data);
             } catch (err) {
                 document.getElementById('container').innerHTML = \`<div class="error">❌ Erro: \${err.message}</div>\`;
@@ -606,37 +541,19 @@ function getFaturaHTML() {
         function renderInvoice(data) {
             const total = data.valor_total || 0;
             const itens = data.itens || [{ estacao_nome: 'Ingresso', quantidade: 1, preco: total }];
-            
             let itemsHtml = '';
             itens.forEach(item => {
                 const subtotal = (item.preco || 0) * (item.quantidade || 1);
-                itemsHtml += \`
-                    <tr>
-                        <td>\${item.estacao_nome}</td>
-                        <td>\${item.quantidade}x</td>
-                        <td>\${(item.preco || 0).toLocaleString()} Kz</td>
-                        <td>\${subtotal.toLocaleString()} Kz</td>
-                    </tr>
-                \`;
+                itemsHtml += \`<tr><td>\${item.estacao_nome}</td><td>\${item.quantidade}x</td><td>\${(item.preco || 0).toLocaleString()} Kz</td><td>\${subtotal.toLocaleString()} Kz</td></tr>\`;
             });
-            
             let ticketsHtml = '';
             if (data.tickets && data.tickets.length > 0) {
                 data.tickets.forEach(ticket => {
-                    ticketsHtml += \`
-                        <div class="ticket">
-                            <span>\${ticket.estacao || 'Ingresso'}</span>
-                            <span class="ticket-code">\${ticket.codigo}</span>
-                        </div>
-                    \`;
+                    ticketsHtml += \`<div class="ticket"><span>\${ticket.estacao || 'Ingresso'}</span><span class="ticket-code">\${ticket.codigo}</span></div>\`;
                 });
             }
-            
             const html = \`
-                <div class="header">
-                    <h1>Cresce.AO</h1>
-                    <p>Fatura de pagamento</p>
-                </div>
+                <div class="header"><h1>Cresce.AO</h1><p>Fatura de pagamento</p></div>
                 <div class="content">
                     <div class="info-grid">
                         <div class="info-item"><div class="label">Comprador</div><div class="value">\${data.user_name || '—'}</div></div>
@@ -644,27 +561,15 @@ function getFaturaHTML() {
                         <div class="info-item"><div class="label">Data</div><div class="value">\${new Date(data.created * 1000).toLocaleDateString('pt-PT')}</div></div>
                         <div class="info-item"><div class="label">Status</div><div class="value"><span class="status">PAGO</span></div></div>
                     </div>
-                    
-                    <div class="event-box">
-                        <div class="event-name">\${data.event_name || 'Evento'}</div>
-                        <div class="event-sub">ID: \${data.evento_id || '—'}</div>
-                    </div>
-                    
-                    <table class="items-table">
-                        <thead><tr><th>Descrição</th><th>Qtd</th><th>Unitário</th><th>Total</th></tr></thead>
-                        <tbody>\${itemsHtml}</tbody>
-                    </table>
-                    
+                    <div class="event-box"><div class="event-name">\${data.event_name || 'Evento'}</div><div class="event-sub">ID: \${data.evento_id || '—'}</div></div>
+                    <table class="items-table"><thead><tr><th>Descrição</th><th>Qtd</th><th>Unitário</th><th>Total</th></tr></thead><tbody>\${itemsHtml}</tbody></table>
                     <div class="total-row"><span>Subtotal</span><span>\${total.toLocaleString()} Kz</span></div>
                     <div class="total-row total-final"><span>Total Pago</span><span>\${total.toLocaleString()} Kz</span></div>
-                    
                     \${ticketsHtml ? \`<div style="margin-top: 30px;"><strong>Seus ingressos:</strong>\${ticketsHtml}</div>\` : ''}
                 </div>
             \`;
-            
             document.getElementById('container').innerHTML = html;
         }
-        
         loadInvoice();
     </script>
 </body>
