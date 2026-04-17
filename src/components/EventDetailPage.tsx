@@ -623,7 +623,7 @@ export function EventDetailPage() {
               <span>Voltar</span>
             </button>
             <div className="flex items-center">
-              <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
+              <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" onClick={() => navigate('/events')} />
               <span className="text-xl font-bold text-gray-900 tracking-tight">
                 Cresce<span className="text-orange-600">.AO</span>
               </span>
