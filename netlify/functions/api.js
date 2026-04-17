@@ -107,7 +107,6 @@ export const handler = async (event) => {
   }
 
   // ── POST /create-checkout-session ─────────────────────────────────────────
-  // netlify/functions/api.js - parte do create-checkout-session
   if (httpMethod === 'POST' && cleanPath === '/create-checkout-session') {
     try {
       const data = JSON.parse(body || '{}');
@@ -116,7 +115,7 @@ export const handler = async (event) => {
         itens,
         usuario_id,
         usuario_email,
-        usuario_nome,    // <-- PEGAR O NOME DO USUÁRIO
+        usuario_nome,
         valor_total,
         line_items
       } = data;
@@ -137,18 +136,21 @@ export const handler = async (event) => {
         }
       }
 
-      // Criar pedido - INCLUIR usuario_nome e usuario_email
+      // Criar pedido - sem estacao_nome (usando itens_json)
       const pedidoId = crypto.randomUUID();
       const totalFinal = valor_total || itens.reduce((s, i) => s + (i.preco * i.quantidade), 0);
+      const quantidadeTotal = itens.reduce((s, i) => s + i.quantidade, 0);
 
       const { error: pedidoError } = await supabase.from('pedidos').insert({
         id: pedidoId,
         evento_id,
         usuario_id,
-        usuario_nome: usuario_nome || '',      // <-- ADICIONAR CAMPO
-        usuario_email: usuario_email || '',    // <-- ADICIONAR CAMPO
+        usuario_nome: usuario_nome || '',
+        usuario_email: usuario_email || '',
         itens_json: JSON.stringify(itens),
-        quantidade_total: itens.reduce((s, i) => s + i.quantidade, 0),
+        quantidade_total: quantidadeTotal,
+        quantidade: quantidadeTotal,  // Para compatibilidade
+        estacao_nome: null,           // Pode ser nulo agora
         valor_total: totalFinal,
         status: 'pendente',
         created_at: new Date().toISOString(),
@@ -182,8 +184,8 @@ export const handler = async (event) => {
           pedido_id: pedidoId,
           evento_id,
           usuario_id,
-          usuario_nome: usuario_nome || '',    // <-- ADICIONAR METADATA
-          usuario_email: usuario_email || '',  // <-- ADICIONAR METADATA
+          usuario_nome: usuario_nome || '',
+          usuario_email: usuario_email || '',
           itens_json: JSON.stringify(itens),
         },
       });
@@ -215,16 +217,27 @@ export const handler = async (event) => {
       const session = stripeEvent.data.object;
       const meta = session.metadata || {};
 
-      // Atualizar pedido com os dados do Stripe
+      // Buscar o pedido existente
+      const { data: pedidoExistente, error: findError } = await supabase
+        .from('pedidos')
+        .select('id')
+        .eq('stripe_session_id', session.id)
+        .single();
+
+      if (findError || !pedidoExistente) {
+        console.error('Pedido não encontrado:', findError);
+        return json(404, { error: 'Pedido não encontrado' });
+      }
+
+      // Atualizar pedido
       const { error: updateError } = await supabase.from('pedidos').update({
         status: 'pago',
         stripe_payment_intent_id: session.payment_intent,
         pagamento_confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        // Garantir que os dados do usuário estão salvos
         usuario_nome: meta.usuario_nome || session.customer_details?.name || '',
         usuario_email: meta.usuario_email || session.customer_details?.email || '',
-      }).eq('stripe_session_id', session.id);
+      }).eq('id', pedidoExistente.id);
 
       if (updateError) {
         console.error('Erro ao atualizar pedido:', updateError);
@@ -256,24 +269,16 @@ export const handler = async (event) => {
         }
 
         // Gerar tickets
-        const { data: pedido } = await supabase
-          .from('pedidos')
-          .select('id')
-          .eq('stripe_session_id', session.id)
-          .single();
-
-        if (pedido) {
-          for (const item of itemsToProcess) {
-            for (let i = 0; i < item.quantidade; i++) {
-              const codigo = `TKT_${meta.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`.toUpperCase();
-              await supabase.from('tickets').insert({
-                pedido_id: pedido.id,
-                codigo,
-                estacao: item.estacao_nome,
-                utilizado: false,
-                created_at: new Date().toISOString(),
-              });
-            }
+        for (const item of itemsToProcess) {
+          for (let i = 0; i < item.quantidade; i++) {
+            const codigo = `TKT_${meta.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`.toUpperCase();
+            await supabase.from('tickets').insert({
+              pedido_id: pedidoExistente.id,
+              codigo,
+              estacao: item.estacao_nome,
+              utilizado: false,
+              created_at: new Date().toISOString(),
+            });
           }
         }
       }
@@ -289,7 +294,7 @@ export const handler = async (event) => {
 
       if (!session_id) return json(400, { error: 'session_id obrigatório' });
 
-      // Buscar pedido pelo stripe_session_id
+      // Buscar pedido
       const { data: pedido, error: pedidoError } = await supabase
         .from('pedidos')
         .select('*')
@@ -300,12 +305,6 @@ export const handler = async (event) => {
         console.error('Pedido não encontrado:', pedidoError);
         return json(404, { error: 'Pedido não encontrado' });
       }
-
-      console.log('📦 Pedido encontrado:', {
-        id: pedido.id,
-        usuario_nome: pedido.usuario_nome,
-        usuario_email: pedido.usuario_email
-      });
 
       // Buscar evento
       const { data: evento } = await supabase
