@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@emailjs/browser": "^4.4.1",
+    "@emailjs/nodejs": "^5.0.2",
     "@google/generative-ai": "^0.24.1",
     "@netlify/functions": "^5.2.0",
     "@radix-ui/react-accordion": "^1.2.3",
