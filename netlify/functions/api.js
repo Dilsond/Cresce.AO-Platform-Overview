@@ -1,8 +1,7 @@
 // netlify/functions/api.js
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
-import fs from 'fs';
-import path from 'path';
+import emailjs from '@emailjs/nodejs';
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 const supabase = createClient(
@@ -10,6 +9,62 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.VITE_SUPABASE_ANON_KEY
 );
 
+// Configuração do EmailJS
+const emailjsConfig = {
+  publicKey: process.env.VITE_EMAILJS_PUBLIC_KEY,
+  privateKey: process.env.EMAILJS_PRIVATE_KEY || process.env.VITE_EMAILJS_PUBLIC_KEY,
+  serviceId: process.env.VITE_EMAILJS_SERVICE_ID,
+  templateId: 'template_ticket', // Você precisa criar este template
+};
+
+// Função para enviar email de ingresso via EmailJS
+async function sendTicketEmail(toEmail, toName, eventId, eventName, eventDate, eventTime, eventLocation, ticketCode, ticketEstacao) {
+  const formattedDate = new Date(eventDate).toLocaleDateString('pt-PT', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric'
+  });
+
+  const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(ticketCode)}`;
+  const appUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
+
+  const templateParams = {
+    to_email: toEmail,
+    to_name: toName,
+    evento_id: eventId,
+    evento_nome: eventName,
+    evento_data: formattedDate,
+    evento_hora: eventTime,
+    evento_local: eventLocation,
+    ticket_codigo: ticketCode,
+    ticket_estacao: ticketEstacao,
+    qr_code_url: qrCodeUrl,
+    app_url: appUrl,
+    subject: `🎫 Seu ingresso para ${eventName} - Cresce.AO`,
+  };
+
+  console.log('📧 Enviando email para:', toEmail);
+  console.log('📦 Template params:', templateParams);
+
+  try {
+    const response = await emailjs.send(
+      emailjsConfig.serviceId,
+      emailjsConfig.templateId,
+      templateParams,
+      {
+        publicKey: emailjsConfig.publicKey,
+        privateKey: emailjsConfig.privateKey,
+      }
+    );
+    console.log('✅ Email enviado com sucesso:', response.status, response.text);
+    return { success: true, response };
+  } catch (error) {
+    console.error('❌ Erro ao enviar email:', error);
+    return { success: false, error: error.message };
+  }
+}
+
+// Função auxiliar para respostas JSON
 const json = (statusCode, body) => ({
   statusCode,
   headers: {
@@ -19,15 +74,6 @@ const json = (statusCode, body) => ({
     'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
   },
   body: JSON.stringify(body),
-});
-
-const html = (statusCode, content) => ({
-  statusCode,
-  headers: {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-  },
-  body: content,
 });
 
 export const handler = async (event) => {
@@ -47,161 +93,7 @@ export const handler = async (event) => {
 
   const cleanPath = path.replace('/.netlify/functions/api', '') || '/';
 
-  // ── GET /payment-success ───────────────────────────────────────────────────
-  if (httpMethod === 'GET' && cleanPath === '/payment-success') {
-    const session_id = queryStringParameters?.session_id || '';
-    const evento_id = queryStringParameters?.evento_id || '';
-
-    // Redirecionar para a fatura com os parâmetros
-    const frontendUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
-
-    return {
-      statusCode: 302,
-      headers: {
-        Location: `${frontendUrl}/fatura.html?session_id=${session_id}&evento_id=${evento_id}`,
-        'Access-Control-Allow-Origin': '*',
-      },
-      body: '',
-    };
-  }
-
-  // ── GET /fatura.html (arquivo estático) ────────────────────────────────────
-  if (httpMethod === 'GET' && cleanPath === '/fatura.html') {
-    try {
-      // Tentar ler o arquivo da pasta dist
-      const filePath = path.resolve(process.cwd(), 'dist/fatura.html');
-      let htmlContent;
-
-      try {
-        htmlContent = fs.readFileSync(filePath, 'utf-8');
-      } catch {
-        // Fallback: HTML inline
-        htmlContent = getFaturaHTML();
-      }
-
-      return html(200, htmlContent);
-    } catch (err) {
-      console.error('Erro ao servir fatura:', err);
-      return html(500, '<h1>Erro ao carregar fatura</h1>');
-    }
-  }
-
-  // ── GET /check-availability ────────────────────────────────────────────────
-  if (httpMethod === 'GET' && cleanPath.startsWith('/check-availability/')) {
-    try {
-      const parts = cleanPath.split('/').filter(Boolean);
-      const eventoId = parts[1];
-      const estNome = decodeURIComponent(parts[2] || '');
-
-      const { data: ev, error } = await supabase
-        .from('eventos').select('estacoes').eq('id', eventoId).single();
-      if (error || !ev) return json(404, { error: 'Evento não encontrado' });
-
-      const est = (ev.estacoes || []).find(e => e.nome === estNome);
-      if (!est) return json(404, { error: 'Estação não encontrada' });
-
-      return json(200, { disponivel: est.quantidade > 0, quantidade: est.quantidade });
-    } catch (err) {
-      return json(500, { error: err.message });
-    }
-  }
-
-  // ── POST /create-checkout-session ─────────────────────────────────────────
-  if (httpMethod === 'POST' && cleanPath === '/create-checkout-session') {
-    try {
-      const data = JSON.parse(body || '{}');
-      const {
-        evento_id,
-        itens,
-        usuario_id,
-        usuario_email,
-        usuario_nome,
-        valor_total,
-        line_items
-      } = data;
-
-      if (!evento_id || !itens?.length || !usuario_id) {
-        return json(400, { error: 'Dados incompletos' });
-      }
-
-      // Verificar disponibilidade
-      const { data: ev } = await supabase
-        .from('eventos').select('estacoes, nome_evento').eq('id', evento_id).single();
-      if (!ev) return json(404, { error: 'Evento não encontrado' });
-
-      for (const item of itens) {
-        const est = (ev.estacoes || []).find(e => e.nome === item.estacao_nome);
-        if (!est || est.quantidade < item.quantidade) {
-          return json(400, { error: `Apenas ${est?.quantidade || 0} ingresso(s) disponível(is) para "${item.estacao_nome}"` });
-        }
-      }
-
-      // Criar pedido - sem estacao_nome (usando itens_json)
-      const pedidoId = crypto.randomUUID();
-      const totalFinal = valor_total || itens.reduce((s, i) => s + (i.preco * i.quantidade), 0);
-      const quantidadeTotal = itens.reduce((s, i) => s + i.quantidade, 0);
-
-      const { error: pedidoError } = await supabase.from('pedidos').insert({
-        id: pedidoId,
-        evento_id,
-        usuario_id,
-        usuario_nome: usuario_nome || '',
-        usuario_email: usuario_email || '',
-        itens_json: JSON.stringify(itens),
-        quantidade_total: quantidadeTotal,
-        quantidade: quantidadeTotal,  // Para compatibilidade
-        estacao_nome: null,           // Pode ser nulo agora
-        valor_total: totalFinal,
-        status: 'pendente',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      });
-
-      if (pedidoError) {
-        console.error('Erro ao criar pedido:', pedidoError);
-        return json(500, { error: pedidoError.message });
-      }
-
-      // Line items para o Stripe
-      const stripeLineItems = line_items || itens.map(item => ({
-        price_data: {
-          currency: 'aoa',
-          product_data: { name: `${ev.nome_evento} — ${item.estacao_nome}` },
-          unit_amount: Math.round(item.preco * 100),
-        },
-        quantity: item.quantidade,
-      }));
-
-      const baseUrl = process.env.URL || 'https://cresce-ao.netlify.app';
-      const session = await stripe.checkout.sessions.create({
-        payment_method_types: ['card'],
-        line_items: stripeLineItems,
-        mode: 'payment',
-        customer_email: usuario_email,
-        success_url: `${baseUrl}/payment-success?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}`,
-        cancel_url: `${baseUrl}/event/${evento_id}`,
-        metadata: {
-          pedido_id: pedidoId,
-          evento_id,
-          usuario_id,
-          usuario_nome: usuario_nome || '',
-          usuario_email: usuario_email || '',
-          itens_json: JSON.stringify(itens),
-        },
-      });
-
-      await supabase.from('pedidos')
-        .update({ stripe_session_id: session.id })
-        .eq('id', pedidoId);
-
-      return json(200, { url: session.url, session_id: session.id });
-    } catch (err) {
-      console.error('Erro checkout:', err);
-      return json(500, { error: err.message });
-    }
-  }
-
-  // ── POST /stripe-webhook ──────────────────────────────────────────────────
+  // ── POST /stripe-webhook (com envio de email via EmailJS) ─────────────────
   if (httpMethod === 'POST' && cleanPath === '/stripe-webhook') {
     const sig = headers['stripe-signature'];
     const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -210,6 +102,7 @@ export const handler = async (event) => {
     try {
       stripeEvent = stripe.webhooks.constructEvent(body, sig, webhookSecret);
     } catch (err) {
+      console.error('Webhook signature error:', err.message);
       return json(400, { error: `Webhook error: ${err.message}` });
     }
 
@@ -217,70 +110,102 @@ export const handler = async (event) => {
       const session = stripeEvent.data.object;
       const meta = session.metadata || {};
 
-      // Buscar o pedido existente
-      const { data: pedidoExistente, error: findError } = await supabase
+      console.log('💰 Pagamento confirmado para sessão:', session.id);
+
+      // Buscar o pedido
+      const { data: pedido, error: findError } = await supabase
         .from('pedidos')
-        .select('id')
+        .select('*')
         .eq('stripe_session_id', session.id)
         .single();
 
-      if (findError || !pedidoExistente) {
+      if (findError || !pedido) {
         console.error('Pedido não encontrado:', findError);
         return json(404, { error: 'Pedido não encontrado' });
       }
 
       // Atualizar pedido
-      const { error: updateError } = await supabase.from('pedidos').update({
+      await supabase.from('pedidos').update({
         status: 'pago',
         stripe_payment_intent_id: session.payment_intent,
         pagamento_confirmado_em: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         usuario_nome: meta.usuario_nome || session.customer_details?.name || '',
         usuario_email: meta.usuario_email || session.customer_details?.email || '',
-      }).eq('id', pedidoExistente.id);
+      }).eq('id', pedido.id);
 
-      if (updateError) {
-        console.error('Erro ao atualizar pedido:', updateError);
+      // Buscar evento
+      const { data: evento } = await supabase
+        .from('eventos')
+        .select('id, nome_evento, data_evento, hora_evento, local')
+        .eq('id', pedido.evento_id)
+        .single();
+
+      if (!evento) {
+        console.error('Evento não encontrado:', pedido.evento_id);
+        return json(404, { error: 'Evento não encontrado' });
       }
 
       // Processar itens
       let itemsToProcess = [];
       try {
-        itemsToProcess = JSON.parse(meta.itens_json || '[]');
+        itemsToProcess = JSON.parse(pedido.itens_json || meta.itens_json || '[]');
       } catch {
-        if (meta.estacao_nome) {
-          itemsToProcess = [{ estacao_nome: meta.estacao_nome, quantidade: parseInt(meta.quantidade || '1') }];
-        }
+        itemsToProcess = [{ estacao_nome: 'Ingresso', quantidade: pedido.quantidade_total || 1 }];
       }
 
-      if (itemsToProcess.length > 0) {
-        // Reduzir ingressos
-        const { data: ev } = await supabase
-          .from('eventos').select('estacoes').eq('id', meta.evento_id).single();
+      // Dados do usuário
+      const usuarioEmail = pedido.usuario_email || session.customer_details?.email || meta.usuario_email;
+      const usuarioNome = pedido.usuario_nome || session.customer_details?.name || meta.usuario_nome || 'Cliente';
 
-        if (ev?.estacoes) {
-          const novasEstacoes = ev.estacoes.map(e => {
-            const item = itemsToProcess.find(i => i.estacao_nome === e.nome);
-            return item ? { ...e, quantidade: Math.max(0, e.quantidade - item.quantidade) } : e;
-          });
-          await supabase.from('eventos')
-            .update({ estacoes: novasEstacoes })
-            .eq('id', meta.evento_id);
-        }
+      console.log('📧 Preparando envio de email para:', usuarioEmail);
+      console.log('🎫 Itens:', itemsToProcess);
 
-        // Gerar tickets
+      if (usuarioEmail && evento) {
+        // Gerar tickets e enviar emails
         for (const item of itemsToProcess) {
           for (let i = 0; i < item.quantidade; i++) {
-            const codigo = `TKT_${meta.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`.toUpperCase();
-            await supabase.from('tickets').insert({
-              pedido_id: pedidoExistente.id,
+            const codigo = `TKT_${pedido.evento_id.substring(0, 8)}_${Date.now()}_${Math.random().toString(36).substring(2, 10)}`.toUpperCase();
+
+            // Salvar ticket
+            const { error: ticketError } = await supabase.from('tickets').insert({
+              pedido_id: pedido.id,
               codigo,
               estacao: item.estacao_nome,
               utilizado: false,
               created_at: new Date().toISOString(),
             });
+
+            if (ticketError) {
+              console.error('Erro ao salvar ticket:', ticketError);
+            } else {
+              console.log('✅ Ticket salvo:', codigo);
+            }
+
+            // Enviar email para o primeiro ticket
+            if (i === 0) {
+              const emailResult = await sendTicketEmail(
+                usuarioEmail,
+                usuarioNome,
+                evento.id,
+                evento.nome_evento,
+                evento.data_evento,
+                evento.hora_evento,
+                evento.local || 'Local a definir',
+                codigo,
+                item.estacao_nome
+              );
+
+              if (emailResult.success) {
+                console.log('✅ Email enviado com sucesso para:', usuarioEmail);
+              } else {
+                console.error('❌ Falha ao enviar email:', emailResult.error);
+              }
+            }
           }
         }
+      } else {
+        console.warn('⚠️ Email do usuário não encontrado, não foi possível enviar o ingresso');
       }
     }
 
