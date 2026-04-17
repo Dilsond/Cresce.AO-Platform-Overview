@@ -382,7 +382,7 @@ export function OrganizerDashboard() {
                     {[
                         { icon: Calendar, iconBg: 'bg-orange-100', iconColor: 'text-orange-600', trendIcon: <TrendingUp className="w-5 h-5 text-green-500" />, value: stats.totalEvents, label: 'Total de Eventos', sub: `↑ ${stats.activeEvents} ativos • ${stats.finishedEvents} finalizados` },
                         { icon: Heart, iconBg: 'bg-pink-100', iconColor: 'text-pink-600', trendIcon: <Users className="w-5 h-5 text-blue-500" />, value: stats.totalLikes, label: 'Interessados', sub: `Média de ${(stats.totalLikes / (stats.totalEvents || 1)).toFixed(1)} por evento` },
-                        { icon: Ticket, iconBg: 'bg-green-100', iconColor: 'text-green-600', trendIcon: <ShoppingBag className="w-5 h-5 text-purple-500" />, value: stats.totalTicketsSold, label: 'Ingressos vendidos', sub: 'Gratuitos e pagos' },
+                        { icon: Ticket, iconBg: 'bg-green-100', iconColor: 'text-green-600', trendIcon: <ShoppingBag className="w-5 h-5 text-purple-500" />, value: stats.totalTicketsSold, label: 'Ingressos', sub: 'Gratuitos e pagos' },
                         { icon: UserCheck, iconBg: 'bg-purple-100', iconColor: 'text-purple-600', trendIcon: <Award className="w-5 h-5 text-yellow-500" />, value: stats.totalFollowers, label: 'Seguidores', sub: `Engajamento: ${stats.engagementRate.toFixed(1)}%` },
                     ].map(({ icon: Icon, iconBg, iconColor, trendIcon, value, label, sub }) => (
                         <div key={label} className="bg-white rounded-2xl shadow-md p-6 hover:shadow-xl transition-shadow">

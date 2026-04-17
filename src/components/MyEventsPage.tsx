@@ -292,7 +292,7 @@ export function MyEventsPage() {
             case 'active':
                 return { color: 'bg-green-100 text-green-700', label: 'Ativo', icon: CheckCircle };
             case 'cancelled':
-                return { color: 'bg-red-100 text-red-700', label: 'Cancelado', icon: XCircle };
+                return { color: 'bg-red-100 text-gray-700', label: 'Cancelado', icon: XCircle };
             case 'finished':
                 return { color: 'bg-gray-100 text-gray-700', label: 'Finalizado', icon: Clock };
             default:

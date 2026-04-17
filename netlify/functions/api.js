@@ -40,28 +40,28 @@ export const handler = async (event) => {
     console.log('📊 Buscando dados da fatura');
     try {
       const session_id = queryStringParameters?.session_id;
-      
+
       if (!session_id) {
         return json(400, { error: 'session_id é obrigatório' });
       }
-      
+
       const session = await stripe.checkout.sessions.retrieve(session_id, {
         expand: ['line_items', 'customer_details']
       });
-      
+
       const meta = session.metadata || {};
       const lineItem = session.line_items?.data?.[0];
       const qty = lineItem?.quantity || Number(meta.quantidade) || 1;
       const total = (session.amount_total || 0) / 100;
-      
+
       let ticketCode = `${(meta.evento_id || 'EVT').substring(0, 8)}-${session.id.substring(3, 11)}`.toUpperCase();
-      
+
       const { data: pedido } = await supabase
         .from('pedidos')
         .select('id')
         .eq('stripe_session_id', session_id)
         .single();
-      
+
       if (pedido) {
         const { data: ticket } = await supabase
           .from('tickets')
@@ -69,12 +69,12 @@ export const handler = async (event) => {
           .eq('pedido_id', pedido.id)
           .limit(1)
           .single();
-        
+
         if (ticket) {
           ticketCode = ticket.codigo;
         }
       }
-      
+
       return json(200, {
         session_id: session.id,
         evento_id: meta.evento_id || '',
@@ -87,7 +87,7 @@ export const handler = async (event) => {
         created: session.created,
         ticket_code: ticketCode
       });
-      
+
     } catch (err) {
       console.error('❌ Erro:', err);
       return json(500, { error: err.message });
@@ -119,29 +119,34 @@ export const handler = async (event) => {
   if (httpMethod === 'POST' && cleanPath === '/create-checkout-session') {
     try {
       const data = JSON.parse(body || '{}');
-      const { evento_id, estacao_nome, quantidade, usuario_id, usuario_email, usuario_nome, valor_total } = data;
+      const { evento_id, itens, usuario_id, usuario_email, usuario_nome, valor_total, line_items } = data;
 
-      if (!evento_id || !estacao_nome || !quantidade || !usuario_id) {
+      if (!evento_id || !itens || !itens.length || !usuario_id) {
         return json(400, { error: 'Dados incompletos' });
       }
 
+      // Verificar disponibilidade para todos os itens
       const { data: evento } = await supabase
         .from('eventos').select('estacoes, nome_evento').eq('id', evento_id).single();
 
       if (!evento) return json(404, { error: 'Evento não encontrado' });
 
-      const estacao = (evento.estacoes || []).find(e => e.nome === estacao_nome);
-      if (!estacao || estacao.quantidade < quantidade) {
-        return json(400, { error: `Apenas ${estacao?.quantidade || 0} ingresso(s) disponível(is)` });
+      for (const item of itens) {
+        const estacao = (evento.estacoes || []).find(e => e.nome === item.estacao_nome);
+        if (!estacao || estacao.quantidade < item.quantidade) {
+          return json(400, { error: `Ingressos insuficientes para ${item.estacao_nome}` });
+        }
       }
 
       const pedidoId = crypto.randomUUID();
+
+      // Criar pedido com todos os itens (como JSON)
       await supabase.from('pedidos').insert({
         id: pedidoId,
         evento_id,
         usuario_id,
-        estacao_nome,
-        quantidade,
+        itens: itens, // Array de itens
+        quantidade_total: itens.reduce((sum, i) => sum + i.quantidade, 0),
         valor_total,
         status: 'pendente',
         created_at: new Date().toISOString(),
@@ -151,23 +156,22 @@ export const handler = async (event) => {
       const frontendUrl = process.env.VITE_APP_URL || 'https://cresce-ao.netlify.app';
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ['card'],
-        line_items: [{
+        line_items: line_items || itens.map(item => ({
           price_data: {
             currency: 'aoa',
-            product_data: { name: `${evento.nome_evento} — ${estacao_nome}` },
-            unit_amount: Math.round((estacao.preco * 100)),
+            product_data: { name: `${evento.nome_evento} — ${item.estacao_nome}` },
+            unit_amount: Math.round((item.preco * 100)),
           },
-          quantity: quantidade,
-        }],
+          quantity: item.quantidade,
+        })),
         mode: 'payment',
         customer_email: usuario_email,
-        success_url: `${frontendUrl}/fatura.html?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}&estacao_nome=${encodeURIComponent(estacao_nome)}&quantidade=${quantidade}`,
+        success_url: `${frontendUrl}/fatura.html?session_id={CHECKOUT_SESSION_ID}&evento_id=${evento_id}`,
         cancel_url: `${frontendUrl}/event/${evento_id}?payment_cancelled=true`,
         metadata: {
           pedido_id: pedidoId,
           evento_id,
-          estacao_nome,
-          quantidade: String(quantidade),
+          itens: JSON.stringify(itens),
           usuario_id,
         },
       });
