@@ -33,8 +33,21 @@ export function OrganizerLoginPage({ onBack }: { onBack: () => void }) {
                 .maybeSingle();
 
             if (userError) { setError('Erro ao consultar organizador.'); setIsLoading(false); return; }
-            if (!userData)  { setError('Email ou senha incorretos.'); setIsLoading(false); return; }
+            if (!userData) { setError('Email ou senha incorretos.'); setIsLoading(false); return; }
             if (userData.deleted_at) { setError('Esta conta está suspensa.'); setIsLoading(false); return; }
+
+            // Verificar status do organizador
+            if (userData.status === 'pendente') {
+                setError('A sua conta está aguardando aprovação. Por favor, aguarde a validação dos documentos.');
+                setIsLoading(false);
+                return;
+            }
+
+            if (userData.status === 'rejeitado') {
+                setError(`A sua conta foi rejeitada. Motivo: ${userData.rejeitado_motivo || 'Não informado'}. Contacte o suporte para mais informações.`);
+                setIsLoading(false);
+                return;
+            }
 
             const hashedInputPassword = '$2a$10$' + await sha256(loginPassword);
             if (userData.senha !== hashedInputPassword) {
@@ -182,7 +195,7 @@ export function OrganizerLoginPage({ onBack }: { onBack: () => void }) {
                             <form onSubmit={handleLoginSubmit} className="space-y-4 sm:space-y-5">
                                 <div>
                                     <label htmlFor="loginEmail" className="block text-sm font-medium text-gray-700 mb-3">
-                                        E-mail Empresarial
+                                        E-mail
                                     </label>
                                     <input
                                         id="loginEmail"

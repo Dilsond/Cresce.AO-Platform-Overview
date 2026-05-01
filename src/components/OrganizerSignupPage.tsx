@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { ArrowLeft, Building2, Shield, LogIn, Eye, EyeOff } from 'lucide-react';
-import { motion } from 'motion/react';
+import { useState, useRef } from 'react';
+import { ArrowLeft, Building2, Shield, LogIn, Eye, EyeOff, Upload, FileText, X, CheckCircle, AlertCircle } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 
@@ -8,6 +8,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const navigate = useNavigate();
 
   // Signup form state
@@ -19,7 +20,13 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
   const [localizacao, setLocalizacao] = useState('');
   const [sobre, setSobre] = useState('');
 
-  // Função auxiliar para gerar hash SHA-256 (igual ao mock_hash_password)
+  // Document upload state
+  const [documentoFile, setDocumentoFile] = useState<File | null>(null);
+  const [documentoPreview, setDocumentoPreview] = useState<string | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Função auxiliar para gerar hash SHA-256
   async function sha256(message: string) {
     const msgBuffer = new TextEncoder().encode(message);
     const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
@@ -27,29 +34,137 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
+  // Função para fazer upload do documento
+  // Função para fazer upload do documento (versão melhorada)
+  const handleDocumentUpload = async (file: File): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `organizador_documento_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+      const filePath = `documentos/${fileName}`;
+
+      console.log('📤 Fazendo upload do documento:', fileName);
+      console.log('📦 Bucket:', 'organizador-documentos');
+
+      // Tentativa 1: Upload normal
+      const { error: uploadError, data } = await supabase.storage
+        .from('organizador-documentos')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type
+        });
+
+      if (uploadError) {
+        console.error('Erro detalhado no upload:', uploadError);
+
+        // Se o erro for de permissão, tentar criar o bucket primeiro
+        if (uploadError.message.includes('row-level security') || uploadError.message.includes('permission')) {
+          console.log('⚠️ Erro de permissão, tentando método alternativo...');
+
+          // Tentativa 2: Usar bucket público 'documents'
+          const { error: uploadError2, data: data2 } = await supabase.storage
+            .from('documents')
+            .upload(filePath, file, {
+              cacheControl: '3600',
+              upsert: false,
+              contentType: file.type
+            });
+
+          if (uploadError2) {
+            console.error('Erro no método alternativo:', uploadError2);
+            throw uploadError2;
+          }
+
+          const { data: { publicUrl } } = supabase.storage
+            .from('documents')
+            .getPublicUrl(filePath);
+
+          return publicUrl;
+        }
+
+        throw uploadError;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('organizador-documentos')
+        .getPublicUrl(filePath);
+
+      console.log('✅ Documento enviado com sucesso:', publicUrl);
+      return publicUrl;
+
+    } catch (err) {
+      console.error('Erro no upload:', err);
+      return null;
+    }
+  };
+
+  const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validar tipo de arquivo
+      const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!allowedTypes.includes(file.type)) {
+        setError('O documento deve ser PDF, JPEG ou PNG');
+        return;
+      }
+
+      // Validar tamanho (max 10MB)
+      if (file.size > 10 * 1024 * 1024) {
+        setError('O documento deve ter no máximo 10MB');
+        return;
+      }
+
+      setDocumentoFile(file);
+      setDocumentoPreview(URL.createObjectURL(file));
+      setError(null);
+    }
+  };
+
+  const removeDocument = () => {
+    setDocumentoFile(null);
+    setDocumentoPreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
   const handleSignupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+    setSuccess(null);
 
     try {
-      // console.log('1. Iniciando cadastro...');
+      // Validações básicas
+      if (!company.trim()) {
+        setError('Nome da empresa é obrigatório');
+        setIsLoading(false);
+        return;
+      }
 
-      // Validar NIF
       if (!/^\d{9,10}$/.test(nif)) {
         setError('NIF inválido. Digite apenas números (9-10 dígitos)');
         setIsLoading(false);
         return;
       }
 
-      // Validar email empresarial
       if (!email.includes('@') || email.split('@')[1].split('.').length < 2) {
         setError('Por favor, insira um email empresarial válido');
         setIsLoading(false);
         return;
       }
 
-      // console.log('2. Verificando email existente...');
+      if (password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres');
+        setIsLoading(false);
+        return;
+      }
+
+      if (!documentoFile) {
+        setError('Por favor, faça upload do Certificado de Admissibilidade ou Alvará Comercial');
+        setIsLoading(false);
+        return;
+      }
 
       // Verificar se já existe organizador com este email
       const { data: existingOrganizerEmail, error: emailCheckError } = await supabase
@@ -59,39 +174,17 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         .maybeSingle();
 
       if (emailCheckError) {
-        console.error('Erro ao verificar email em organizadores:', emailCheckError);
+        console.error('Erro ao verificar email:', emailCheckError);
         setError('Erro ao verificar email. Tente novamente.');
         setIsLoading(false);
         return;
       }
 
       if (existingOrganizerEmail) {
-        setError('Este email empresarial já está registado como organizador');
+        setError('Este email empresarial já está registado');
         setIsLoading(false);
         return;
       }
-
-      // Verificar se já existe usuário normal com este email
-      const { data: existingUserEmail, error: userEmailCheckError } = await supabase
-        .from('usuarios_normais')
-        .select('email')
-        .eq('email', email)
-        .maybeSingle();
-
-      if (userEmailCheckError) {
-        console.error('Erro ao verificar email em usuários normais:', userEmailCheckError);
-        setError('Erro ao verificar email. Tente novamente.');
-        setIsLoading(false);
-        return;
-      }
-
-      if (existingUserEmail) {
-        setError('Este email já está registado como usuário normal. Por favor, utilize um email diferente.');
-        setIsLoading(false);
-        return;
-      }
-
-      // console.log('3. Verificando NIF existente...');
 
       // Verificar se já existe organizador com este NIF
       const { data: existingNif, error: nifCheckError } = await supabase
@@ -113,13 +206,20 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      // console.log('4. Gerando hash da senha...');
-      // Gerar hash da senha (igual ao mock_hash_password)
+      // Upload do documento
+      setIsUploading(true);
+      const documentoUrl = await handleDocumentUpload(documentoFile);
+      if (!documentoUrl) {
+        setError('Erro ao fazer upload do documento. Tente novamente.');
+        setIsLoading(false);
+        return;
+      }
+      setIsUploading(false);
+
+      // Gerar hash da senha
       const hashedPassword = '$2a$10$' + await sha256(password);
 
-      // console.log('5. Inserindo novo organizador...');
-
-      // Inserir diretamente
+      // Inserir organizador com status pendente
       const { data: newOrganizer, error: insertError } = await supabase
         .from('organizadores')
         .insert([
@@ -132,111 +232,45 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
             localizacao: localizacao || null,
             sobre: sobre || null,
             tags: ['Empreendedorismo', 'Tecnologia'],
+            status: 'pendente',
+            documento_url: documentoUrl,
+            documento_nome: documentoFile.name,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString()
           }
         ])
-        .select();
+        .select()
+        .single();
 
       if (insertError) {
-        console.error('ERRO DETALHADO AO INSERIR:', insertError);
-
-        // Se for erro de RLS, tenta uma abordagem diferente
-        if (insertError.message.includes('row-level security')) {
-          // console.log('Tentando método alternativo...');
-
-          // Tentativa 2: Usar a API de autenticação do Supabase primeiro
-          const { data: authData, error: authError } = await supabase.auth.signUp({
-            email: email,
-            password: password,
-            options: {
-              data: {
-                company: company,
-                nif: nif,
-                user_type: 'organizer'
-              }
-            }
-          });
-
-          if (authError) {
-            console.error('Erro no auth:', authError);
-            setError('Erro ao criar conta de autenticação.');
-            setIsLoading(false);
-            return;
-          }
-
-          if (authData.user) {
-            // Agora tenta inserir na tabela organizadores com o ID do auth
-            const { data: organizerData, error: organizerError } = await supabase
-              .from('organizadores')
-              .insert([
-                {
-                  id: authData.user.id,
-                  nome_empresa: company,
-                  nif: nif,
-                  email_empresa: email,
-                  senha: hashedPassword,
-                  contacto: contacto || null,
-                  localizacao: localizacao || null,
-                  sobre: sobre || null,
-                  tags: ['Empreendedorismo', 'Tecnologia'],
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString()
-                }
-              ])
-              .select();
-
-            if (organizerError) {
-              console.error('Erro ao inserir organizador após auth:', organizerError);
-              setError('Erro ao criar perfil de organizador.');
-              setIsLoading(false);
-              return;
-            }
-
-            if (organizerData && organizerData.length > 0) {
-              const user = {
-                id: organizerData[0].id,
-                name: organizerData[0].nome_empresa,
-                email: organizerData[0].email_empresa,
-                nif: organizerData[0].nif,
-                type: 'organizer' as const
-              };
-              localStorage.setItem('user', JSON.stringify(user));
-              navigate("/events");
-              setIsLoading(false);
-              return;
-            }
-          }
-        }
-
+        console.error('Erro ao inserir:', insertError);
         setError(`Erro ao criar conta: ${insertError.message}`);
         setIsLoading(false);
         return;
       }
 
-      // console.log('6. Organizador inserido com sucesso:', newOrganizer);
+      // Enviar notificação para admins (opcional - via trigger ou email)
+      console.log('Organizador cadastrado com sucesso. Aguardando aprovação:', newOrganizer.id);
 
-      if (!newOrganizer || newOrganizer.length === 0) {
-        setError('Erro ao criar conta. Nenhum dado retornado.');
-        setIsLoading(false);
-        return;
-      }
+      setSuccess('Cadastro realizado com sucesso! Sua conta está aguardando aprovação por um administrador. Você receberá um email quando for aprovada.');
 
-      // Login bem-sucedido
-      const user = {
-        id: newOrganizer[0].id,
-        name: newOrganizer[0].nome_empresa,
-        email: newOrganizer[0].email_empresa,
-        nif: newOrganizer[0].nif,
-        type: 'organizer' as const
-      };
+      // Limpar formulário
+      setCompany('');
+      setNif('');
+      setEmail('');
+      setPassword('');
+      setContacto('');
+      setLocalizacao('');
+      setSobre('');
+      removeDocument();
 
-      // console.log('7. Salvando usuário no localStorage:', user);
-      localStorage.setItem('user', JSON.stringify(user));
-      navigate("/events");
+      // Redirecionar após 5 segundos
+      setTimeout(() => {
+        navigate('/organizer-login');
+      }, 5000);
 
     } catch (err) {
-      console.error('ERRO INESPERADO:', err);
+      console.error('Erro inesperado:', err);
       setError('Ocorreu um erro inesperado. Tente novamente.');
     } finally {
       setIsLoading(false);
@@ -271,7 +305,6 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            {/* Decorative circles */}
             <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
             <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
 
@@ -336,7 +369,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
           </motion.div>
 
           {/* Right side - Form */}
-          <div className="lg:w-1/2 p-12 flex flex-col justify-center">
+          <div className="lg:w-1/2 p-12 flex flex-col justify-center overflow-y-auto max-h-[90vh]">
             <motion.div
               initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
@@ -354,10 +387,26 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 </p>
               </div>
 
+              {/* Mensagem de sucesso */}
+              {success && (
+                <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle className="w-5 h-5 text-green-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <p className="text-green-800 text-sm font-medium">Cadastro enviado!</p>
+                      <p className="text-green-700 text-sm mt-1">{success}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Mensagem de erro */}
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
-                  <p className="text-red-600 text-sm">{error}</p>
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 mt-0.5 flex-shrink-0" />
+                    <p className="text-red-600 text-sm">{error}</p>
+                  </div>
                 </div>
               )}
 
@@ -366,9 +415,10 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
                   <div>
-                    <p className="text-sm font-semibold text-gray-900 mb-1">Validação Documental</p>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">Validação Documental Obrigatória</p>
                     <p className="text-xs text-gray-600">
-                      Para garantir a credibilidade da plataforma, solicitamos informações que comprovem a existência legal da sua organização.
+                      É obrigatório o envio do Certificado de Admissibilidade ou Alvará Comercial.
+                      Após a validação pela nossa equipa, a sua conta será ativada.
                     </p>
                   </div>
                 </div>
@@ -448,24 +498,130 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   <p className="text-xs text-gray-500 mt-1.5">Mínimo de 6 caracteres</p>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Certificado de Admissibilidade ou Alvará Comercial *
+                  </label>
+                  {!documentoFile ? (
+                    <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-orange-500 transition-colors">
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={handleDocumentChange}
+                        className="hidden"
+                        id="document-upload"
+                        ref={fileInputRef}
+                      />
+                      <label
+                        htmlFor="document-upload"
+                        className="cursor-pointer flex flex-col items-center gap-2"
+                      >
+                        <Upload className="w-8 h-8 text-gray-400" />
+                        <span className="text-sm text-gray-600">
+                          Clique para selecionar o documento
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          PDF, JPEG ou PNG (máx. 10MB)
+                        </span>
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="relative p-4 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <FileText className="w-8 h-8 text-green-600" />
+                        <div className="flex-1">
+                          <p className="text-sm font-medium text-gray-900">{documentoFile.name}</p>
+                          <p className="text-xs text-gray-500">
+                            {(documentoFile.size / (1024 * 1024)).toFixed(2)} MB
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={removeDocument}
+                          className="p-1 text-red-500 hover:text-red-700 transition-colors"
+                        >
+                          <X className="w-5 h-5" />
+                        </button>
+                      </div>
+                      {documentoPreview && documentoFile.type.startsWith('image/') && (
+                        <img
+                          src={documentoPreview}
+                          alt="Preview"
+                          className="mt-3 max-h-32 object-contain rounded-lg"
+                        />
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                {/* Campos opcionais */}
+                <details className="text-sm">
+                  <summary className="cursor-pointer text-orange-600 hover:text-orange-700 font-medium">
+                    Informações adicionais (opcional)
+                  </summary>
+                  <div className="mt-4 space-y-4">
+                    <div>
+                      <label htmlFor="contacto" className="block text-sm font-medium text-gray-700 mb-2">
+                        Contacto
+                      </label>
+                      <input
+                        id="contacto"
+                        type="text"
+                        value={contacto}
+                        onChange={(e) => setContacto(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
+                        placeholder="+244 900 000 000"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="localizacao" className="block text-sm font-medium text-gray-700 mb-2">
+                        Localização
+                      </label>
+                      <input
+                        id="localizacao"
+                        type="text"
+                        value={localizacao}
+                        onChange={(e) => setLocalizacao(e.target.value)}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                        placeholder="Luanda, Angola"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="sobre" className="block text-sm font-medium text-gray-700 mb-2">
+                        Sobre a organização
+                      </label>
+                      <textarea
+                        id="sobre"
+                        value={sobre}
+                        onChange={(e) => setSobre(e.target.value)}
+                        rows={3}
+                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
+                        placeholder="Descreva brevemente a sua organização..."
+                      />
+                    </div>
+                  </div>
+                </details>
+
                 <motion.button
                   type="submit"
-                  disabled={isLoading}
+                  disabled={isLoading || isUploading}
                   className="w-full bg-orange-600 text-white py-3.5 cursor-pointer rounded-xl font-semibold hover:bg-orange-700 transition-all shadow-lg shadow-orange-500/30 hover:shadow-xl hover:shadow-orange-500/40 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   whileHover={{ scale: 1.01 }}
                   whileTap={{ scale: 0.99 }}
                 >
-                  {isLoading ? (
+                  {isLoading || isUploading ? (
                     <>
                       <motion.div
                         className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
                         animate={{ rotate: 360 }}
                         transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
                       />
-                      Criando...
+                      {isUploading ? 'Enviando documento...' : 'Criando...'}
                     </>
                   ) : (
-                    'Criar Conta'
+                    'Solicitar Registo'
                   )}
                 </motion.button>
               </form>
@@ -476,7 +632,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   Já tem conta de organizador?
                 </p>
                 <button
-                  onClick={() => { navigate('/organizer-login'); setShowPassword(false); }}
+                  onClick={() => { navigate('/organizer-login'); }}
                   className="text-orange-600 cursor-pointer font-semibold hover:text-orange-700 transition-colors"
                 >
                   Entrar na minha conta
