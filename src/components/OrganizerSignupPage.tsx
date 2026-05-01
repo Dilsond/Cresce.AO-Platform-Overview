@@ -282,13 +282,13 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
       {/* Back button */}
       <motion.button
         onClick={onBack}
-        className="fixed top-6 left-6 flex cursor-pointer items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50"
+        className="fixed top-4 left-4 sm:top-6 sm:left-6 flex items-center cursor-pointer gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm"
         initial={{ opacity: 0, x: -20 }}
         animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: -4 }}
       >
-        <ArrowLeft className="w-5 h-5" />
-        Voltar
+        <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+        <span className="text-sm sm:text-base">Voltar</span>
       </motion.button>
 
       <motion.div
@@ -369,7 +369,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
           </motion.div>
 
           {/* Right side - Form */}
-          <div className="lg:w-1/2 p-12 flex flex-col justify-center overflow-y-auto max-h-[90vh]">
+          <div className="lg:w-1/2 p-12 flex flex-col justify-center">
             <motion.div
               initial={{ x: 50, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}

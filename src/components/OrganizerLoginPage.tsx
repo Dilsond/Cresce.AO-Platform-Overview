@@ -80,7 +80,7 @@ export function OrganizerLoginPage({ onBack }: { onBack: () => void }) {
             {/* Back button */}
             <motion.button
                 onClick={onBack}
-                className="fixed top-4 left-4 sm:top-6 sm:left-6 flex cursor-pointer items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm"
+                className="fixed top-4 left-4 sm:top-6 sm:left-6 flex items-center cursor-pointer gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50 bg-white/80 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm"
                 initial={{ opacity: 0, x: -20 }}
                 animate={{ opacity: 1, x: 0 }}
                 whileHover={{ x: -4 }}
