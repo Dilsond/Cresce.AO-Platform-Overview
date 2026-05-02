@@ -34,46 +34,49 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
     return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
   }
 
+  // Handlers de input com máscara numérica
+
+  // NIF — exactamente 10 dígitos
+  const handleNifChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // só dígitos
+    if (value.length <= 10) setNif(value);
+  };
+
+  // Contacto — 9 a 12 dígitos (só números)
+  const handleContactoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // só dígitos
+    if (value.length <= 12) setContacto(value);
+  };
+
   // Função para fazer upload do documento
-  // Função para fazer upload do documento (versão melhorada)
   const handleDocumentUpload = async (file: File): Promise<string | null> => {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `organizador_documento_${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       const filePath = `documentos/${fileName}`;
 
-      console.log('📤 Fazendo upload do documento:', fileName);
-      console.log('📦 Bucket:', 'organizador-documentos');
-
-      // Tentativa 1: Upload normal
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('organizador-documentos')
         .upload(filePath, file, {
           cacheControl: '3600',
           upsert: false,
-          contentType: file.type
+          contentType: file.type,
         });
 
       if (uploadError) {
-        console.error('Erro detalhado no upload:', uploadError);
-
-        // Se o erro for de permissão, tentar criar o bucket primeiro
-        if (uploadError.message.includes('row-level security') || uploadError.message.includes('permission')) {
-          console.log('⚠️ Erro de permissão, tentando método alternativo...');
-
-          // Tentativa 2: Usar bucket público 'documents'
-          const { error: uploadError2, data: data2 } = await supabase.storage
+        if (
+          uploadError.message.includes('row-level security') ||
+          uploadError.message.includes('permission')
+        ) {
+          const { error: uploadError2 } = await supabase.storage
             .from('documents')
             .upload(filePath, file, {
               cacheControl: '3600',
               upsert: false,
-              contentType: file.type
+              contentType: file.type,
             });
 
-          if (uploadError2) {
-            console.error('Erro no método alternativo:', uploadError2);
-            throw uploadError2;
-          }
+          if (uploadError2) throw uploadError2;
 
           const { data: { publicUrl } } = supabase.storage
             .from('documents')
@@ -81,7 +84,6 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
 
           return publicUrl;
         }
-
         throw uploadError;
       }
 
@@ -89,9 +91,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         .from('organizador-documentos')
         .getPublicUrl(filePath);
 
-      console.log('✅ Documento enviado com sucesso:', publicUrl);
       return publicUrl;
-
     } catch (err) {
       console.error('Erro no upload:', err);
       return null;
@@ -101,19 +101,15 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
   const handleDocumentChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // Validar tipo de arquivo
       const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
       if (!allowedTypes.includes(file.type)) {
         setError('O documento deve ser PDF, JPEG ou PNG');
         return;
       }
-
-      // Validar tamanho (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         setError('O documento deve ter no máximo 10MB');
         return;
       }
-
       setDocumentoFile(file);
       setDocumentoPreview(URL.createObjectURL(file));
       setError(null);
@@ -123,9 +119,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
   const removeDocument = () => {
     setDocumentoFile(null);
     setDocumentoPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const handleSignupSubmit = async (e: React.FormEvent) => {
@@ -142,8 +136,9 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
-      if (!/^\d{9,10}$/.test(nif)) {
-        setError('NIF inválido. Digite apenas números (9-10 dígitos)');
+      // NIF — exactamente 10 dígitos
+      if (!/^\d{10}$/.test(nif)) {
+        setError('NIF inválido. Deve conter exactamente 10 dígitos numéricos');
         setIsLoading(false);
         return;
       }
@@ -160,13 +155,20 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         return;
       }
 
+      // Contacto — 9 a 12 dígitos (se preenchido)
+      if (contacto && !/^\d{9,12}$/.test(contacto)) {
+        setError('Contacto inválido. Deve conter entre 9 e 12 dígitos numéricos');
+        setIsLoading(false);
+        return;
+      }
+
       if (!documentoFile) {
         setError('Por favor, faça upload do Certificado de Admissibilidade ou Alvará Comercial');
         setIsLoading(false);
         return;
       }
 
-      // Verificar se já existe organizador com este email
+      // Verificar email duplicado
       const { data: existingOrganizerEmail, error: emailCheckError } = await supabase
         .from('organizadores')
         .select('email_empresa')
@@ -174,19 +176,17 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         .maybeSingle();
 
       if (emailCheckError) {
-        console.error('Erro ao verificar email:', emailCheckError);
         setError('Erro ao verificar email. Tente novamente.');
         setIsLoading(false);
         return;
       }
-
       if (existingOrganizerEmail) {
         setError('Este email empresarial já está registado');
         setIsLoading(false);
         return;
       }
 
-      // Verificar se já existe organizador com este NIF
+      // Verificar NIF duplicado
       const { data: existingNif, error: nifCheckError } = await supabase
         .from('organizadores')
         .select('nif')
@@ -194,12 +194,10 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         .maybeSingle();
 
       if (nifCheckError) {
-        console.error('Erro ao verificar NIF:', nifCheckError);
         setError('Erro ao verificar NIF. Tente novamente.');
         setIsLoading(false);
         return;
       }
-
       if (existingNif) {
         setError('Este NIF já está registado');
         setIsLoading(false);
@@ -209,17 +207,18 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
       // Upload do documento
       setIsUploading(true);
       const documentoUrl = await handleDocumentUpload(documentoFile);
+      setIsUploading(false);
+
       if (!documentoUrl) {
         setError('Erro ao fazer upload do documento. Tente novamente.');
         setIsLoading(false);
         return;
       }
-      setIsUploading(false);
 
-      // Gerar hash da senha
+      // Hash da senha
       const hashedPassword = '$2a$10$' + await sha256(password);
 
-      // Inserir organizador com status pendente
+      // Inserir organizador
       const { data: newOrganizer, error: insertError } = await supabase
         .from('organizadores')
         .insert([
@@ -236,23 +235,23 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
             documento_url: documentoUrl,
             documento_nome: documentoFile.name,
             created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString()
-          }
+            updated_at: new Date().toISOString(),
+          },
         ])
         .select()
         .single();
 
       if (insertError) {
-        console.error('Erro ao inserir:', insertError);
         setError(`Erro ao criar conta: ${insertError.message}`);
         setIsLoading(false);
         return;
       }
 
-      // Enviar notificação para admins (opcional - via trigger ou email)
-      console.log('Organizador cadastrado com sucesso. Aguardando aprovação:', newOrganizer.id);
+      console.log('Organizador cadastrado, aguardando aprovação:', newOrganizer.id);
 
-      setSuccess('Cadastro realizado com sucesso! Sua conta está aguardando aprovação por um administrador. Você receberá um email quando for aprovada.');
+      setSuccess(
+        'Cadastro realizado com sucesso! Sua conta está aguardando aprovação por um administrador. Você receberá um email quando for aprovada.'
+      );
 
       // Limpar formulário
       setCompany('');
@@ -264,11 +263,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
       setSobre('');
       removeDocument();
 
-      // Redirecionar após 5 segundos
-      setTimeout(() => {
-        navigate('/organizer-login');
-      }, 5000);
-
+      setTimeout(() => navigate('/organizer-login'), 5000);
     } catch (err) {
       console.error('Erro inesperado:', err);
       setError('Ocorreu um erro inesperado. Tente novamente.');
@@ -298,21 +293,21 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
         transition={{ duration: 0.5 }}
       >
         <div className="flex flex-col lg:flex-row min-h-[600px]">
-          {/* Left side - Orange Solid */}
+          {/* Left side */}
           <motion.div
             className="lg:w-1/2 bg-orange-600 p-12 flex flex-col justify-between text-white relative overflow-hidden"
             initial={{ x: -50, opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl"></div>
-            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl"></div>
+            <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
 
             <div className="relative z-10">
               <motion.div
                 initial={{ scale: 0 }}
                 animate={{ scale: 1 }}
-                transition={{ delay: 0.4, type: "spring" }}
+                transition={{ delay: 0.4, type: 'spring' }}
                 className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-8"
               >
                 <Building2 className="w-8 h-8" />
@@ -340,30 +335,16 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
               transition={{ delay: 0.6 }}
             >
               <div className="space-y-3">
-                <div className="flex items-center gap-3 text-white/90">
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
+                {['Painel de gestão completo', 'Análises e métricas detalhadas', 'Suporte dedicado 24/7'].map((item) => (
+                  <div key={item} className="flex items-center gap-3 text-white/90">
+                    <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <span>{item}</span>
                   </div>
-                  <span>Painel de gestão completo</span>
-                </div>
-                <div className="flex items-center gap-3 text-white/90">
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <span>Análises e métricas detalhadas</span>
-                </div>
-                <div className="flex items-center gap-3 text-white/90">
-                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                    </svg>
-                  </div>
-                  <span>Suporte dedicado 24/7</span>
-                </div>
+                ))}
               </div>
             </motion.div>
           </motion.div>
@@ -379,15 +360,10 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 <div className="w-10 h-10 bg-orange-100 rounded-xl flex items-center justify-center mb-6">
                   <Building2 className="w-5 h-5 text-orange-600" />
                 </div>
-                <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                  Registo de Organizador
-                </h1>
-                <p className="text-gray-600">
-                  Crie eventos e conecte-se com profissionais
-                </p>
+                <h1 className="text-3xl font-bold text-gray-900 mb-2">Registo de Organizador</h1>
+                <p className="text-gray-600">Crie eventos e conecte-se com profissionais</p>
               </div>
 
-              {/* Mensagem de sucesso */}
               {success && (
                 <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-start gap-3">
@@ -400,7 +376,6 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 </div>
               )}
 
-              {/* Mensagem de erro */}
               {error && (
                 <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg">
                   <div className="flex items-start gap-3">
@@ -410,7 +385,6 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 </div>
               )}
 
-              {/* Validation Notice */}
               <div className="mb-6 p-4 bg-orange-50 rounded-xl border border-orange-100">
                 <div className="flex items-start gap-3">
                   <Shield className="w-5 h-5 text-orange-600 mt-0.5 flex-shrink-0" />
@@ -425,6 +399,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
               </div>
 
               <form onSubmit={handleSignupSubmit} className="space-y-4">
+                {/* Empresa */}
                 <div>
                   <label htmlFor="company" className="block text-sm font-medium text-gray-700 mb-2">
                     Nome Legal da Empresa/Organização *
@@ -440,23 +415,46 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   />
                 </div>
 
+                {/* NIF — exactamente 10 dígitos */}
                 <div>
                   <label htmlFor="nif" className="block text-sm font-medium text-gray-700 mb-2">
                     Número de Identificação Fiscal (NIF) *
                   </label>
-                  <input
-                    id="nif"
-                    type="text"
-                    value={nif}
-                    onChange={(e) => setNif(e.target.value)}
-                    required
-                    pattern="[0-9]{9,10}"
-                    className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="Digite o NIF da empresa"
-                  />
-                  <p className="text-xs text-gray-500 mt-1.5">Digite apenas números (9-10 dígitos)</p>
+                  <div className="relative">
+                    <input
+                      id="nif"
+                      type="text"
+                      inputMode="numeric"
+                      value={nif}
+                      onChange={handleNifChange}
+                      required
+                      maxLength={10}
+                      className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-16 ${
+                        nif.length > 0 && nif.length < 10
+                          ? 'border-amber-400'
+                          : nif.length === 10
+                          ? 'border-green-400'
+                          : 'border-gray-200'
+                      }`}
+                      placeholder="Digite os 10 dígitos do NIF"
+                    />
+                    {/* Contador de dígitos */}
+                    <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono tabular-nums ${
+                      nif.length === 10
+                        ? 'text-green-600'
+                        : nif.length > 0
+                        ? 'text-amber-500'
+                        : 'text-gray-400'
+                    }`}>
+                      {nif.length}/10
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5">
+                    Exactamente 10 dígitos numéricos
+                  </p>
                 </div>
 
+                {/* Email */}
                 <div>
                   <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
                     E-mail Empresarial *
@@ -468,10 +466,11 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                    placeholder="Contato@empresa.ao"
+                    placeholder="contato@empresa.ao"
                   />
                 </div>
 
+                {/* Senha */}
                 <div>
                   <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
                     Senha *
@@ -479,7 +478,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   <div className="relative">
                     <input
                       id="password"
-                      type={showPassword ? "text" : "password"}
+                      type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       required
@@ -498,6 +497,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   <p className="text-xs text-gray-500 mt-1.5">Mínimo de 6 caracteres</p>
                 </div>
 
+                {/* Documento */}
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Certificado de Admissibilidade ou Alvará Comercial *
@@ -512,17 +512,10 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                         id="document-upload"
                         ref={fileInputRef}
                       />
-                      <label
-                        htmlFor="document-upload"
-                        className="cursor-pointer flex flex-col items-center gap-2"
-                      >
+                      <label htmlFor="document-upload" className="cursor-pointer flex flex-col items-center gap-2">
                         <Upload className="w-8 h-8 text-gray-400" />
-                        <span className="text-sm text-gray-600">
-                          Clique para selecionar o documento
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          PDF, JPEG ou PNG (máx. 10MB)
-                        </span>
+                        <span className="text-sm text-gray-600">Clique para selecionar o documento</span>
+                        <span className="text-xs text-gray-500">PDF, JPEG ou PNG (máx. 10MB)</span>
                       </label>
                     </div>
                   ) : (
@@ -544,34 +537,52 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                         </button>
                       </div>
                       {documentoPreview && documentoFile.type.startsWith('image/') && (
-                        <img
-                          src={documentoPreview}
-                          alt="Preview"
-                          className="mt-3 max-h-32 object-contain rounded-lg"
-                        />
+                        <img src={documentoPreview} alt="Preview" className="mt-3 max-h-32 object-contain rounded-lg" />
                       )}
                     </div>
                   )}
                 </div>
 
-                {/* Campos opcionais */}
+                {/* Informações adicionais */}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-orange-600 hover:text-orange-700 font-medium">
                     Informações adicionais (opcional)
                   </summary>
                   <div className="mt-4 space-y-4">
+                    {/* Contacto — 9 a 12 dígitos */}
                     <div>
                       <label htmlFor="contacto" className="block text-sm font-medium text-gray-700 mb-2">
                         Contacto
                       </label>
-                      <input
-                        id="contacto"
-                        type="text"
-                        value={contacto}
-                        onChange={(e) => setContacto(e.target.value)}
-                        className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400"
-                        placeholder="+244 900 000 000"
-                      />
+                      <div className="relative">
+                        <input
+                          id="contacto"
+                          type="text"
+                          inputMode="numeric"
+                          value={contacto}
+                          onChange={handleContactoChange}
+                          maxLength={12}
+                          className={`w-full px-4 py-3 bg-gray-50 border rounded-xl focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none transition-all text-gray-900 placeholder-gray-400 pr-16 ${
+                            contacto.length > 0 && contacto.length < 9
+                              ? 'border-amber-400'
+                              : contacto.length >= 9
+                              ? 'border-green-400'
+                              : 'border-gray-200'
+                          }`}
+                          placeholder="912 345 678"
+                        />
+                        {/* Contador */}
+                        {contacto.length > 0 && (
+                          <span className={`absolute right-4 top-1/2 -translate-y-1/2 text-xs font-mono tabular-nums ${
+                            contacto.length >= 9 ? 'text-green-600' : 'text-amber-500'
+                          }`}>
+                            {contacto.length}/12
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1.5">
+                        Entre 9 e 12 dígitos numéricos
+                      </p>
                     </div>
 
                     <div>
@@ -616,7 +627,7 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                       <motion.div
                         className="w-5 h-5 border-2 border-white border-t-transparent rounded-full"
                         animate={{ rotate: 360 }}
-                        transition={{ duration: 0.8, repeat: Infinity, ease: "linear" }}
+                        transition={{ duration: 0.8, repeat: Infinity, ease: 'linear' }}
                       />
                       {isUploading ? 'Enviando documento...' : 'Criando...'}
                     </>
@@ -626,13 +637,10 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                 </motion.button>
               </form>
 
-              {/* Toggle Mode Button */}
               <div className="mt-6 text-center pt-4 border-t border-gray-100">
-                <p className="text-gray-600 mb-2">
-                  Já tem conta de organizador?
-                </p>
+                <p className="text-gray-600 mb-2">Já tem conta de organizador?</p>
                 <button
-                  onClick={() => { navigate('/organizer-login'); }}
+                  onClick={() => navigate('/organizer-login')}
                   className="text-orange-600 cursor-pointer font-semibold hover:text-orange-700 transition-colors"
                 >
                   Entrar na minha conta
