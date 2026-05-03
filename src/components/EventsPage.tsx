@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import {
   Search, MapPin, Heart, User, LogOut,
   CalendarDays, ChevronDown, Menu, X, ChevronRight,
-  MessageSquare, Users
 } from 'lucide-react';
 import { Button } from './ui/button';
 import logo from '../assets/logo.png';
@@ -17,7 +16,6 @@ import { Footer } from './Footer';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { notificationService } from '../services/notificationService';
-import { showLocalNotification } from '../lib/pushNotifications';
 import { NotificationPermissionPrompt } from './NotificationsPermissionPrompt';
 
 export type UserType = 'user' | 'organizer';
@@ -75,14 +73,10 @@ export function EventsPage() {
   const [sortBy, setSortBy] = useState('Relevância');
 
   const isOrganizer = currentUser?.type === 'organizer';
-
-  // Usar searchQuery do layout se disponível, senão usar local
   const searchQuery = layoutContext?.searchQuery !== undefined ? layoutContext.searchQuery : localSearchQuery;
 
   useEffect(() => {
-    if (!currentUser) {
-      navigate('/login');
-    }
+    if (!currentUser) navigate('/login');
   }, [currentUser, navigate]);
 
   useEffect(() => {
@@ -105,7 +99,12 @@ export function EventsPage() {
       if (error) return;
       const ids = favorites.map((f: any) => f.evento_id);
       if (ids.length > 0) {
-        const { data: valid } = await supabase.from('eventos').select('id').in('id', ids).is('deleted_at', null);
+        const { data: valid } = await supabase
+          .from('eventos')
+          .select('id')
+          .in('id', ids)
+          .is('deleted_at', null)
+          .eq('status_aprovacao', 'aprovado'); // só favoritos de eventos aprovados
         const validIds = (valid ?? []).map((e: any) => e.id);
         setLikedEvents(validIds);
         localStorage.setItem('cresceao_liked', JSON.stringify(validIds));
@@ -119,11 +118,7 @@ export function EventsPage() {
   const handleLikeToggle = async (eventId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-
-    if (!currentUser) {
-      navigate('/login');
-      return;
-    }
+    if (!currentUser) { navigate('/login'); return; }
 
     const evento = events.find((ev) => ev.id === eventId);
     try {
@@ -141,11 +136,8 @@ export function EventsPage() {
         setEvents((prev) => prev.map((ev) => ev.id === eventId ? { ...ev, likes: Math.max(0, ev.likes - 1) } : ev));
       } else {
         const data: any = { evento_id: eventId, created_at: new Date().toISOString() };
-        if (currentUser.type === 'user') {
-          data.usuario_normal_id = currentUser.id;
-        } else {
-          data.organizador_id = currentUser.id;
-        }
+        if (currentUser.type === 'user') data.usuario_normal_id = currentUser.id;
+        else data.organizador_id = currentUser.id;
         const { error } = await supabase.from('favoritos_eventos').insert(data);
         if (error) return;
         const updated = [...likedEvents, eventId];
@@ -159,9 +151,7 @@ export function EventsPage() {
             .select('email_empresa, nome_empresa')
             .eq('id', evento.organizerId)
             .single();
-
           if (org) {
-            // showLocalNotification('❤️ Novo Like!', `${currentUser.name || currentUser.username || 'Alguém'} curtiu: ${evento.name}`);
             await notificationService.sendEmailNotification(
               {
                 id: `tmp-${Date.now()}`,
@@ -179,9 +169,7 @@ export function EventsPage() {
           }
         }
       }
-    } catch (err) {
-      console.error(err);
-    }
+    } catch (err) { console.error(err); }
   };
 
   const formatTime = (t: string) => (t ? t.split(':').slice(0, 2).join(':') : '');
@@ -191,21 +179,16 @@ export function EventsPage() {
       setIsLoading(true);
       setError(null);
 
+      // ── Apenas eventos aprovados, não apagados ──────────────────────────
       const { data: eventos, error: err } = await supabase
         .from('eventos')
         .select('*')
         .is('deleted_at', null)
+        .eq('status_aprovacao', 'aprovado')
         .order('data_evento', { ascending: true });
 
-      if (err) {
-        setError('Erro ao carregar eventos.');
-        return;
-      }
-
-      if (!eventos?.length) {
-        setEvents([]);
-        return;
-      }
+      if (err) { setError('Erro ao carregar eventos.'); return; }
+      if (!eventos?.length) { setEvents([]); return; }
 
       const valid: Event[] = [];
       for (const ev of eventos) {
@@ -215,6 +198,7 @@ export function EventsPage() {
           .eq('id', ev.organizador_id)
           .single();
 
+        // Ignorar eventos de organizadores apagados ou inactivos
         if (orgErr || org?.deleted_at) continue;
 
         const { count } = await supabase
@@ -252,28 +236,15 @@ export function EventsPage() {
     }
   };
 
-  const onLogout = () => {
-    localStorage.removeItem('user');
-    navigate('/login');
-  };
-
-  const onNavigateToProfile = () => {
-    if (isOrganizer) {
-      navigate('/organizer-profile');
-    } else {
-      navigate('/user-dashboard');
-    }
-  };
+  const onLogout = () => { localStorage.removeItem('user'); navigate('/login'); };
+  const onNavigateToProfile = () => { navigate(isOrganizer ? '/organizer-profile' : '/user-dashboard'); };
 
   const categories = ['Todas', 'palestra', 'workshop', 'feiras', 'masterclasse'];
   const dateFilters = ['Todas', 'Hoje', 'Esta Semana', 'Este Mês', 'Próximos 3 Meses'];
   const eventTypes = ['Todos', 'presencial', 'online', 'hibrido'];
   const priceFilters = ['Todos', 'Gratuito', 'Pago'];
   const catLabels: Record<string, string> = {
-    palestra: 'Palestra',
-    workshop: 'Workshop',
-    feiras: 'Feira',
-    masterclasse: 'Masterclasse'
+    palestra: 'Palestra', workshop: 'Workshop', feiras: 'Feira', masterclasse: 'Masterclasse',
   };
 
   const filtered = events.filter((ev) => {
@@ -283,21 +254,12 @@ export function EventsPage() {
     const matchType = selectedEventType === 'Todos' || ev.eventType === selectedEventType;
     const matchPrice = selectedPriceFilter === 'Todos' || (selectedPriceFilter === 'Gratuito' ? !ev.price || ev.price === 0 : !!ev.price && ev.price > 0);
     const d = new Date(ev.date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
     let matchDate = true;
     if (selectedDateFilter === 'Hoje') matchDate = d.toDateString() === today.toDateString();
-    else if (selectedDateFilter === 'Esta Semana') {
-      const w = new Date(today);
-      w.setDate(today.getDate() + 7);
-      matchDate = d >= today && d <= w;
-    }
+    else if (selectedDateFilter === 'Esta Semana') { const w = new Date(today); w.setDate(today.getDate() + 7); matchDate = d >= today && d <= w; }
     else if (selectedDateFilter === 'Este Mês') matchDate = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    else if (selectedDateFilter === 'Próximos 3 Meses') {
-      const m = new Date(today);
-      m.setMonth(today.getMonth() + 3);
-      matchDate = d >= today && d <= m;
-    }
+    else if (selectedDateFilter === 'Próximos 3 Meses') { const m = new Date(today); m.setMonth(today.getMonth() + 3); matchDate = d >= today && d <= m; }
     return matchSearch && matchCat && matchType && matchPrice && matchDate;
   });
 
@@ -314,7 +276,7 @@ export function EventsPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+          <div className="w-16 h-16 border-4 border-orange-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-gray-600">Redirecionando para login...</p>
         </div>
       </div>
@@ -323,8 +285,6 @@ export function EventsPage() {
 
   const FiltersBar = () => (
     <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:pb-6">
-
-      {/* Linha 1 — Filtrar por */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar">
         <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Filtrar por</span>
         {[
@@ -335,60 +295,52 @@ export function EventsPage() {
         ].map(({ label, value, set, opts }) => (
           <DropdownMenu key={label}>
             <DropdownMenuTrigger asChild>
-              <Button
-                variant="outline"
-                className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-8 sm:h-9 text-xs sm:text-sm whitespace-nowrap flex-shrink-0"
-              >
+              <Button variant="outline" className="rounded-full cursor-pointer border-gray-300 text-gray-700 hover:border-orange-500 hover:text-orange-600 h-8 sm:h-9 text-xs sm:text-sm whitespace-nowrap flex-shrink-0">
                 {value === 'Todas' || value === 'Todos' ? label : (catLabels[value] || value)}
                 <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5" />
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent>
-              {opts.map(o => (
-                <DropdownMenuItem key={o.value} onClick={() => set(o.value)}>
-                  {o.label}
-                </DropdownMenuItem>
-              ))}
+              {opts.map(o => <DropdownMenuItem key={o.value} onClick={() => set(o.value)}>{o.label}</DropdownMenuItem>)}
             </DropdownMenuContent>
           </DropdownMenu>
         ))}
       </div>
-
-      {/* Linha 2 — Ordenar por */}
       <div className="flex items-center gap-2">
         <span className="text-sm font-semibold text-gray-700 whitespace-nowrap">Ordenar por</span>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
-              variant="outline"
-              className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 h-8 sm:h-9 px-3 text-xs sm:text-sm whitespace-nowrap"
-            >
-              {sortBy}
-              <ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5" />
+            <Button variant="outline" className="bg-orange-50 text-orange-600 cursor-pointer border-orange-100 hover:bg-orange-100 h-8 sm:h-9 px-3 text-xs sm:text-sm whitespace-nowrap">
+              {sortBy}<ChevronDown className="w-3 h-3 sm:w-4 sm:h-4 ml-1.5" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="sm:align-end">
+          <DropdownMenuContent align="start">
             {['Relevância', 'Data: Próximos', 'Data: Distantes', 'Preço: Menor para Maior', 'Preço: Maior para Menor'].map(s => (
               <DropdownMenuItem key={s} onClick={() => setSortBy(s)}>{s}</DropdownMenuItem>
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
-
     </div>
   );
 
   const EventCard = ({ event }: { event: Event }) => (
-    <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:border-orange-200 hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full" onClick={() => navigate(`/event/${event.id}`)}>
+    <div
+      className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:border-orange-200 hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full"
+      onClick={() => navigate(`/event/${event.id}`)}
+    >
       <div className="relative aspect-[16/9] overflow-hidden bg-gray-900">
-        <img src={event.image} alt={event.name} className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500" onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800'; }} />
+        <img src={event.image} alt={event.name} className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500"
+          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800'; }} />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        <div className="absolute top-3 left-3"><Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 font-semibold shadow-sm">{catLabels[event.category]}</Badge></div>
+        <div className="absolute top-3 left-3">
+          <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 font-semibold shadow-sm">{catLabels[event.category]}</Badge>
+        </div>
         <div className="absolute top-3 right-3">
           <button className="p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white hover:scale-110 transition-all shadow-sm" onClick={(e) => handleLikeToggle(event.id, e)}>
             <Heart className={`w-5 h-5 transition-all duration-200 ${likedEvents.includes(event.id) ? 'text-red-500 fill-red-500' : 'text-gray-600 hover:text-red-500'}`} />
           </button>
-        </div>1
+        </div>
         <div className="absolute bottom-3 right-3">
           <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'}`}>{event.status}</span>
         </div>
@@ -424,27 +376,19 @@ export function EventsPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
-      {/* Header condicional */}
+      {/* Header */}
       {!isOrganizer ? (
-        // Header completo para usuário normal
         <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             <div className="flex items-center cursor-pointer" onClick={() => navigate('/events')}>
               <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
               <span className="text-xl font-bold text-gray-900 tracking-tight">Cresce<span className="text-orange-600">.AO</span></span>
             </div>
-
             <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input
-                type="text"
-                placeholder="Buscar experiências"
-                value={localSearchQuery}
-                onChange={(e) => setLocalSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
-              />
+              <input type="text" placeholder="Buscar experiências" value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" />
             </div>
-
             <div className="hidden lg:flex items-center gap-4">
               <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
                 <Heart className="w-5 h-5" /> Favoritos
@@ -466,7 +410,6 @@ export function EventsPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
-
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="lg:hidden p-2 cursor-pointer text-gray-600 hover:text-orange-600">
               {mobileMenuOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
             </button>
@@ -477,13 +420,8 @@ export function EventsPage() {
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center bg-gray-100 rounded-lg border border-gray-200">
                   <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-                  <input
-                    type="text"
-                    placeholder="Buscar experiências"
-                    value={localSearchQuery}
-                    onChange={(e) => setLocalSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none"
-                  />
+                  <input type="text" placeholder="Buscar experiências" value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none" />
                 </div>
               </div>
               <div className="p-4 space-y-2">
@@ -502,18 +440,12 @@ export function EventsPage() {
           )}
         </header>
       ) : (
-        // Header simplificado apenas com busca para organizador
         <div className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center w-full max-w-2xl mx-auto bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input
-                type="text"
-                placeholder="Buscar eventos..."
-                value={localSearchQuery}
-                onChange={(e) => setLocalSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
-              />
+              <input type="text" placeholder="Buscar eventos..." value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" />
             </div>
           </div>
         </div>
@@ -557,7 +489,10 @@ export function EventsPage() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum evento encontrado</h3>
             <p className="text-gray-500 max-w-md mx-auto mb-6">Tente limpar os filtros ou buscar por outro termo.</p>
-            <Button onClick={() => { setSelectedCategory('Todas'); setSelectedDateFilter('Todas'); setSelectedEventType('Todos'); setSelectedPriceFilter('Todos'); setLocalSearchQuery(''); }} className="bg-orange-600 hover:bg-orange-700">
+            <Button
+              onClick={() => { setSelectedCategory('Todas'); setSelectedDateFilter('Todas'); setSelectedEventType('Todos'); setSelectedPriceFilter('Todos'); setLocalSearchQuery(''); }}
+              className="bg-orange-600 hover:bg-orange-700"
+            >
               Limpar filtros
             </Button>
           </div>

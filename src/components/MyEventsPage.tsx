@@ -17,7 +17,8 @@ import {
     Copy,
     Share2,
     UserPlus,
-    X
+    X,
+    Lock
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -54,6 +55,8 @@ interface Event {
     video?: string;
     pdf?: string;
     status: string;
+    statusAprovacao: 'pendente' | 'aprovado' | 'rejeitado';
+    motivoRejeicao?: string;
     organizerId: string;
     organizerName: string;
     likes: number;
@@ -62,6 +65,67 @@ interface Event {
     totalIngressos?: number;
     ingressosVendidos?: number;
     created_at?: string;
+}
+
+// Ilustração SVG para evento pendente
+function PendingIllustration() {
+    return (
+        <svg viewBox="0 0 280 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+            <rect width="280" height="160" fill="#FFF7ED" />
+            {/* Background circles */}
+            <circle cx="240" cy="20" r="40" fill="#FED7AA" opacity="0.4" />
+            <circle cx="40" cy="140" r="30" fill="#FDBA74" opacity="0.3" />
+
+            {/* Document */}
+            <rect x="90" y="25" width="100" height="110" rx="8" fill="white" stroke="#F97316" strokeWidth="2" />
+            <rect x="100" y="40" width="60" height="6" rx="3" fill="#FED7AA" />
+            <rect x="100" y="54" width="80" height="4" rx="2" fill="#FEE2CE" />
+            <rect x="100" y="64" width="70" height="4" rx="2" fill="#FEE2CE" />
+            <rect x="100" y="74" width="75" height="4" rx="2" fill="#FEE2CE" />
+
+            {/* Clock icon in center */}
+            <circle cx="140" cy="105" r="20" fill="#FFF7ED" stroke="#F97316" strokeWidth="2" />
+            <circle cx="140" cy="105" r="2" fill="#F97316" />
+            <line x1="140" y1="105" x2="140" y2="95" stroke="#F97316" strokeWidth="2" strokeLinecap="round" />
+            <line x1="140" y1="105" x2="148" y2="109" stroke="#F97316" strokeWidth="2" strokeLinecap="round" />
+
+            {/* Stars/sparkles */}
+            <path d="M65 50 L67 46 L69 50 L73 52 L69 54 L67 58 L65 54 L61 52 Z" fill="#FB923C" opacity="0.7" />
+            <path d="M210 80 L212 76 L214 80 L218 82 L214 84 L212 88 L210 84 L206 82 Z" fill="#F97316" opacity="0.5" />
+            <circle cx="75" cy="90" r="3" fill="#FDBA74" />
+            <circle cx="205" cy="45" r="4" fill="#FB923C" opacity="0.6" />
+        </svg>
+    );
+}
+
+// Ilustração SVG para evento rejeitado
+function RejectedIllustration() {
+    return (
+        <svg viewBox="0 0 280 160" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full h-full">
+            <rect width="280" height="160" fill="#FEF2F2" />
+            {/* Background shapes */}
+            <circle cx="240" cy="20" r="40" fill="#FECACA" opacity="0.4" />
+            <circle cx="40" cy="140" r="30" fill="#FCA5A5" opacity="0.3" />
+
+            {/* Document */}
+            <rect x="90" y="25" width="100" height="110" rx="8" fill="white" stroke="#EF4444" strokeWidth="2" />
+            <rect x="100" y="40" width="60" height="6" rx="3" fill="#FECACA" />
+            <rect x="100" y="54" width="80" height="4" rx="2" fill="#FEE2E2" />
+            <rect x="100" y="64" width="70" height="4" rx="2" fill="#FEE2E2" />
+            <rect x="100" y="74" width="75" height="4" rx="2" fill="#FEE2E2" />
+
+            {/* X icon in center */}
+            <circle cx="140" cy="105" r="20" fill="#FEF2F2" stroke="#EF4444" strokeWidth="2" />
+            <line x1="132" y1="97" x2="148" y2="113" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" />
+            <line x1="148" y1="97" x2="132" y2="113" stroke="#EF4444" strokeWidth="2.5" strokeLinecap="round" />
+
+            {/* Decorative elements */}
+            <path d="M65 50 L67 46 L69 50 L73 52 L69 54 L67 58 L65 54 L61 52 Z" fill="#F87171" opacity="0.7" />
+            <path d="M210 80 L212 76 L214 80 L218 82 L214 84 L212 88 L210 84 L206 82 Z" fill="#EF4444" opacity="0.5" />
+            <circle cx="75" cy="90" r="3" fill="#FCA5A5" />
+            <circle cx="205" cy="45" r="4" fill="#F87171" opacity="0.6" />
+        </svg>
+    );
 }
 
 export function MyEventsPage() {
@@ -79,7 +143,6 @@ export function MyEventsPage() {
     const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'cancelled' | 'finished'>('all');
     const [searchTerm, setSearchTerm] = useState('');
 
-    // Verificar usuário logado
     useEffect(() => {
         const storedUser = localStorage.getItem('user');
         if (storedUser) {
@@ -101,7 +164,6 @@ export function MyEventsPage() {
         }
     }, [navigate]);
 
-    // Buscar eventos do organizador
     useEffect(() => {
         if (user) {
             fetchOrganizerEvents();
@@ -115,7 +177,6 @@ export function MyEventsPage() {
             setIsLoading(true);
             setError(null);
 
-            // Buscar eventos do organizador
             const { data: eventos, error: eventosError } = await supabase
                 .from('eventos')
                 .select('*')
@@ -133,16 +194,13 @@ export function MyEventsPage() {
                 return;
             }
 
-            // Processar eventos
             const eventosProcessados = await Promise.all(
                 eventos.map(async (evento) => {
-                    // Buscar número de likes
                     const { count: likesCount } = await supabase
                         .from('favoritos_eventos')
                         .select('*', { count: 'exact', head: true })
                         .eq('evento_id', evento.id);
 
-                    // Buscar número de ingressos vendidos
                     const { data: pedidos } = await supabase
                         .from('pedidos')
                         .select('quantidade')
@@ -151,11 +209,9 @@ export function MyEventsPage() {
 
                     const ingressosVendidos = pedidos?.reduce((sum, p) => sum + p.quantidade, 0) || 0;
 
-                    // Calcular total de ingressos disponíveis
                     const estacoes = evento.estacoes || [];
                     const totalIngressos = estacoes.reduce((sum, e: Estacao) => sum + e.quantidade, 0);
 
-                    // Determinar status do evento
                     const hoje = new Date();
                     const dataEvento = new Date(evento.data_evento);
                     let status = 'active';
@@ -179,6 +235,8 @@ export function MyEventsPage() {
                         video: evento.video_url,
                         pdf: evento.arquivo_pdf_url,
                         status,
+                        statusAprovacao: (evento.status_aprovacao || 'pendente') as 'pendente' | 'aprovado' | 'rejeitado',
+                        motivoRejeicao: evento.motivo_rejeicao,
                         organizerId: evento.organizador_id,
                         organizerName: user.name,
                         likes: likesCount || 0,
@@ -226,10 +284,6 @@ export function MyEventsPage() {
     };
 
     const handleCancelEvent = async (eventId: string) => {
-        // if (!confirm('Tem certeza que deseja cancelar este evento? Esta ação pode ser desfeita posteriormente.')) {
-        //     return;
-        // }
-
         try {
             const { error } = await supabase
                 .from('eventos')
@@ -240,9 +294,7 @@ export function MyEventsPage() {
                 .eq('id', eventId);
 
             if (error) throw error;
-
             await fetchOrganizerEvents();
-
         } catch (err) {
             console.error('Erro ao cancelar evento:', err);
             alert('Erro ao cancelar evento. Tente novamente.');
@@ -250,10 +302,6 @@ export function MyEventsPage() {
     };
 
     const handleRestoreEvent = async (eventId: string) => {
-        // if (!confirm('Tem certeza que deseja reativar este evento?')) {
-        //     return;
-        // }
-
         try {
             const { error } = await supabase
                 .from('eventos')
@@ -264,7 +312,6 @@ export function MyEventsPage() {
                 .eq('id', eventId);
 
             if (error) throw error;
-
             await fetchOrganizerEvents();
         } catch (err) {
             console.error('Erro ao reativar evento:', err);
@@ -273,17 +320,11 @@ export function MyEventsPage() {
     };
 
     const handleDeleteEvent = (event: Event) => {
-        // console.log('🗑️ Abrindo modal para excluir:', event.id, event.name);
-        setSelectedEventForDelete({
-            id: event.id,
-            name: event.name
-        });
+        setSelectedEventForDelete({ id: event.id, name: event.name });
         setShowDeleteModal(true);
     };
 
-    // Função chamada após deletar
     const handlePermanentDelete = async () => {
-        // console.log('🔄 Recarregando lista de eventos...');
         await fetchOrganizerEvents();
     };
 
@@ -300,13 +341,27 @@ export function MyEventsPage() {
         }
     };
 
+    const getAprovacaoBadge = (statusAprovacao: string) => {
+        switch (statusAprovacao) {
+            case 'aprovado':
+                return { color: 'bg-green-100 text-green-700', label: 'Aprovado', icon: CheckCircle };
+            case 'pendente':
+                return { color: 'bg-amber-100 text-amber-700', label: 'Em análise', icon: Clock };
+            case 'rejeitado':
+                return { color: 'bg-red-100 text-red-700', label: 'Rejeitado', icon: XCircle };
+            default:
+                return { color: 'bg-gray-100 text-gray-700', label: 'Desconhecido', icon: AlertCircle };
+        }
+    };
+
+    // Verifica se o evento está bloqueado (não pode ver detalhes)
+    const isEventBlocked = (event: Event) => {
+        return event.statusAprovacao === 'pendente' || event.statusAprovacao === 'rejeitado';
+    };
+
     const filteredEvents = events.filter(event => {
-        if (filterStatus !== 'all' && event.status !== filterStatus) {
-            return false;
-        }
-        if (searchTerm && !event.name.toLowerCase().includes(searchTerm.toLowerCase())) {
-            return false;
-        }
+        if (filterStatus !== 'all' && event.status !== filterStatus) return false;
+        if (searchTerm && !event.name.toLowerCase().includes(searchTerm.toLowerCase())) return false;
         return true;
     });
 
@@ -395,8 +450,8 @@ export function MyEventsPage() {
                                     key={s}
                                     onClick={() => setFilterStatus(s)}
                                     className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${filterStatus === s
-                                            ? 'bg-orange-600 text-white'
-                                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                                        ? 'bg-orange-600 text-white'
+                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
                                         }`}
                                 >
                                     {{ all: 'Todos', active: 'Ativos', cancelled: 'Cancelados', finished: 'Finalizados' }[s]}
@@ -444,29 +499,74 @@ export function MyEventsPage() {
                     <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredEvents.map((event) => {
                             const StatusIcon = getStatusBadge(event.status).icon;
+                            const blocked = isEventBlocked(event);
+                            const aprovacaoBadge = getAprovacaoBadge(event.statusAprovacao);
+                            const AprovacaoIcon = aprovacaoBadge.icon;
+
                             return (
                                 <motion.div
                                     key={event.id}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className="bg-white rounded-xl shadow-md overflow-hidden hover:shadow-xl transition-all border border-gray-100"
+                                    className={`bg-white rounded-xl shadow-md overflow-hidden transition-all border ${
+                                        blocked
+                                            ? 'border-gray-200 opacity-90'
+                                            : 'border-gray-100 hover:shadow-xl'
+                                    }`}
                                 >
-                                    {/* Imagem */}
+                                    {/* Área da imagem ou ilustração */}
                                     <div className="relative h-48">
-                                        <img
-                                            src={event.image}
-                                            alt={event.name}
-                                            className="w-full h-full object-cover"
-                                            onError={(e) => {
-                                                (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
-                                            }}
-                                        />
-                                        <div className="absolute top-3 right-3">
-                                            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusBadge(event.status).color}`}>
-                                                <StatusIcon className="w-3 h-3" />
-                                                {getStatusBadge(event.status).label}
+                                        {blocked ? (
+                                            // Mostrar ilustração quando pendente ou rejeitado
+                                            <div className="w-full h-full">
+                                                {event.statusAprovacao === 'pendente'
+                                                    ? <PendingIllustration />
+                                                    : <RejectedIllustration />
+                                                }
+                                            </div>
+                                        ) : (
+                                            // Mostrar imagem normal quando aprovado
+                                            <img
+                                                src={event.image}
+                                                alt={event.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+                                                }}
+                                            />
+                                        )}
+
+                                        {/* Badge de status de aprovação (sempre visível) */}
+                                        <div className="absolute top-3 left-3">
+                                            <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold shadow-sm ${aprovacaoBadge.color}`}>
+                                                <AprovacaoIcon className="w-3 h-3" />
+                                                {aprovacaoBadge.label}
                                             </span>
                                         </div>
+
+                                        {/* Badge de status do evento (só quando aprovado) */}
+                                        {!blocked && (
+                                            <div className="absolute top-3 right-3">
+                                                <span className={`flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-semibold ${getStatusBadge(event.status).color}`}>
+                                                    <StatusIcon className="w-3 h-3" />
+                                                    {getStatusBadge(event.status).label}
+                                                </span>
+                                            </div>
+                                        )}
+
+                                        {/* Overlay de bloqueio com ícone de cadeado */}
+                                        {blocked && (
+                                            <div className="absolute bottom-3 right-3">
+                                                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm backdrop-blur-sm ${
+                                                    event.statusAprovacao === 'pendente'
+                                                        ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        : 'bg-red-50 text-red-700 border border-red-200'
+                                                }`}>
+                                                    <Lock className="w-3 h-3" />
+                                                    <span>Acesso restrito</span>
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
 
                                     {/* Conteúdo */}
@@ -474,6 +574,22 @@ export function MyEventsPage() {
                                         <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-1">
                                             {event.name}
                                         </h3>
+
+                                        {/* Mensagem de motivo de rejeição */}
+                                        {event.statusAprovacao === 'rejeitado' && event.motivoRejeicao && (
+                                            <div className="mb-3 p-2.5 bg-red-50 border border-red-100 rounded-lg">
+                                                <p className="text-xs ml-2 text-red-600 font-medium mb-0.5">Motivo da rejeição: {event.motivoRejeicao}</p>
+                                            </div>
+                                        )}
+
+                                        {/* Mensagem informativa quando pendente */}
+                                        {event.statusAprovacao === 'pendente' && (
+                                            <div className="mb-3 p-2.5 bg-amber-50 border border-amber-100 rounded-lg">
+                                                <p className="text-xs text-amber-700">
+                                                    ⏳ Este evento está a aguardar aprovação do administrador.
+                                                </p>
+                                            </div>
+                                        )}
 
                                         <div className="space-y-2 mb-4">
                                             <div className="flex items-center gap-2 text-sm text-gray-600">
@@ -484,27 +600,39 @@ export function MyEventsPage() {
                                                 <MapPin className="w-4 h-4" />
                                                 <span className="truncate">{event.location}</span>
                                             </div>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                <Ticket className="w-4 h-4" />
-                                                <span>
-                                                    {event.ingressosVendidos || 0} vendidos / {event.totalIngressos || 0} disponíveis
-                                                </span>
-                                            </div>
-                                            <div className="flex items-center gap-2 text-sm text-gray-600">
-                                                <Heart className="w-4 h-4 text-red-500" />
-                                                <span>{event.likes} interessados</span>
-                                            </div>
+                                            {!blocked && (
+                                                <>
+                                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                        <Ticket className="w-4 h-4" />
+                                                        <span>
+                                                            {event.ingressosVendidos || 0} vendidos / {event.totalIngressos || 0} disponíveis
+                                                        </span>
+                                                    </div>
+                                                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                                                        <Heart className="w-4 h-4 text-red-500" />
+                                                        <span>{event.likes} interessados</span>
+                                                    </div>
+                                                </>
+                                            )}
                                         </div>
 
                                         {/* Botões de ação */}
                                         <div className="flex flex-wrap gap-2 pt-4 border-t border-gray-100">
+                                            {/* Botão Ver — desabilitado se bloqueado */}
                                             <button
-                                                onClick={() => navigate(`/event/${event.id}`)}
-                                                className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors text-sm font-medium"
+                                                onClick={() => !blocked && navigate(`/event/${event.id}`)}
+                                                disabled={blocked}
+                                                title={blocked ? 'Disponível após aprovação' : 'Ver evento'}
+                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                    blocked
+                                                        ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer'
+                                                }`}
                                             >
-                                                <Eye className="w-4 h-4" />
+                                                {blocked ? <Lock className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                 Ver
                                             </button>
+
                                             <button
                                                 onClick={() => handleEditEvent(event)}
                                                 className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-orange-100 text-orange-700 rounded-lg hover:bg-orange-200 transition-colors text-sm font-medium"
@@ -512,13 +640,22 @@ export function MyEventsPage() {
                                                 <Edit2 className="w-4 h-4" />
                                                 Editar
                                             </button>
+
+                                            {/* Botão Interessados — desabilitado se bloqueado */}
                                             <button
-                                                onClick={() => handleViewLikers(event)}
-                                                className="flex-1 flex items-center justify-center cursor-pointer gap-1 px-3 py-2 bg-pink-100 text-pink-700 rounded-lg hover:bg-pink-200 transition-colors text-sm font-medium"
+                                                onClick={() => !blocked && handleViewLikers(event)}
+                                                disabled={blocked}
+                                                title={blocked ? 'Disponível após aprovação' : 'Ver interessados'}
+                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
+                                                    blocked
+                                                        ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
+                                                        : 'bg-pink-100 text-pink-700 hover:bg-pink-200 cursor-pointer'
+                                                }`}
                                             >
                                                 <Users className="w-4 h-4" />
                                                 Interessados
                                             </button>
+
                                             {event.status === 'cancelled' ? (
                                                 <>
                                                     <button
