@@ -350,14 +350,26 @@ export function OrganizerDashboard() {
     return (
         <div className="min-h-screen bg-gray-50">
             <header className="bg-white shadow-sm border-b sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-                    <button onClick={() => navigate(-1)} className="flex items-center gap-2 text-gray-600 hover:text-orange-600 transition-colors cursor-pointer">
-                        <ArrowLeft className="w-5 h-5" /><span>Voltar</span>
-                    </button>
+                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                            <span>Voltar</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <img src={logo} alt="Logo" className="h-8 w-auto" />
+                            <span className="text-xl font-bold text-gray-900">
+                                Cresce<span className="text-orange-600">.AO</span>
+                            </span>
+                        </div>
+                    </div>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+            <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
                 {error && (
                     <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
                         <p className="text-red-600 text-sm">{error}</p>

@@ -18,7 +18,8 @@ import {
     Share2,
     UserPlus,
     X,
-    Lock
+    Lock,
+    ArrowLeft
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { supabase } from '../lib/supabase';
@@ -388,21 +389,27 @@ export function MyEventsPage() {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
-            <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-20">
-                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+            <header className="bg-white shadow-sm border-b sticky top-0 z-20">
+                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
                     <div className="flex items-center justify-between">
                         <button
                             onClick={() => navigate(-1)}
-                            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
+                            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-colors"
                         >
-                            <span className="text-xl group-hover:-translate-x-1 transition-transform">←</span>
-                            <span className="font-medium">Voltar</span>
+                            <ArrowLeft className="w-5 h-5" />
+                            <span>Voltar</span>
                         </button>
+                        <div className="flex items-center gap-2">
+                            <img src={logo} alt="Logo" className="h-8 w-auto" />
+                            <span className="text-xl font-bold text-gray-900">
+                                Cresce<span className="text-orange-600">.AO</span>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </header>
 
-            <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
                 {/* Estatísticas */}
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
                     <div className="bg-white rounded-xl p-4 shadow-sm border border-gray-100">
@@ -508,11 +515,10 @@ export function MyEventsPage() {
                                     key={event.id}
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
-                                    className={`bg-white rounded-xl shadow-md overflow-hidden transition-all border ${
-                                        blocked
+                                    className={`bg-white rounded-xl shadow-md overflow-hidden transition-all border ${blocked
                                             ? 'border-gray-200 opacity-90'
                                             : 'border-gray-100 hover:shadow-xl'
-                                    }`}
+                                        }`}
                                 >
                                     {/* Área da imagem ou ilustração */}
                                     <div className="relative h-48">
@@ -557,11 +563,10 @@ export function MyEventsPage() {
                                         {/* Overlay de bloqueio com ícone de cadeado */}
                                         {blocked && (
                                             <div className="absolute bottom-3 right-3">
-                                                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm backdrop-blur-sm ${
-                                                    event.statusAprovacao === 'pendente'
+                                                <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold shadow-sm backdrop-blur-sm ${event.statusAprovacao === 'pendente'
                                                         ? 'bg-amber-50 text-amber-700 border border-amber-200'
                                                         : 'bg-red-50 text-red-700 border border-red-200'
-                                                }`}>
+                                                    }`}>
                                                     <Lock className="w-3 h-3" />
                                                     <span>Acesso restrito</span>
                                                 </div>
@@ -623,11 +628,10 @@ export function MyEventsPage() {
                                                 onClick={() => !blocked && navigate(`/event/${event.id}`)}
                                                 disabled={blocked}
                                                 title={blocked ? 'Disponível após aprovação' : 'Ver evento'}
-                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                                    blocked
+                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${blocked
                                                         ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
                                                         : 'bg-gray-100 text-gray-700 hover:bg-gray-200 cursor-pointer'
-                                                }`}
+                                                    }`}
                                             >
                                                 {blocked ? <Lock className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                                                 Ver
@@ -646,11 +650,10 @@ export function MyEventsPage() {
                                                 onClick={() => !blocked && handleViewLikers(event)}
                                                 disabled={blocked}
                                                 title={blocked ? 'Disponível após aprovação' : 'Ver interessados'}
-                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                                                    blocked
+                                                className={`flex-1 flex items-center justify-center gap-1 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${blocked
                                                         ? 'bg-gray-50 text-gray-300 cursor-not-allowed'
                                                         : 'bg-pink-100 text-pink-700 hover:bg-pink-200 cursor-pointer'
-                                                }`}
+                                                    }`}
                                             >
                                                 <Users className="w-4 h-4" />
                                                 Interessados

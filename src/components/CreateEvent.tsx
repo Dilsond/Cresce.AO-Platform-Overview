@@ -227,38 +227,42 @@ export function CreateEvent() {
     };
 
     // ─── Validações de negócio (antes do upload) ──────────────────────────────
+    // MODIFICADO: Agora verifica em TODOS os eventos, não apenas do mesmo organizador
 
     const validarEvento = async (): Promise<string | null> => {
         // 1. Data no passado
         const hoje = new Date();
-        hoje.setHours(0, 0, 0, 0); // ignora a hora — compara só o dia
-        const dataEvento = new Date(formData.data_evento + 'T00:00:00'); // evita problemas de timezone
+        hoje.setHours(0, 0, 0, 0);
+        const dataEvento = new Date(formData.data_evento + 'T00:00:00');
         if (dataEvento < hoje) {
             return 'A data do evento não pode ser anterior à data de hoje.';
         }
 
-        // 2. Nome duplicado (mesmo organizador, mesmo nome, não cancelado)
-        const { data: comMesmoNome, error: erroNome } = await supabase
-            .from('eventos')
-            .select('id')
-            .eq('organizador_id', user!.id)
-            .ilike('nome_evento', formData.nome_evento.trim()) // case-insensitive
-            .is('deleted_at', null)
-            .limit(1);
+        // 2. Verificar nome duplicado em TODOS os eventos (não cancelados)
+        const nomeTrimmed = formData.nome_evento.trim();
+        if (nomeTrimmed) {
+            const { data: comMesmoNome, error: erroNome } = await supabase
+                .from('eventos')
+                .select('id, nome_evento, organizador_id, organizadores(nome)')
+                .ilike('nome_evento', nomeTrimmed) // case-insensitive
+                .is('deleted_at', null)
+                .limit(1);
 
-        if (erroNome) {
-            console.error('Erro ao verificar nome duplicado:', erroNome);
-        } else if (comMesmoNome && comMesmoNome.length > 0) {
-            return `Já existe um evento seu com o nome "${formData.nome_evento.trim()}". Escolha um nome diferente.`;
+            if (erroNome) {
+                console.error('Erro ao verificar nome duplicado:', erroNome);
+            } else if (comMesmoNome && comMesmoNome.length > 0) {
+                const eventoExistente = comMesmoNome[0];
+                const organizadorNome = (eventoExistente.organizadores as any)?.nome || 'outro organizador';
+                return `❌ Já existe um evento com o nome "${nomeTrimmed}" (criado por ${organizadorNome}). Por favor, escolha um nome diferente.`;
+            }
         }
 
-        // 3. Descrição duplicada (só se preenchida)
+        // 3. Verificar descrição duplicada em TODOS os eventos (se preenchida)
         const descricaoTrimmed = formData.descricao.trim();
         if (descricaoTrimmed) {
             const { data: comMesmaDesc, error: erroDesc } = await supabase
                 .from('eventos')
-                .select('id, nome_evento')
-                .eq('organizador_id', user!.id)
+                .select('id, nome_evento, organizador_id, organizadores(nome)')
                 .eq('descricao', descricaoTrimmed)
                 .is('deleted_at', null)
                 .limit(1);
@@ -266,7 +270,9 @@ export function CreateEvent() {
             if (erroDesc) {
                 console.error('Erro ao verificar descrição duplicada:', erroDesc);
             } else if (comMesmaDesc && comMesmaDesc.length > 0) {
-                return `A descrição inserida já está a ser utilizada noutro evento seu ("${comMesmaDesc[0].nome_evento}"). Por favor, escreva uma descrição única.`;
+                const eventoExistente = comMesmaDesc[0];
+                const organizadorNome = (eventoExistente.organizadores as any)?.nome || 'outro organizador';
+                return `❌ A descrição inserida já está a ser utilizada no evento "${eventoExistente.nome_evento}" (criado por ${organizadorNome}). Por favor, escreva uma descrição única.`;
             }
         }
 
@@ -302,7 +308,7 @@ export function CreateEvent() {
         setIsLoading(true);
         setError(null);
 
-        // ── Validações de negócio (data passada / duplicados) ──
+        // ── Validações de negócio (data passada / duplicados GLOBAIS) ──
         const erroNegocio = await validarEvento();
         if (erroNegocio) {
             setError(erroNegocio);
@@ -522,6 +528,23 @@ export function CreateEvent() {
                     </div>
                 </motion.div>
 
+                {/* NOVO AVISO SOBRE NOMES E DESCRIÇÕES ÚNICAS */}
+                <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.15 }}
+                    className="flex items-start gap-3 sm:gap-4 bg-blue-50 border border-blue-200 rounded-xl sm:rounded-2xl p-3 sm:p-4 md:p-5 mb-4 sm:mb-6"
+                >
+                    <AlertCircle className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                        <p className="font-semibold text-blue-800 mb-1 text-sm sm:text-base">Prevenção de Duplicidade</p>
+                        <p className="text-xs sm:text-sm text-blue-700">
+                            Para manter a qualidade do catálogo, <strong>nomes e descrições de eventos devem ser únicos</strong> em toda a plataforma. 
+                            Verificamos automaticamente se já existe outro evento (de qualquer organizador) com o mesmo nome ou descrição.
+                        </p>
+                    </div>
+                </motion.div>
+
                 <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                     {/* Erro responsivo */}
                     {error && (
@@ -547,6 +570,10 @@ export function CreateEvent() {
                                     className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm sm:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                     placeholder="Ex: Workshop de Marketing Digital"
                                 />
+                                <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                                    <AlertCircle className="w-3 h-3" />
+                                    Este nome será verificado em toda a plataforma e não pode ser igual ao de outro evento (de qualquer organizador)
+                                </p>
                             </div>
 
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -647,8 +674,9 @@ export function CreateEvent() {
                             className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                             placeholder="Descreva os detalhes do evento, programação, palestrantes, etc."
                         />
-                        <p className="text-xs text-gray-400 mt-1">
-                            A descrição deve ser única — não pode ser igual à de outro evento seu.
+                        <p className="text-xs text-amber-600 mt-1 flex items-center gap-1">
+                            <AlertCircle className="w-3 h-3" />
+                            A descrição deve ser única em toda a plataforma — não pode ser igual à descrição de nenhum outro evento (de qualquer organizador)
                         </p>
                     </div>
 

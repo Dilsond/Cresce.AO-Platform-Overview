@@ -229,19 +229,27 @@ export function FollowersPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-orange-50/20 to-gray-50">
       {/* Header */}
-      <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <button
-            onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
-          >
-            <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-            <span className="font-medium">Voltar</span>
-          </button>
+      <header className="bg-white shadow-sm border-b sticky top-0 z-20">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <button
+              onClick={() => navigate(-1)}
+              className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-colors"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Voltar</span>
+            </button>
+            <div className="flex items-center gap-2">
+              <img src={logo} alt="Logo" className="h-8 w-auto" />
+              <span className="text-xl font-bold text-gray-900">
+                Cresce<span className="text-orange-600">.AO</span>
+              </span>
+            </div>
+          </div>
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
+      <main className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         {/* Hero Banner */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
