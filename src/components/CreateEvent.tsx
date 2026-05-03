@@ -47,10 +47,8 @@ export function CreateEvent() {
         contacto_whatsapp: '',
     });
 
-    // Tipo de evento (pago ou gratuito)
     const [isPaidEvent, setIsPaidEvent] = useState(false);
 
-    // Estações (ingressos)
     const [estacoes, setEstacoes] = useState<Estacao[]>([
         {
             id: crypto.randomUUID(),
@@ -63,12 +61,10 @@ export function CreateEvent() {
 
     const [vantagemInput, setVantagemInput] = useState<Record<string, string>>({});
 
-    // File states
     const [imageFile, setImageFile] = useState<File | null>(null);
     const [imagePreview, setImagePreview] = useState<string | null>(null);
     const [videoFile, setVideoFile] = useState<File | null>(null);
 
-    // Documento de autorização
     const [documentoFile, setDocumentoFile] = useState<File | null>(null);
     const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>('contrato_aluguer');
 
@@ -230,13 +226,60 @@ export function CreateEvent() {
         }
     };
 
+    // ─── Validações de negócio (antes do upload) ──────────────────────────────
+
+    const validarEvento = async (): Promise<string | null> => {
+        // 1. Data no passado
+        const hoje = new Date();
+        hoje.setHours(0, 0, 0, 0); // ignora a hora — compara só o dia
+        const dataEvento = new Date(formData.data_evento + 'T00:00:00'); // evita problemas de timezone
+        if (dataEvento < hoje) {
+            return 'A data do evento não pode ser anterior à data de hoje.';
+        }
+
+        // 2. Nome duplicado (mesmo organizador, mesmo nome, não cancelado)
+        const { data: comMesmoNome, error: erroNome } = await supabase
+            .from('eventos')
+            .select('id')
+            .eq('organizador_id', user!.id)
+            .ilike('nome_evento', formData.nome_evento.trim()) // case-insensitive
+            .is('deleted_at', null)
+            .limit(1);
+
+        if (erroNome) {
+            console.error('Erro ao verificar nome duplicado:', erroNome);
+        } else if (comMesmoNome && comMesmoNome.length > 0) {
+            return `Já existe um evento seu com o nome "${formData.nome_evento.trim()}". Escolha um nome diferente.`;
+        }
+
+        // 3. Descrição duplicada (só se preenchida)
+        const descricaoTrimmed = formData.descricao.trim();
+        if (descricaoTrimmed) {
+            const { data: comMesmaDesc, error: erroDesc } = await supabase
+                .from('eventos')
+                .select('id, nome_evento')
+                .eq('organizador_id', user!.id)
+                .eq('descricao', descricaoTrimmed)
+                .is('deleted_at', null)
+                .limit(1);
+
+            if (erroDesc) {
+                console.error('Erro ao verificar descrição duplicada:', erroDesc);
+            } else if (comMesmaDesc && comMesmaDesc.length > 0) {
+                return `A descrição inserida já está a ser utilizada noutro evento seu ("${comMesmaDesc[0].nome_evento}"). Por favor, escreva uma descrição única.`;
+            }
+        }
+
+        return null; // tudo OK
+    };
+
     // ─── Submit ───────────────────────────────────────────────────────────────
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!user) { setError('Usuário não autenticado'); return; }
 
-        // Validações
+        // Validações de campos obrigatórios
         if (!formData.nome_evento.trim()) { setError('O nome do evento é obrigatório'); return; }
         if (!formData.data_evento) { setError('A data do evento é obrigatória'); return; }
         if (!formData.hora_inicio) { setError('A hora de início é obrigatória'); return; }
@@ -247,13 +290,10 @@ export function CreateEvent() {
         if (formData.hora_termino && formData.hora_termino <= formData.hora_inicio) {
             setError('A hora de término deve ser posterior à hora de início'); return;
         }
-
-        // Validar documento de autorização (obrigatório para eventos presenciais/híbridos)
         if (formData.tipo_evento !== 'online' && !documentoFile) {
             setError('É obrigatório anexar um contrato de aluguer ou carta de autorização do espaço');
             return;
         }
-
         if (isPaidEvent) {
             const ok = estacoes.every(e => e.nome.trim() && e.quantidade > 0 && e.preco > 0);
             if (!ok) { setError('Preencha corretamente todas as estações (nome, quantidade e preço)'); return; }
@@ -262,8 +302,16 @@ export function CreateEvent() {
         setIsLoading(true);
         setError(null);
 
+        // ── Validações de negócio (data passada / duplicados) ──
+        const erroNegocio = await validarEvento();
+        if (erroNegocio) {
+            setError(erroNegocio);
+            setIsLoading(false);
+            return;
+        }
+
         try {
-            // Uploads em paralelo
+            // Uploads em paralelo (só depois de passar todas as validações)
             const [imageUrl, videoUrl, documentoUrl] = await Promise.all([
                 uploadFile(imageFile, 'event-images'),
                 videoFile ? uploadFile(videoFile, 'event-videos') : Promise.resolve(null),
@@ -306,10 +354,8 @@ export function CreateEvent() {
 
             if (insertError) throw new Error('Erro ao salvar evento: ' + insertError.message);
 
-            // Notificar seguidores (evento ainda em revisão)
             if (seguidoresCount > 0) await enviarNotificacoes(newEvent.id, newEvent.nome_evento);
 
-            // Notificar administradores sobre novo evento pendente
             const { data: admins } = await supabase
                 .from('administradores')
                 .select('id')
@@ -411,6 +457,10 @@ export function CreateEvent() {
         setFormData(prev => ({ ...prev, [name]: value }));
     };
 
+    // Data mínima para o input de data (hoje)
+    const hoje = new Date();
+    const dataMinima = hoje.toISOString().split('T')[0];
+
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header Responsivo */}
@@ -475,10 +525,14 @@ export function CreateEvent() {
                 <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
                     {/* Erro responsivo */}
                     {error && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-center gap-2 sm:gap-3">
-                            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 flex-shrink-0" />
+                        <motion.div
+                            initial={{ opacity: 0, y: -8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            className="bg-red-50 border border-red-200 rounded-lg p-3 sm:p-4 flex items-start gap-2 sm:gap-3"
+                        >
+                            <AlertCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-500 flex-shrink-0 mt-0.5" />
                             <p className="text-red-600 text-xs sm:text-sm">{error}</p>
-                        </div>
+                        </motion.div>
                     )}
 
                     {/* ── Informações Básicas ── */}
@@ -499,10 +553,15 @@ export function CreateEvent() {
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Data *</label>
                                     <input
-                                        type="date" name="data_evento" value={formData.data_evento}
-                                        onChange={handleInputChange} required
+                                        type="date"
+                                        name="data_evento"
+                                        value={formData.data_evento}
+                                        onChange={handleInputChange}
+                                        required
+                                        min={dataMinima}
                                         className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                                     />
+                                    <p className="text-xs text-gray-400 mt-1">Datas anteriores a hoje não são permitidas</p>
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">Hora de Início *</label>
@@ -588,6 +647,9 @@ export function CreateEvent() {
                             className="w-full px-3 py-2 sm:px-4 sm:py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-transparent outline-none"
                             placeholder="Descreva os detalhes do evento, programação, palestrantes, etc."
                         />
+                        <p className="text-xs text-gray-400 mt-1">
+                            A descrição deve ser única — não pode ser igual à de outro evento seu.
+                        </p>
                     </div>
 
                     {/* ── Documento de Autorização ── */}
@@ -601,7 +663,6 @@ export function CreateEvent() {
                                 Para validar a reserva do espaço, anexe um dos documentos abaixo. O ficheiro será analisado pela administração antes da publicação do evento.
                             </p>
 
-                            {/* Tipo de documento responsivo */}
                             <div className="flex flex-col sm:flex-row gap-3 mb-5">
                                 <button
                                     type="button"
@@ -627,7 +688,6 @@ export function CreateEvent() {
                                 </button>
                             </div>
 
-                            {/* Upload do documento responsivo */}
                             {!documentoFile ? (
                                 <div className="border-2 border-dashed border-gray-300 rounded-xl p-6 sm:p-8 text-center hover:border-orange-400 transition-colors bg-gray-50">
                                     <input
@@ -849,7 +909,7 @@ export function CreateEvent() {
                         <button type="submit" disabled={isLoading}
                             className="order-1 sm:order-2 px-4 sm:px-6 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 text-sm sm:text-base">
                             {isLoading ? (
-                                <><Loader2 className="w-4 h-4 animate-spin" /> A submeter...</>
+                                <><Loader2 className="w-4 h-4 animate-spin" /> A validar e submeter...</>
                             ) : (
                                 <><Upload className="w-4 h-4" /> Submeter para Aprovação</>
                             )}

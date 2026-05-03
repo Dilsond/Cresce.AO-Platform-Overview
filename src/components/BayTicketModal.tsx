@@ -1,6 +1,5 @@
-// src/components/BuyTicketModal.tsx
 import { useState } from 'react';
-import { X, CreditCard, Ticket, Check, AlertCircle, Plus, Trash2 } from 'lucide-react';
+import { X, CreditCard, Ticket, Check, AlertCircle, Plus, Trash2, Shield } from 'lucide-react';
 
 interface Estacao {
   nome: string;
@@ -20,7 +19,7 @@ interface BuyTicketModalProps {
   eventoId: string;
   eventoNome: string;
   estacoes: Estacao[];
-  usuario: { id: string; name: string; email: string } | null;
+  usuario: { id: string; name: string; email: string; role?: string } | null;
   onCompraRealizada?: () => void;
 }
 
@@ -33,6 +32,11 @@ const getApiUrl = () => {
 };
 
 const API_URL = getApiUrl();
+
+// Função para verificar se o usuário é organizador
+const isOrganizador = (usuario: any): boolean => {
+  return usuario?.role === 'organizador' || usuario?.role === 'organizer';
+};
 
 export function BuyTicketModal({
   isOpen,
@@ -56,6 +60,12 @@ export function BuyTicketModal({
 
   // Adicionar item ao carrinho
   const adicionarAoCarrinho = (estacao: Estacao) => {
+    // Verificar se é organizador antes de adicionar
+    if (isOrganizador(usuario)) {
+      setError('Organizadores não podem comprar ingressos para seus próprios eventos');
+      return;
+    }
+
     const itemExistente = carrinho.find(item => item.estacao.nome === estacao.nome);
     
     if (itemExistente) {
@@ -81,6 +91,12 @@ export function BuyTicketModal({
 
   // Atualizar quantidade de um item
   const atualizarQuantidade = (nomeEstacao: string, novaQuantidade: number) => {
+    // Verificar se é organizador antes de atualizar
+    if (isOrganizador(usuario)) {
+      setError('Organizadores não podem comprar ingressos para seus próprios eventos');
+      return;
+    }
+
     const estacao = estacoes.find(e => e.nome === nomeEstacao);
     if (!estacao) return;
 
@@ -114,6 +130,12 @@ export function BuyTicketModal({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // VERIFICAÇÃO PRINCIPAL PARA ORGANIZADOR
+    if (isOrganizador(usuario)) {
+      setError('❌ Organizadores não podem comprar ingressos para seus próprios eventos. Esta ação não é permitida.');
+      return;
+    }
 
     if (!usuario) {
       setError('Faça login para comprar ingressos');
@@ -232,6 +254,8 @@ export function BuyTicketModal({
 
   if (!isOpen) return null;
 
+  const usuarioEhOrganizador = isOrganizador(usuario);
+
   return (
     <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
@@ -256,6 +280,22 @@ export function BuyTicketModal({
             <p className="text-sm text-orange-800 font-medium">🎟️ {eventoNome}</p>
           </div>
 
+          {/* AVISO DE ORGANIZADOR - BLOQUEIO VISUAL */}
+          {usuarioEhOrganizador && (
+            <div className="p-4 bg-red-50 border-2 border-red-300 rounded-xl flex items-start gap-3">
+              <Shield className="w-6 h-6 text-red-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-red-800 font-bold text-base">Acesso Negado</p>
+                <p className="text-red-700 text-sm mt-1">
+                  Organizadores não podem comprar ingressos para seus próprios eventos.
+                </p>
+                <p className="text-red-600 text-xs mt-2">
+                  Esta restrição existe para garantir a integridade do evento e evitar conflitos de interesse.
+                </p>
+              </div>
+            </div>
+          )}
+
           {/* Aviso de login */}
           {!usuario && (
             <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg flex items-start gap-2">
@@ -274,7 +314,7 @@ export function BuyTicketModal({
             </div>
           )}
 
-          {/* Grid de estações disponíveis */}
+          {/* Grid de estações disponíveis - DESABILITADO PARA ORGANIZADOR */}
           {estacoes.length > 0 ? (
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-3">Tipos de Ingresso</label>
@@ -282,12 +322,15 @@ export function BuyTicketModal({
                 {estacoes.map((estacao) => {
                   const esgotado = estacao.quantidade <= 0;
                   const noCarrinho = carrinho.find(item => item.estacao.nome === estacao.nome);
+                  
+                  // Se for organizador, desabilita completamente a interação
+                  const desabilitado = usuarioEhOrganizador || esgotado;
 
                   return (
                     <div
                       key={estacao.nome}
                       className={`border-2 rounded-xl p-4 transition-all
-                        ${esgotado
+                        ${desabilitado
                           ? 'border-gray-100 bg-gray-50 opacity-60'
                           : noCarrinho
                             ? 'border-green-500 bg-green-50'
@@ -304,7 +347,7 @@ export function BuyTicketModal({
                               : `${estacao.quantidade} disponível(is) · ${estacao.preco.toLocaleString()} Kz`}
                           </p>
                         </div>
-                        {!esgotado && (
+                        {!desabilitado && (
                           <button
                             onClick={() => adicionarAoCarrinho(estacao)}
                             className="p-1.5 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -314,7 +357,7 @@ export function BuyTicketModal({
                           </button>
                         )}
                       </div>
-                      {noCarrinho && (
+                      {noCarrinho && !usuarioEhOrganizador && (
                         <div className="mt-2 pt-2 border-t border-green-200">
                           <div className="flex items-center justify-between">
                             <span className="text-sm text-green-700">No carrinho:</span>
@@ -359,8 +402,8 @@ export function BuyTicketModal({
             </div>
           )}
 
-          {/* Carrinho de compras */}
-          {carrinho.length > 0 && (
+          {/* Carrinho de compras - OCULTADO PARA ORGANIZADOR */}
+          {carrinho.length > 0 && !usuarioEhOrganizador && (
             <div className="border-t border-gray-200 pt-4">
               <h4 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                 <Ticket className="w-4 h-4" />
@@ -411,11 +454,17 @@ export function BuyTicketModal({
             </div>
           )}
 
-          {/* Botão de finalizar compra */}
+          {/* Botão de finalizar compra - DESABILITADO E COM MENSAGEM PARA ORGANIZADOR */}
           <button
             onClick={handleSubmit}
-            disabled={carrinho.length === 0 || isLoading || !usuario}
-            className="w-full bg-orange-600 text-white py-3 rounded-xl font-semibold hover:bg-orange-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            disabled={carrinho.length === 0 || isLoading || !usuario || usuarioEhOrganizador}
+            className={`w-full py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-colors
+              ${usuarioEhOrganizador
+                ? 'bg-gray-400 cursor-not-allowed'
+                : 'bg-orange-600 hover:bg-orange-700 text-white'
+              }
+              disabled:opacity-50 disabled:cursor-not-allowed
+            `}
           >
             {isLoading ? (
               <>
@@ -425,12 +474,23 @@ export function BuyTicketModal({
             ) : (
               <>
                 <CreditCard className="w-5 h-5" />
-                {usuario 
-                  ? `Finalizar Compra (${calcularTotal().toLocaleString()} Kz)` 
-                  : 'Faça login para comprar'}
+                {usuarioEhOrganizador
+                  ? 'Organizadores não podem comprar ingressos'
+                  : usuario 
+                    ? `Finalizar Compra (${calcularTotal().toLocaleString()} Kz)` 
+                    : 'Faça login para comprar'
+                }
               </>
             )}
           </button>
+
+          {/* Mensagem adicional para organizadores */}
+          {usuarioEhOrganizador && (
+            <p className="text-xs text-center text-gray-500 mt-2">
+              Como organizador, você não pode adquirir ingressos para eventos que criou.
+              Crie uma conta de participante para comprar ingressos.
+            </p>
+          )}
 
         </div>
       </div>
