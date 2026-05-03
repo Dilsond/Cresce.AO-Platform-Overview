@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { CheckCircle2, XCircle, Trophy, RotateCcw, ArrowRight, Sparkles, Brain } from 'lucide-react';
-import { supabase } from '../lib/supabase';
 
 interface EventQuizProps {
   eventId: string;
@@ -20,6 +19,11 @@ interface QuizQuestion {
   explanation?: string;
 }
 
+// ─── Coloca a tua chave aqui ─────────────────────────────────────────────────
+// Vai a https://console.anthropic.com → API Keys → Create Key
+const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
+
+// ─── Loading ──────────────────────────────────────────────────────────────────
 const QuizLoading = ({ message }: { message: string }) => (
   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
     <div className="bg-white rounded-2xl max-w-md w-full p-8 text-center">
@@ -35,22 +39,106 @@ const QuizLoading = ({ message }: { message: string }) => (
   </div>
 );
 
+// ─── Gerador de perguntas via API da Anthropic ───────────────────────────────
 async function generateQuizWithAI(
   eventName: string,
   eventDescription: string,
   eventCategory: string,
   numberOfQuestions = 5
 ): Promise<QuizQuestion[]> {
-  const { data, error } = await supabase.functions.invoke('quiz-generator', {
-    body: { eventName, eventDescription, eventCategory, numberOfQuestions },
+  if (!ANTHROPIC_API_KEY) {
+    throw new Error('VITE_ANTHROPIC_API_KEY não está definida no ficheiro .env');
+  }
+
+  const prompt = `Cria ${numberOfQuestions} perguntas de quiz sobre o seguinte evento:
+
+Nome: ${eventName}
+Categoria: ${eventCategory || 'Geral'}
+Descrição: ${eventDescription || 'Sem descrição fornecida'}
+
+Regras:
+- Perguntas relevantes para o tema, categoria e conteúdo do evento
+- Cada pergunta tem exactamente 4 opções de resposta
+- Inclui uma explicação breve para cada resposta correcta
+- Varia a dificuldade (fácil, médio, difícil)
+- Escreve em Português
+
+Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Pergunta?",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": 0,
+      "explanation": "Explicação da resposta correcta."
+    }
+  ]
+}`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': ANTHROPIC_API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 2048,
+      system: 'Respondes SEMPRE e SOMENTE com JSON válido, sem texto adicional, sem blocos markdown.',
+      messages: [{ role: 'user', content: prompt }],
+    }),
   });
 
-  if (error) throw new Error(error.message || 'Erro ao chamar o gerador de quiz');
-  if (!data?.questions || !Array.isArray(data.questions)) throw new Error('Resposta inválida do servidor');
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    const msg = (err as any)?.error?.message ?? `Erro ${response.status}`;
+    throw new Error(msg);
+  }
 
-  return data.questions;
+  const data = await response.json();
+  const rawText: string = data?.content?.[0]?.text ?? '';
+
+  // Limpar eventuais blocos markdown
+  const clean = rawText
+    .replace(/^```json\s*/i, '')
+    .replace(/^```\s*/i, '')
+    .replace(/\s*```$/i, '')
+    .trim();
+
+  let parsed: { questions: any[] };
+  try {
+    parsed = JSON.parse(clean);
+  } catch {
+    throw new Error('O modelo não devolveu JSON válido. Tenta novamente.');
+  }
+
+  if (!Array.isArray(parsed?.questions)) {
+    throw new Error('Formato de resposta inválido do modelo.');
+  }
+
+  return parsed.questions
+    .filter(
+      (q: any) =>
+        q.question &&
+        Array.isArray(q.options) &&
+        q.options.length === 4 &&
+        typeof q.correctAnswer === 'number' &&
+        q.correctAnswer >= 0 &&
+        q.correctAnswer <= 3
+    )
+    .map((q: any, i: number) => ({
+      id: q.id ?? `q${i + 1}`,
+      question: String(q.question),
+      options: q.options.map(String),
+      correctAnswer: Number(q.correctAnswer),
+      explanation: q.explanation ? String(q.explanation) : undefined,
+    }));
 }
 
+// ─── Componente principal ─────────────────────────────────────────────────────
 export function EventQuiz({
   eventId,
   eventName,
@@ -83,7 +171,7 @@ export function EventQuiz({
       const q = await generateQuizWithAI(eventName, eventDescription, eventCategory, 5);
       setQuestions(q);
     } catch (err: any) {
-      setError(err.message || 'Erro ao gerar perguntas. Tente novamente.');
+      setError(err.message || 'Erro ao gerar perguntas. Tenta novamente.');
     } finally {
       setIsLoading(false);
     }
@@ -110,19 +198,20 @@ export function EventQuiz({
   const calculateScore = () =>
     selectedAnswers.reduce((acc, ans, i) => acc + (ans === questions[i]?.correctAnswer ? 1 : 0), 0);
 
-  const getScorePercentage = () => questions.length === 0 ? 0 : (calculateScore() / questions.length) * 100;
+  const getScorePercentage = () => (questions.length === 0 ? 0 : (calculateScore() / questions.length) * 100);
 
   const getFeedback = () => {
     const p = getScorePercentage();
-    if (p === 100) return { title: "Excelente! Desempenho Perfeito! 🎉", msg: "Parabéns! Você domina completamente os conceitos abordados.", color: "text-green-600" };
-    if (p >= 80)  return { title: "Muito Bom! 👏", msg: "Ótimo desempenho! Você tem um bom domínio dos conceitos.", color: "text-blue-600" };
-    if (p >= 60)  return { title: "Bom Desempenho! 👍", msg: "Bom trabalho! Continue estudando para melhorar ainda mais.", color: "text-orange-600" };
-    return { title: "Pode Melhorar 📚", msg: "Recomendamos rever os materiais e tentar novamente.", color: "text-red-600" };
+    if (p === 100) return { title: 'Excelente! Desempenho Perfeito! 🎉', msg: 'Parabéns! Dominas completamente os conceitos abordados.', color: 'text-green-600' };
+    if (p >= 80)  return { title: 'Muito Bom! 👏', msg: 'Ótimo desempenho! Tens um bom domínio dos conceitos.', color: 'text-blue-600' };
+    if (p >= 60)  return { title: 'Bom Desempenho! 👍', msg: 'Bom trabalho! Continua a estudar para melhorar ainda mais.', color: 'text-orange-600' };
+    return { title: 'Pode Melhorar 📚', msg: 'Recomendamos rever os materiais e tentar novamente.', color: 'text-red-600' };
   };
 
   const fallbackImg = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
   const onImgError = (e: React.SyntheticEvent<HTMLImageElement>) => { (e.target as HTMLImageElement).src = fallbackImg; };
 
+  // ── Estados de ecrã ────────────────────────────────────────────────────────
   if (isLoading) return <QuizLoading message="A IA está a gerar perguntas personalizadas para este evento..." />;
 
   if (error) return (
@@ -150,6 +239,7 @@ export function EventQuiz({
     </div>
   );
 
+  // ── Resultados ─────────────────────────────────────────────────────────────
   if (showResults) {
     const score = calculateScore();
     const percentage = getScorePercentage();
@@ -195,11 +285,13 @@ export function EventQuiz({
                 return (
                   <div key={q.id} className="bg-gray-50 rounded-lg p-4">
                     <div className="flex items-start gap-3">
-                      {ok ? <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" /> : <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />}
+                      {ok
+                        ? <CheckCircle2 className="w-6 h-6 text-green-600 flex-shrink-0 mt-1" />
+                        : <XCircle className="w-6 h-6 text-red-600 flex-shrink-0 mt-1" />}
                       <div className="flex-1">
                         <p className="font-semibold text-gray-900 mb-2">{i + 1}. {q.question}</p>
                         <p className="text-sm text-gray-600 mb-1"><span className="font-medium">Sua resposta:</span> {q.options[ua]}</p>
-                        {!ok && <p className="text-sm text-green-700 mb-1"><span className="font-medium">Resposta correta:</span> {q.options[q.correctAnswer]}</p>}
+                        {!ok && <p className="text-sm text-green-700 mb-1"><span className="font-medium">Resposta correcta:</span> {q.options[q.correctAnswer]}</p>}
                         {q.explanation && <p className="text-sm text-gray-500 italic mt-2">💡 {q.explanation}</p>}
                       </div>
                     </div>
@@ -219,6 +311,7 @@ export function EventQuiz({
     );
   }
 
+  // ── Pergunta actual ────────────────────────────────────────────────────────
   const question = questions[currentQuestion];
   const progress = ((currentQuestion + 1) / questions.length) * 100;
 
@@ -254,10 +347,10 @@ export function EventQuiz({
               const showFeedback = isAnswerSubmitted;
               let cls = 'w-full text-left p-4 rounded-lg border-2 transition-all ';
               if (showFeedback) {
-                if (isSelected && isCorrectAnswer)      cls += 'border-green-600 bg-green-50';
+                if (isSelected && isCorrectAnswer)       cls += 'border-green-600 bg-green-50';
                 else if (isSelected && !isCorrectAnswer) cls += 'border-red-600 bg-red-50';
-                else if (isCorrectAnswer)               cls += 'border-green-600 bg-green-50';
-                else                                    cls += 'border-gray-200 bg-white opacity-40';
+                else if (isCorrectAnswer)                cls += 'border-green-600 bg-green-50';
+                else                                     cls += 'border-gray-200 bg-white opacity-40';
               } else {
                 cls += isSelected
                   ? 'border-orange-500 bg-orange-50 cursor-pointer'
