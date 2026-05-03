@@ -19,10 +19,6 @@ interface QuizQuestion {
   explanation?: string;
 }
 
-// ─── Coloca a tua chave aqui ─────────────────────────────────────────────────
-// Vai a https://console.anthropic.com → API Keys → Create Key
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY ?? '';
-
 // ─── Loading ──────────────────────────────────────────────────────────────────
 const QuizLoading = ({ message }: { message: string }) => (
   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -39,103 +35,30 @@ const QuizLoading = ({ message }: { message: string }) => (
   </div>
 );
 
-// ─── Gerador de perguntas via API da Anthropic ───────────────────────────────
+// ─── Chama a Netlify Function — a chave fica segura no servidor ───────────────
 async function generateQuizWithAI(
   eventName: string,
   eventDescription: string,
   eventCategory: string,
   numberOfQuestions = 5
 ): Promise<QuizQuestion[]> {
-  if (!ANTHROPIC_API_KEY) {
-    throw new Error('VITE_ANTHROPIC_API_KEY não está definida no ficheiro .env');
-  }
-
-  const prompt = `Cria ${numberOfQuestions} perguntas de quiz sobre o seguinte evento:
-
-Nome: ${eventName}
-Categoria: ${eventCategory || 'Geral'}
-Descrição: ${eventDescription || 'Sem descrição fornecida'}
-
-Regras:
-- Perguntas relevantes para o tema, categoria e conteúdo do evento
-- Cada pergunta tem exactamente 4 opções de resposta
-- Inclui uma explicação breve para cada resposta correcta
-- Varia a dificuldade (fácil, médio, difícil)
-- Escreve em Português
-
-Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
-{
-  "questions": [
-    {
-      "id": "q1",
-      "question": "Pergunta?",
-      "options": ["A", "B", "C", "D"],
-      "correctAnswer": 0,
-      "explanation": "Explicação da resposta correcta."
-    }
-  ]
-}`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const response = await fetch('/.netlify/functions/quiz-generator', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-browser': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      system: 'Respondes SEMPRE e SOMENTE com JSON válido, sem texto adicional, sem blocos markdown.',
-      messages: [{ role: 'user', content: prompt }],
-    }),
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ eventName, eventDescription, eventCategory, numberOfQuestions }),
   });
 
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    const msg = (err as any)?.error?.message ?? `Erro ${response.status}`;
-    throw new Error(msg);
-  }
-
   const data = await response.json();
-  const rawText: string = data?.content?.[0]?.text ?? '';
 
-  // Limpar eventuais blocos markdown
-  const clean = rawText
-    .replace(/^```json\s*/i, '')
-    .replace(/^```\s*/i, '')
-    .replace(/\s*```$/i, '')
-    .trim();
-
-  let parsed: { questions: any[] };
-  try {
-    parsed = JSON.parse(clean);
-  } catch {
-    throw new Error('O modelo não devolveu JSON válido. Tenta novamente.');
+  if (!response.ok) {
+    throw new Error(data?.error ?? `Erro ${response.status} ao gerar quiz`);
   }
 
-  if (!Array.isArray(parsed?.questions)) {
-    throw new Error('Formato de resposta inválido do modelo.');
+  if (!Array.isArray(data?.questions) || data.questions.length === 0) {
+    throw new Error('Nenhuma pergunta válida foi gerada. Tenta novamente.');
   }
 
-  return parsed.questions
-    .filter(
-      (q: any) =>
-        q.question &&
-        Array.isArray(q.options) &&
-        q.options.length === 4 &&
-        typeof q.correctAnswer === 'number' &&
-        q.correctAnswer >= 0 &&
-        q.correctAnswer <= 3
-    )
-    .map((q: any, i: number) => ({
-      id: q.id ?? `q${i + 1}`,
-      question: String(q.question),
-      options: q.options.map(String),
-      correctAnswer: Number(q.correctAnswer),
-      explanation: q.explanation ? String(q.explanation) : undefined,
-    }));
+  return data.questions;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
