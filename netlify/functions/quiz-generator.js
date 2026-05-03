@@ -1,31 +1,39 @@
 // netlify/functions/quiz-generator.js
-const fetch = (...args) => import('node-fetch').then(({ default: f }) => f(...args));
+// ESM puro — compatível com "type": "module" no package.json
+// Usa o fetch nativo do Node 18+ (sem node-fetch)
 
-exports.handler = async (event) => {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Headers': 'Content-Type',
-    'Content-Type': 'application/json',
-  };
+const corsHeaders = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};
 
+const json = (statusCode, body) => ({
+  statusCode,
+  headers: corsHeaders,
+  body: JSON.stringify(body),
+});
+
+export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
 
   if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Método não permitido' }) };
+    return json(405, { error: 'Método não permitido' });
   }
 
   try {
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     if (!ANTHROPIC_API_KEY) {
-      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'ANTHROPIC_API_KEY não configurada' }) };
+      return json(500, { error: 'ANTHROPIC_API_KEY não configurada nas variáveis de ambiente do Netlify' });
     }
 
-    const { eventName, eventDescription, eventCategory, numberOfQuestions = 5 } = JSON.parse(event.body || '{}');
+    const { eventName, eventDescription, eventCategory, numberOfQuestions = 5 } =
+      JSON.parse(event.body || '{}');
 
     if (!eventName) {
-      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'eventName é obrigatório' }) };
+      return json(400, { error: 'eventName é obrigatório' });
     }
 
     const prompt = `Cria ${numberOfQuestions} perguntas de quiz sobre o seguinte evento:
@@ -71,8 +79,7 @@ Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      const msg = err?.error?.message ?? `Anthropic API erro ${response.status}`;
-      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: msg }) };
+      return json(500, { error: err?.error?.message ?? `Anthropic API erro ${response.status}` });
     }
 
     const data = await response.json();
@@ -88,11 +95,11 @@ Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
     try {
       parsed = JSON.parse(clean);
     } catch {
-      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'O modelo não devolveu JSON válido' }) };
+      return json(500, { error: 'O modelo não devolveu JSON válido. Tenta novamente.' });
     }
 
     if (!Array.isArray(parsed?.questions)) {
-      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'Formato de resposta inválido' }) };
+      return json(500, { error: 'Formato de resposta inválido do modelo.' });
     }
 
     const questions = parsed.questions
@@ -112,10 +119,14 @@ Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
         explanation: q.explanation ? String(q.explanation) : undefined,
       }));
 
-    return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ questions }) };
+    if (questions.length === 0) {
+      return json(500, { error: 'Nenhuma pergunta válida foi gerada. Tenta novamente.' });
+    }
+
+    return json(200, { questions });
 
   } catch (err) {
     console.error('quiz-generator error:', err);
-    return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: err.message ?? 'Erro interno' }) };
+    return json(500, { error: err.message ?? 'Erro interno do servidor' });
   }
 };
