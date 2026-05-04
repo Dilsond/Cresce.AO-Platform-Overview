@@ -470,20 +470,22 @@ export function CreateEvent() {
     return (
         <div className="min-h-screen bg-gray-50">
             {/* Header Responsivo */}
-            <header className="bg-white/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between">
-                    <button
-                        onClick={() => navigate(-1)}
-                        className="flex items-center gap-1 sm:gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-all group"
-                    >
-                        <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5 group-hover:-translate-x-1 transition-transform" />
-                        <span className="font-medium text-sm sm:text-base">Voltar</span>
-                    </button>
-                    <div className="flex items-center gap-2">
-                        <img src={logo} alt="Logo" className="h-6 sm:h-8 w-auto object-contain" />
-                        <span className="text-base sm:text-xl font-bold text-gray-900 tracking-tight hidden sm:inline">
-                            Cresce<span className="text-orange-600">.AO</span>
-                        </span>
+            <header className="bg-white shadow-sm border-b sticky top-0 z-20">
+                <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8 py-4">
+                    <div className="flex items-center justify-between">
+                        <button
+                            onClick={() => navigate(-1)}
+                            className="flex items-center gap-2 text-gray-600 cursor-pointer hover:text-orange-600 transition-colors"
+                        >
+                            <ArrowLeft className="w-5 h-5" />
+                            <span>Voltar</span>
+                        </button>
+                        <div className="flex items-center gap-2">
+                            <img src={logo} alt="Logo" className="h-8 w-auto" />
+                            <span className="text-xl font-bold text-gray-900">
+                                Cresce<span className="text-orange-600">.AO</span>
+                            </span>
+                        </div>
                     </div>
                 </div>
             </header>
@@ -539,7 +541,7 @@ export function CreateEvent() {
                     <div>
                         <p className="font-semibold text-blue-800 mb-1 text-sm sm:text-base">Prevenção de Duplicidade</p>
                         <p className="text-xs sm:text-sm text-blue-700">
-                            Para manter a qualidade do catálogo, <strong>nomes e descrições de eventos devem ser únicos</strong> em toda a plataforma. 
+                            Para manter a qualidade do catálogo, <strong>nomes e descrições de eventos devem ser únicos</strong> em toda a plataforma.
                             Verificamos automaticamente se já existe outro evento (de qualquer organizador) com o mesmo nome ou descrição.
                         </p>
                     </div>

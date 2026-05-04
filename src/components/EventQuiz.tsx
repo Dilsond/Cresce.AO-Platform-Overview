@@ -245,10 +245,6 @@ export function EventQuiz({
           <img src={eventImage} alt={eventName} className="w-full h-full object-cover" onError={onImgError} />
           <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
           <div className="absolute bottom-4 left-6 right-6">
-            <div className="flex items-center gap-2 mb-1">
-              <Sparkles className="w-4 h-4 text-orange-300" />
-              <span className="text-orange-300 text-xs font-medium">Gerado por IA</span>
-            </div>
             <h2 className="text-2xl font-bold text-white">Quiz Educativo</h2>
             <p className="text-white/90 text-sm mt-1">{eventName}</p>
           </div>
