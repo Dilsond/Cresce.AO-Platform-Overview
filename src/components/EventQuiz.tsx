@@ -175,7 +175,7 @@ const CircularTimer = ({ seconds, total }: { seconds: number; total: number }) =
   );
 };
 
-// ─── Player de vídeo YouTube embutido ─────────────────────────────────────────
+// ─── Player de vídeo YouTube embutido (por videoId) ───────────────────────────
 const VideoPlayer = ({ videoId, title }: { videoId: string; title: string }) => (
   <div className="relative w-full" style={{ paddingBottom: '56.25%' }}>
     <iframe
@@ -187,6 +187,23 @@ const VideoPlayer = ({ videoId, title }: { videoId: string; title: string }) => 
     />
   </div>
 );
+
+// ─── Player YouTube com pesquisa (por searchQuery) ────────────────────────────
+function VideoPlayerSearch({ searchQuery, title }: { videoId?: string; title: string; searchQuery?: string }) {
+  const encoded = encodeURIComponent(searchQuery ?? title);
+  const src = `https://www.youtube.com/embed?listType=search&list=${encoded}&autoplay=1&rel=0&modestbranding=1`;
+  return (
+    <div className="relative w-full bg-black" style={{ paddingBottom: '52%' }}>
+      <iframe
+        className="absolute inset-0 w-full h-full"
+        src={src}
+        title={title}
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+        allowFullScreen
+      />
+    </div>
+  );
+}
 
 // ─── Loading ──────────────────────────────────────────────────────────────────
 const QuizLoading = ({ eventImage, eventName }: { eventImage: string; eventName: string }) => (
@@ -232,14 +249,6 @@ async function generateQuizWithAI(
   if (!Array.isArray(data?.questions) || !data.questions.length)
     throw new Error('Nenhuma pergunta gerada. Tenta novamente.');
   return data.questions;
-}
-
-// Busca vídeo relacionado no YouTube Data API (se não vier da AI, usa pesquisa)
-function getVideoSearchUrl(query: string) {
-  // Retorna URL de pesquisa do YouTube — abre em iframe de pesquisa
-  // Usamos um vídeo educativo genérico do YouTube baseado em keywords
-  const encoded = encodeURIComponent(query);
-  return `https://www.youtube.com/embed?listType=search&list=${encoded}&autoplay=0&rel=0&modestbranding=1`;
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -478,8 +487,8 @@ function QuestionScreen({
           {showVideo
             ? (
               <motion.div key="video" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <VideoPlayer
-                  videoId=""
+                {/* ← usa VideoPlayerSearch em vez de VideoPlayer */}
+                <VideoPlayerSearch
                   title={`Vídeo sobre: ${q.question}`}
                   searchQuery={videoQuery}
                 />
@@ -778,23 +787,5 @@ function ResultsScreen({ questions, answers, pct, score, feedback, eventImage, e
         </div>
       </div>
     </>
-  );
-}
-
-// ─── Player YouTube com pesquisa ──────────────────────────────────────────────
-function VideoPlayer({ searchQuery, title }: { videoId?: string; title: string; searchQuery?: string }) {
-  const encoded = encodeURIComponent(searchQuery ?? title);
-  // Embed de pesquisa do YouTube
-  const src = `https://www.youtube.com/embed?listType=search&list=${encoded}&autoplay=1&rel=0&modestbranding=1`;
-  return (
-    <div className="relative w-full bg-black" style={{ paddingBottom: '52%' }}>
-      <iframe
-        className="absolute inset-0 w-full h-full"
-        src={src}
-        title={title}
-        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        allowFullScreen
-      />
-    </div>
   );
 }
