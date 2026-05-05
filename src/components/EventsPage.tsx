@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Search, MapPin, Heart, User, LogOut,
   CalendarDays, ChevronDown, Menu, X, ChevronRight,
@@ -73,7 +73,9 @@ export function EventsPage() {
   const [sortBy, setSortBy] = useState('Relevância');
 
   const isOrganizer = currentUser?.type === 'organizer';
-  const searchQuery = layoutContext?.searchQuery !== undefined ? layoutContext.searchQuery : localSearchQuery;
+  const searchQuery = layoutContext?.searchQuery !== undefined
+    ? layoutContext.searchQuery
+    : localSearchQuery;
 
   useEffect(() => {
     if (!currentUser) navigate('/login');
@@ -86,155 +88,192 @@ export function EventsPage() {
     }
   }, [currentUser]);
 
-  const fetchUserLikes = async () => {
+  // ─── Likes — batch query, sem loop ─────────────────────────────────────────
+  const fetchUserLikes = useCallback(async () => {
     if (!currentUser) return;
     try {
-      let query = supabase.from('favoritos_eventos').select('evento_id') as any;
-      if (currentUser.type === 'user') {
-        query = query.eq('usuario_normal_id', currentUser.id);
-      } else {
-        query = query.eq('organizador_id', currentUser.id);
-      }
-      const { data: favorites, error } = await query;
-      if (error) return;
-      const ids = favorites.map((f: any) => f.evento_id);
-      if (ids.length > 0) {
-        const { data: valid } = await supabase
-          .from('eventos')
-          .select('id')
-          .in('id', ids)
-          .is('deleted_at', null)
-          .eq('status_aprovacao', 'aprovado'); // só favoritos de eventos aprovados
-        const validIds = (valid ?? []).map((e: any) => e.id);
-        setLikedEvents(validIds);
-        localStorage.setItem('cresceao_liked', JSON.stringify(validIds));
+      const col = currentUser.type === 'user' ? 'usuario_normal_id' : 'organizador_id';
+      const { data: favorites } = await supabase
+        .from('favoritos_eventos')
+        .select('evento_id')
+        .eq(col, currentUser.id);
+
+      if (!favorites?.length) {
+        setLikedEvents([]);
+        localStorage.setItem('cresceao_liked', '[]');
         return;
       }
-      setLikedEvents(ids);
-      localStorage.setItem('cresceao_liked', JSON.stringify(ids));
-    } catch (err) { console.error(err); }
-  };
 
+      const ids = favorites.map((f: any) => f.evento_id);
+
+      const { data: valid } = await supabase
+        .from('eventos')
+        .select('id')
+        .in('id', ids)
+        .is('deleted_at', null)
+        .eq('status_aprovacao', 'aprovado');
+
+      const validIds = (valid ?? []).map((e: any) => e.id);
+      setLikedEvents(validIds);
+      localStorage.setItem('cresceao_liked', JSON.stringify(validIds));
+    } catch (err) {
+      console.error('fetchUserLikes:', err);
+    }
+  }, [currentUser]);
+
+  // ─── Like toggle ────────────────────────────────────────────────────────────
   const handleLikeToggle = async (eventId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     if (!currentUser) { navigate('/login'); return; }
 
     const evento = events.find((ev) => ev.id === eventId);
+    const col = currentUser.type === 'user' ? 'usuario_normal_id' : 'organizador_id';
+    const isLiked = likedEvents.includes(eventId);
+
     try {
-      const isLiked = likedEvents.includes(eventId);
       if (isLiked) {
-        let q = supabase.from('favoritos_eventos').delete() as any;
-        q = currentUser.type === 'user'
-          ? q.eq('evento_id', eventId).eq('usuario_normal_id', currentUser.id)
-          : q.eq('evento_id', eventId).eq('organizador_id', currentUser.id);
-        const { error } = await q;
+        const { error } = await supabase
+          .from('favoritos_eventos')
+          .delete()
+          .eq('evento_id', eventId)
+          .eq(col, currentUser.id);
         if (error) return;
         const updated = likedEvents.filter((id) => id !== eventId);
         setLikedEvents(updated);
         localStorage.setItem('cresceao_liked', JSON.stringify(updated));
-        setEvents((prev) => prev.map((ev) => ev.id === eventId ? { ...ev, likes: Math.max(0, ev.likes - 1) } : ev));
+        setEvents((prev) => prev.map((ev) =>
+          ev.id === eventId ? { ...ev, likes: Math.max(0, ev.likes - 1) } : ev
+        ));
       } else {
-        const data: any = { evento_id: eventId, created_at: new Date().toISOString() };
-        if (currentUser.type === 'user') data.usuario_normal_id = currentUser.id;
-        else data.organizador_id = currentUser.id;
-        const { error } = await supabase.from('favoritos_eventos').insert(data);
+        const payload: any = { evento_id: eventId, created_at: new Date().toISOString() };
+        payload[col] = currentUser.id;
+        const { error } = await supabase.from('favoritos_eventos').insert(payload);
         if (error) return;
         const updated = [...likedEvents, eventId];
         setLikedEvents(updated);
         localStorage.setItem('cresceao_liked', JSON.stringify(updated));
-        setEvents((prev) => prev.map((ev) => ev.id === eventId ? { ...ev, likes: ev.likes + 1 } : ev));
+        setEvents((prev) => prev.map((ev) =>
+          ev.id === eventId ? { ...ev, likes: ev.likes + 1 } : ev
+        ));
 
+        // Notificação ao organizador (non-blocking)
         if (evento && currentUser.id !== evento.organizerId) {
-          const { data: org } = await supabase
+          supabase
             .from('organizadores')
             .select('email_empresa, nome_empresa')
             .eq('id', evento.organizerId)
-            .single();
-          if (org) {
-            await notificationService.sendEmailNotification(
-              {
-                id: `tmp-${Date.now()}`,
-                usuario_id: evento.organizerId,
-                tipo_usuario: 'organizer',
-                titulo: 'Novo Like!',
-                mensagem: `${currentUser.name || currentUser.username || 'Um usuário'} curtiu: ${evento.name}`,
-                tipo: 'novo_like',
-                lida: false,
-                created_at: new Date().toISOString()
-              },
-              org.email_empresa,
-              org.nome_empresa
-            );
-          }
+            .single()
+            .then(({ data: org }) => {
+              if (org) {
+                notificationService.sendEmailNotification(
+                  {
+                    id: `tmp-${Date.now()}`,
+                    usuario_id: evento.organizerId,
+                    tipo_usuario: 'organizer',
+                    titulo: 'Novo Like!',
+                    mensagem: `${currentUser.name || currentUser.username || 'Um utilizador'} curtiu: ${evento.name}`,
+                    tipo: 'novo_like',
+                    lida: false,
+                    created_at: new Date().toISOString(),
+                  },
+                  org.email_empresa,
+                  org.nome_empresa
+                ).catch(() => {});
+              }
+            })
+            .catch(() => {});
         }
       }
-    } catch (err) { console.error(err); }
+    } catch (err) {
+      console.error('handleLikeToggle:', err);
+    }
   };
 
   const formatTime = (t: string) => (t ? t.split(':').slice(0, 2).join(':') : '');
 
-  const fetchEvents = async () => {
+  // ─── fetchEvents — batch queries, iOS-safe ──────────────────────────────────
+  const fetchEvents = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // ── Apenas eventos aprovados, não apagados ──────────────────────────
-      const { data: eventos, error: err } = await supabase
+      // 1. Buscar todos os eventos aprovados de uma vez
+      const { data: eventos, error: evErr } = await supabase
         .from('eventos')
-        .select('*')
+        .select('id, nome_evento, descricao, categoria, data_evento, hora_evento, tipo_evento, local, valor, imagem_url, organizador_id, status_aprovacao, deleted_at')
         .is('deleted_at', null)
         .eq('status_aprovacao', 'aprovado')
         .order('data_evento', { ascending: true });
 
-      if (err) { setError('Erro ao carregar eventos.'); return; }
+      if (evErr) { setError('Erro ao carregar eventos.'); return; }
       if (!eventos?.length) { setEvents([]); return; }
 
-      const valid: Event[] = [];
-      for (const ev of eventos) {
-        const { data: org, error: orgErr } = await supabase
-          .from('organizadores')
-          .select('nome_empresa,id,deleted_at,avatar_url,email_empresa')
-          .eq('id', ev.organizador_id)
-          .single();
+      // 2. Extrair IDs únicos de organizadores
+      const orgIds = [...new Set(eventos.map((ev: any) => ev.organizador_id))];
 
-        // Ignorar eventos de organizadores apagados ou inactivos
-        if (orgErr || org?.deleted_at) continue;
+      // 3. Buscar todos os organizadores em UMA query (sem loop)
+      const { data: orgs } = await supabase
+        .from('organizadores')
+        .select('id, nome_empresa, deleted_at, avatar_url, email_empresa')
+        .in('id', orgIds)
+        .is('deleted_at', null);
 
-        const { count } = await supabase
-          .from('favoritos_eventos')
-          .select('*', { count: 'exact', head: true })
-          .eq('evento_id', ev.id);
+      // Mapear por ID para lookup O(1)
+      const orgMap: Record<string, any> = {};
+      (orgs ?? []).forEach((o: any) => { orgMap[o.id] = o; });
 
-        const status = new Date(ev.data_evento) < new Date() ? 'Finalizado' : 'A decorrer';
+      // 4. Buscar contagens de likes em UMA query com group by simulado
+      const eventoIds = eventos.map((ev: any) => ev.id);
+      const { data: favoritosData } = await supabase
+        .from('favoritos_eventos')
+        .select('evento_id')
+        .in('evento_id', eventoIds);
 
-        valid.push({
-          id: ev.id,
-          name: ev.nome_evento,
-          description: ev.descricao || 'Sem descrição disponível',
-          category: ev.categoria,
-          date: ev.data_evento,
-          time: formatTime(ev.hora_evento),
-          eventType: ev.tipo_evento,
-          location: ev.local || 'Local a definir',
-          price: ev.valor || 0,
-          image: ev.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
-          status,
-          organizerId: org.id,
-          organizerEmail: org.email_empresa,
-          logo: org.avatar_url,
-          organizerName: org.nome_empresa || 'Organizador',
-          likes: count || 0,
+      // Contar likes por evento_id
+      const likesMap: Record<string, number> = {};
+      (favoritosData ?? []).forEach((f: any) => {
+        likesMap[f.evento_id] = (likesMap[f.evento_id] ?? 0) + 1;
+      });
+
+      // 5. Montar lista final — operação síncrona, sem awaits
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const valid: Event[] = eventos
+        .filter((ev: any) => orgMap[ev.organizador_id]) // só eventos de org activos
+        .map((ev: any) => {
+          const org = orgMap[ev.organizador_id];
+          const eventDate = new Date(ev.data_evento);
+          const status = eventDate < today ? 'Finalizado' : 'A decorrer';
+          return {
+            id: ev.id,
+            name: ev.nome_evento,
+            description: ev.descricao || 'Sem descrição disponível',
+            category: ev.categoria,
+            date: ev.data_evento,
+            time: formatTime(ev.hora_evento),
+            eventType: ev.tipo_evento,
+            location: ev.local || 'Local a definir',
+            price: ev.valor || 0,
+            image: ev.imagem_url || 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800',
+            status,
+            organizerId: org.id,
+            organizerEmail: org.email_empresa,
+            logo: org.avatar_url || '',
+            organizerName: org.nome_empresa || 'Organizador',
+            likes: likesMap[ev.id] ?? 0,
+          };
         });
-      }
+
       setEvents(valid);
     } catch (err) {
-      console.error('Erro ao buscar eventos:', err);
+      console.error('fetchEvents:', err);
       setError('Ocorreu um erro inesperado ao carregar eventos.');
     } finally {
       setIsLoading(false);
     }
-  };
+  }, []);
 
   const onLogout = () => { localStorage.removeItem('user'); navigate('/login'); };
   const onNavigateToProfile = () => { navigate(isOrganizer ? '/organizer-profile' : '/user-dashboard'); };
@@ -249,17 +288,29 @@ export function EventsPage() {
 
   const filtered = events.filter((ev) => {
     const q = searchQuery.toLowerCase();
-    const matchSearch = !q || ev.name.toLowerCase().includes(q) || ev.description.toLowerCase().includes(q) || ev.organizerName.toLowerCase().includes(q);
+    const matchSearch = !q
+      || ev.name.toLowerCase().includes(q)
+      || ev.description.toLowerCase().includes(q)
+      || ev.organizerName.toLowerCase().includes(q);
     const matchCat = selectedCategory === 'Todas' || ev.category === selectedCategory;
     const matchType = selectedEventType === 'Todos' || ev.eventType === selectedEventType;
-    const matchPrice = selectedPriceFilter === 'Todos' || (selectedPriceFilter === 'Gratuito' ? !ev.price || ev.price === 0 : !!ev.price && ev.price > 0);
+    const matchPrice = selectedPriceFilter === 'Todos'
+      || (selectedPriceFilter === 'Gratuito' ? !ev.price || ev.price === 0 : !!ev.price && ev.price > 0);
+
     const d = new Date(ev.date);
     const today = new Date(); today.setHours(0, 0, 0, 0);
     let matchDate = true;
-    if (selectedDateFilter === 'Hoje') matchDate = d.toDateString() === today.toDateString();
-    else if (selectedDateFilter === 'Esta Semana') { const w = new Date(today); w.setDate(today.getDate() + 7); matchDate = d >= today && d <= w; }
-    else if (selectedDateFilter === 'Este Mês') matchDate = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    else if (selectedDateFilter === 'Próximos 3 Meses') { const m = new Date(today); m.setMonth(today.getMonth() + 3); matchDate = d >= today && d <= m; }
+    if (selectedDateFilter === 'Hoje') {
+      matchDate = d.toDateString() === today.toDateString();
+    } else if (selectedDateFilter === 'Esta Semana') {
+      const w = new Date(today); w.setDate(today.getDate() + 7);
+      matchDate = d >= today && d <= w;
+    } else if (selectedDateFilter === 'Este Mês') {
+      matchDate = d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
+    } else if (selectedDateFilter === 'Próximos 3 Meses') {
+      const m = new Date(today); m.setMonth(today.getMonth() + 3);
+      matchDate = d >= today && d <= m;
+    }
     return matchSearch && matchCat && matchType && matchPrice && matchDate;
   });
 
@@ -283,6 +334,7 @@ export function EventsPage() {
     );
   }
 
+  // ─── Filters bar ────────────────────────────────────────────────────────────
   const FiltersBar = () => (
     <div className="flex flex-col gap-3 border-b border-gray-100 pb-4 sm:pb-6">
       <div className="flex items-center gap-2 overflow-x-auto pb-1 hide-scrollbar">
@@ -291,7 +343,7 @@ export function EventsPage() {
           { label: 'Categoria', value: selectedCategory, set: setSelectedCategory, opts: categories.map(c => ({ value: c, label: c === 'Todas' ? 'Todas' : catLabels[c] })) },
           { label: 'Data', value: selectedDateFilter, set: setSelectedDateFilter, opts: dateFilters.map(d => ({ value: d, label: d })) },
           { label: 'Preço', value: selectedPriceFilter, set: setSelectedPriceFilter, opts: priceFilters.map(p => ({ value: p, label: p })) },
-          { label: 'Tipo Evento', value: selectedEventType, set: setSelectedEventType, opts: eventTypes.map(t => ({ value: t, label: t === 'Todos' ? 'Todos' : t === 'presencial' ? 'Presencial' : t === 'online' ? 'Online' : 'Híbrido' })) },
+          { label: 'Tipo', value: selectedEventType, set: setSelectedEventType, opts: eventTypes.map(t => ({ value: t, label: t === 'Todos' ? 'Todos' : t === 'presencial' ? 'Presencial' : t === 'online' ? 'Online' : 'Híbrido' })) },
         ].map(({ label, value, set, opts }) => (
           <DropdownMenu key={label}>
             <DropdownMenuTrigger asChild>
@@ -324,27 +376,45 @@ export function EventsPage() {
     </div>
   );
 
+  // ─── Event card ─────────────────────────────────────────────────────────────
   const EventCard = ({ event }: { event: Event }) => (
     <div
       className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:shadow-2xl hover:border-orange-200 hover:-translate-y-2 transition-all duration-300 cursor-pointer group flex flex-col h-full"
       onClick={() => navigate(`/event/${event.id}`)}
     >
-      <div className="relative aspect-[16/9] overflow-hidden bg-gray-900">
-        <img src={event.image} alt={event.name} className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500"
-          onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800'; }} />
+      <div className="relative aspect-[16/9] overflow-hidden bg-gray-100">
+        <img
+          src={event.image}
+          alt={event.name}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover group-hover:scale-110 group-hover:opacity-90 transition-all duration-500"
+          onError={(e) => {
+            (e.target as HTMLImageElement).src =
+              'https://images.unsplash.com/photo-1540575467063-178a50c2df87?w=800';
+          }}
+        />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div className="absolute top-3 left-3">
-          <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 font-semibold shadow-sm">{catLabels[event.category]}</Badge>
+          <Badge variant="secondary" className="bg-white/90 backdrop-blur-sm text-gray-900 font-semibold shadow-sm">
+            {catLabels[event.category] ?? event.category}
+          </Badge>
         </div>
         <div className="absolute top-3 right-3">
-          <button className="p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white hover:scale-110 transition-all shadow-sm" onClick={(e) => handleLikeToggle(event.id, e)}>
+          <button
+            className="p-2 rounded-full bg-white/90 backdrop-blur-sm hover:bg-white hover:scale-110 transition-all shadow-sm"
+            onClick={(e) => handleLikeToggle(event.id, e)}
+          >
             <Heart className={`w-5 h-5 transition-all duration-200 ${likedEvents.includes(event.id) ? 'text-red-500 fill-red-500' : 'text-gray-600 hover:text-red-500'}`} />
           </button>
         </div>
         <div className="absolute bottom-3 right-3">
-          <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'}`}>{event.status}</span>
+          <span className={`px-2 py-1 rounded-md text-xs font-bold uppercase tracking-wide bg-white/90 backdrop-blur-sm shadow-sm ${event.status === 'A decorrer' ? 'text-green-600' : 'text-gray-600'}`}>
+            {event.status}
+          </span>
         </div>
       </div>
+
       <div className="p-5 flex-1 flex flex-col bg-white group-hover:bg-gradient-to-b group-hover:from-white group-hover:to-orange-50/30 transition-all duration-300">
         <div className="flex items-center gap-2 mb-3">
           <div className="bg-orange-50 text-orange-700 px-2 py-1 rounded text-xs font-bold uppercase border border-orange-100 group-hover:bg-orange-600 group-hover:text-white group-hover:border-orange-600 transition-all duration-300">
@@ -354,7 +424,9 @@ export function EventsPage() {
             {new Date(event.date).toLocaleDateString('pt-PT', { day: '2-digit' })} • {event.time}
           </span>
         </div>
-        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight group-hover:text-orange-600 transition-colors duration-300">{event.name}</h3>
+        <h3 className="text-lg font-bold text-gray-900 mb-2 line-clamp-2 leading-tight group-hover:text-orange-600 transition-colors duration-300">
+          {event.name}
+        </h3>
         <div className="flex items-start gap-2 text-sm text-gray-500 mb-4 line-clamp-1 group-hover:text-gray-700 transition-colors duration-300">
           <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0 group-hover:text-orange-600 transition-colors duration-300" />
           <span className="truncate">{event.location}</span>
@@ -362,9 +434,13 @@ export function EventsPage() {
         <div className="mt-auto pt-4 border-t border-gray-100 group-hover:border-orange-100 flex items-center justify-between transition-colors duration-300">
           <div className="flex items-center gap-2">
             <div className="w-6 h-6 rounded-full bg-gradient-to-br from-orange-500 to-red-600 flex items-center justify-center text-white text-xs font-bold flex-shrink-0 overflow-hidden">
-              {event.logo ? <img src={event.logo} alt={event.organizerName} className="w-full h-full object-cover" /> : event.organizerName.charAt(0).toUpperCase()}
+              {event.logo
+                ? <img src={event.logo} alt={event.organizerName} className="w-full h-full object-cover" />
+                : event.organizerName.charAt(0).toUpperCase()}
             </div>
-            <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">{event.organizerName}</span>
+            <span className="text-xs text-gray-500 group-hover:text-gray-700 truncate max-w-[120px] transition-colors duration-300">
+              {event.organizerName}
+            </span>
           </div>
           <span className="text-sm font-bold text-green-600 group-hover:text-orange-600 group-hover:scale-110 transition-all duration-300">
             {event.price ? `${event.price.toLocaleString()} Kz` : 'Grátis'}
@@ -374,20 +450,24 @@ export function EventsPage() {
     </div>
   );
 
+  // ─── Render ─────────────────────────────────────────────────────────────────
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
       {/* Header */}
       {!isOrganizer ? (
         <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-            <div className="flex items-center cursor-pointer" onClick={() => navigate('/events')}>
+            <div className="flex items-center cursor-pointer gap-1" onClick={() => navigate('/events')}>
               <img src={logo} alt="Cresce.AO Logo" className="h-10 w-auto object-contain" />
               <span className="text-xl font-bold text-gray-900 tracking-tight">Cresce<span className="text-orange-600">.AO</span></span>
             </div>
             <div className="hidden md:flex items-center w-full max-w-2xl bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input type="text" placeholder="Buscar experiências" value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" />
+              <input
+                type="text" placeholder="Buscar experiências"
+                value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
+              />
             </div>
             <div className="hidden lg:flex items-center gap-4">
               <Button variant="ghost" onClick={() => navigate('/favorites')} className="text-gray-600 cursor-pointer hover:text-orange-600 flex gap-2">
@@ -406,7 +486,9 @@ export function EventsPage() {
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={onNavigateToProfile} className="cursor-pointer">Meu Perfil</DropdownMenuItem>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={onLogout} className="text-red-600 cursor-pointer"><LogOut className="w-4 h-4 mr-2" /> Sair</DropdownMenuItem>
+                  <DropdownMenuItem onClick={onLogout} className="text-red-600 cursor-pointer">
+                    <LogOut className="w-4 h-4 mr-2" /> Sair
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -420,19 +502,25 @@ export function EventsPage() {
               <div className="p-4 border-b border-gray-100">
                 <div className="flex items-center bg-gray-100 rounded-lg border border-gray-200">
                   <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-                  <input type="text" placeholder="Buscar experiências" value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
-                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none" />
+                  <input
+                    type="text" placeholder="Buscar experiências"
+                    value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                    className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none"
+                  />
                 </div>
               </div>
               <div className="p-4 space-y-2">
-                <button onClick={() => { navigate('/favorites'); setMobileMenuOpen(false); }} className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
+                <button onClick={() => { navigate('/favorites'); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
                   <Heart className="w-5 h-5 text-red-500" /> <span>Favoritos</span>
                 </button>
                 <Separator className="my-2" />
-                <button onClick={() => { onNavigateToProfile(); setMobileMenuOpen(false); }} className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
+                <button onClick={() => { onNavigateToProfile(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center cursor-pointer gap-3 px-3 py-2 text-gray-700 hover:bg-orange-50 rounded-lg">
                   <User className="w-5 h-5 text-orange-600" /> <span>Perfil</span>
                 </button>
-                <button onClick={() => { onLogout(); setMobileMenuOpen(false); }} className="w-full flex items-center gap-3 px-3 cursor-pointer py-2 text-red-600 hover:bg-red-50 rounded-lg">
+                <button onClick={() => { onLogout(); setMobileMenuOpen(false); }}
+                  className="w-full flex items-center gap-3 px-3 cursor-pointer py-2 text-red-600 hover:bg-red-50 rounded-lg">
                   <LogOut className="w-5 h-5" /> <span>Sair</span>
                 </button>
               </div>
@@ -444,14 +532,17 @@ export function EventsPage() {
           <div className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-3">
             <div className="flex items-center w-full max-w-2xl mx-auto bg-gray-100 rounded-lg border border-gray-200">
               <div className="pl-3 text-gray-400"><Search className="w-5 h-5" /></div>
-              <input type="text" placeholder="Buscar eventos..." value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
-                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900" />
+              <input
+                type="text" placeholder="Buscar eventos..."
+                value={localSearchQuery} onChange={(e) => setLocalSearchQuery(e.target.value)}
+                className="flex-1 bg-transparent border-none py-2.5 px-3 text-sm focus:outline-none placeholder:text-gray-500 text-gray-900"
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* Conteúdo principal */}
+      {/* Main */}
       <main className="max-w-[1800px] mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
           <span className="hover:text-orange-600 cursor-pointer" onClick={() => navigate('/events')}>
@@ -470,13 +561,15 @@ export function EventsPage() {
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
             <p className="text-red-600 font-medium mb-1">Erro ao carregar eventos</p>
             <p className="text-red-600 text-sm mb-3">{error}</p>
-            <button onClick={fetchEvents} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">Tentar novamente</button>
+            <button onClick={fetchEvents} className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 text-sm">
+              Tentar novamente
+            </button>
           </div>
         )}
 
-        <h2 className="text-lg font-medium text-gray-600 mb-6">
+        <p className="text-lg font-medium text-gray-600 mb-6">
           {sorted.length} {sorted.length === 1 ? 'evento encontrado' : 'eventos encontrados'}
-        </h2>
+        </p>
 
         {isLoading ? (
           <div className="grid sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -490,7 +583,11 @@ export function EventsPage() {
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Nenhum evento encontrado</h3>
             <p className="text-gray-500 max-w-md mx-auto mb-6">Tente limpar os filtros ou buscar por outro termo.</p>
             <Button
-              onClick={() => { setSelectedCategory('Todas'); setSelectedDateFilter('Todas'); setSelectedEventType('Todos'); setSelectedPriceFilter('Todos'); setLocalSearchQuery(''); }}
+              onClick={() => {
+                setSelectedCategory('Todas'); setSelectedDateFilter('Todas');
+                setSelectedEventType('Todos'); setSelectedPriceFilter('Todos');
+                setLocalSearchQuery('');
+              }}
               className="bg-orange-600 hover:bg-orange-700"
             >
               Limpar filtros
@@ -502,11 +599,16 @@ export function EventsPage() {
           </div>
         )}
 
-        {currentUser && <NotificationPermissionPrompt userId={currentUser.id} userType={currentUser.type} />}
+        {currentUser && (
+          <NotificationPermissionPrompt userId={currentUser.id} userType={currentUser.type} />
+        )}
       </main>
 
       {!isOrganizer && (
-        <Footer onNavigateToPrivacy={() => navigate('/privacy-policy')} onNavigateToTerms={() => navigate('/terms-of-use')} />
+        <Footer
+          onNavigateToPrivacy={() => navigate('/privacy-policy')}
+          onNavigateToTerms={() => navigate('/terms-of-use')}
+        />
       )}
     </div>
   );
