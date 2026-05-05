@@ -150,7 +150,7 @@ function SingularForm({ onSuccess }: { onSuccess: () => void }) {
       )}
 
       {/* Info banner */}
-      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl">
+      <div className="flex items-start gap-3 p-4 bg-amber-50 border border-amber-200 rounded-xl mt-0.9">
         <BadgeCheck className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
         <div>
           <p className="text-sm font-semibold text-gray-900 mb-0.5">Verificação de Identidade</p>
@@ -461,12 +461,12 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
       {/* Voltar */}
       <motion.button
         onClick={onBack}
-        className="fixed top-3 left-3 sm:top-6 sm:left-6 flex items-center gap-2 text-gray-600 hover:text-gray-900 transition-colors z-50 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm border border-gray-200"
+        className="fixed top-3 left-3 sm:top-6 sm:left-6 flex items-center gap-2 text-gray-600 cursor-pointer hover:text-gray-900 transition-colors z-50 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-xl shadow-sm border border-gray-200"
         initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
         whileHover={{ x: -3 }}
       >
-        <ArrowLeft className="w-4 h-4" />
-        <span className="text-sm font-medium hidden xs:inline">Voltar</span>
+        <ArrowLeft className="w-4 h-4 sm:w-5 sm:h-5" />
+        <span className="text-sm sm:text-base">Voltar</span>
       </motion.button>
 
       <motion.div
@@ -478,64 +478,64 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
 
           {/* ── Lado esquerdo — visível só em lg+ ──────────────────────────── */}
           <motion.div
-            className="hidden lg:flex lg:w-5/12 bg-orange-600 p-10 flex-col justify-between text-white relative overflow-hidden"
-            initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }}
-            transition={{ delay: 0.15 }}
+            className="lg:w-1/2 bg-orange-600 p-12 flex flex-col justify-between text-white relative overflow-hidden"
+            initial={{ x: -50, opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            transition={{ delay: 0.2 }}
           >
-            <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-56 h-56 bg-black/10 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
+            <div className="absolute top-10 left-10 w-32 h-32 bg-white/10 rounded-full blur-2xl" />
+            <div className="absolute bottom-10 right-10 w-40 h-40 bg-white/10 rounded-full blur-3xl" />
 
             <div className="relative z-10">
               <motion.div
                 initial={{ scale: 0 }} animate={{ scale: 1 }}
                 transition={{ delay: 0.3, type: 'spring' }}
-                className="w-14 h-14 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-8"
+                className="w-16 h-16 bg-white/20 backdrop-blur-sm rounded-2xl flex items-center justify-center mb-8"
               >
                 {activeTab === 'empresa' ? <Building2 className="w-7 h-7" /> : <User className="w-7 h-7" />}
               </motion.div>
 
-              <AnimatePresence mode="wait">
-                <motion.div key={activeTab}
-                  initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.2 }}>
-                  <p className="text-orange-100 text-sm font-semibold mb-3 uppercase tracking-widest">
-                    {activeTab === 'empresa' ? 'Empresa / Organização' : 'Organizador Individual'}
-                  </p>
-                  <h2 className="text-3xl font-black leading-tight mb-4">
-                    {activeTab === 'empresa'
-                      ? 'Leve a sua empresa ao próximo nível'
-                      : 'Torna-te um organizador verificado'}
-                  </h2>
-                  <p className="text-white/75 leading-relaxed">
-                    {activeTab === 'empresa'
-                      ? 'Crie eventos corporativos, faça a gestão de equipas e aceda a métricas avançadas.'
-                      : 'Cria e gere eventos como profissional independente. Verificação rápida, aprovação em 24–48h.'}
-                  </p>
-                </motion.div>
-              </AnimatePresence>
+              <motion.div key={activeTab}
+                initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }} transition={{ duration: 0.2 }}>
+                <p className="text-lg mb-4 text-white/9">
+                  {activeTab === 'empresa' ? 'Empresa / Organização' : 'Organizador Individual'}
+                </p>
+                <h2 className="text-4xl font-bold leading-tight mb-6">
+                  {activeTab === 'empresa'
+                    ? 'Leve a sua empresa ao próximo nível'
+                    : 'Torna-te um organizador verificado'}
+                </h2>
+                <p className="text-white/80 text-lg">
+                  {activeTab === 'empresa'
+                    ? 'Crie eventos corporativos, faça a gestão de equipas e aceda a métricas avançadas.'
+                    : 'Cria e gere eventos como profissional independente. Verificação rápida, aprovação em 24–48h.'}
+                </p>
+              </motion.div>
             </div>
 
             <motion.div
-              className="relative z-10 space-y-2.5"
-              initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5 }}
+              className="relative z-10 space-y-3"
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.6 }}
             >
               {(activeTab === 'empresa'
                 ? ['Painel de gestão completo', 'Análises e métricas detalhadas', 'Suporte dedicado']
                 : ['Perfil verificado com badge', 'Publicação de eventos ilimitada', 'Dashboard exclusivo']
               ).map((item) => (
-                <div key={item} className="flex items-center gap-3 text-white/85">
-                  <div className="w-5 h-5 bg-white/20 rounded-full flex items-center justify-center flex-shrink-0">
-                    <CheckCircle className="w-3 h-3" />
+                <div key={item} className="flex items-center gap-3 text-white/90">
+                  <div className="w-6 h-6 bg-white/20 rounded-full flex items-center justify-center">
+                    <CheckCircle className="w-5 h-5" />
                   </div>
-                  <span className="text-sm font-medium">{item}</span>
+                  <span className="text-md font-medium">{item}</span>
                 </div>
               ))}
             </motion.div>
           </motion.div>
 
           {/* ── Lado direito (formulário) ───────────────────────────────────── */}
-          <div className="flex-1 lg:w-7/12 flex flex-col">
+          <div className="lg:w-1/2 p-12 flex flex-col justify-center">
 
             {/* Header com banner mobile (visível só abaixo de lg) */}
             <div className="lg:hidden bg-orange-600 px-6 pt-12 pb-6 text-white">
@@ -565,9 +565,8 @@ export function OrganizerSignupPage({ onBack }: { onBack: () => void }) {
                   <button
                     key={tab.id} type="button"
                     onClick={() => { setActiveTab(tab.id); setError(null); }}
-                    className={`relative flex flex-col items-start gap-0.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all text-left ${
-                      activeTab === tab.id ? 'bg-white shadow-sm' : 'hover:bg-white/50'
-                    }`}
+                    className={`relative flex flex-col items-start gap-0.5 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl transition-all text-left ${activeTab === tab.id ? 'bg-white shadow-sm' : 'hover:bg-white/50'
+                      }`}
                   >
                     <div className="flex items-center gap-2">
                       <tab.icon className={`w-4 h-4 ${activeTab === tab.id ? 'text-orange-600' : 'text-gray-400'}`} />
