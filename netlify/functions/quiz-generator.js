@@ -1,5 +1,6 @@
-// netlify/functions/quiz-illustration.js
-// ESM puro — Node 18+ fetch nativo
+// netlify/functions/quiz-generator.js
+// ESM puro — compatível com "type": "module" no package.json
+// Usa o fetch nativo do Node 18+ (sem node-fetch)
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +18,7 @@ export const handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: corsHeaders, body: '' };
   }
+
   if (event.httpMethod !== 'POST') {
     return json(405, { error: 'Método não permitido' });
   }
@@ -24,11 +26,41 @@ export const handler = async (event) => {
   try {
     const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY;
     if (!ANTHROPIC_API_KEY) {
-      return json(500, { error: 'ANTHROPIC_API_KEY não configurada' });
+      return json(500, { error: 'ANTHROPIC_API_KEY não configurada nas variáveis de ambiente do Netlify' });
     }
 
-    const { prompt } = JSON.parse(event.body || '{}');
-    if (!prompt) return json(400, { error: 'prompt é obrigatório' });
+    const { eventName, eventDescription, eventCategory, numberOfQuestions = 5 } =
+      JSON.parse(event.body || '{}');
+
+    if (!eventName) {
+      return json(400, { error: 'eventName é obrigatório' });
+    }
+
+    const prompt = `Cria ${numberOfQuestions} perguntas de quiz sobre o seguinte evento:
+
+Nome: ${eventName}
+Categoria: ${eventCategory || 'Geral'}
+Descrição: ${eventDescription || 'Sem descrição fornecida'}
+
+Regras:
+- Perguntas relevantes para o tema, categoria e conteúdo do evento
+- Cada pergunta tem exactamente 4 opções de resposta
+- Inclui uma explicação breve para cada resposta correcta
+- Varia a dificuldade (fácil, médio, difícil)
+- Escreve em Português
+
+Responde APENAS com JSON válido, sem texto adicional, sem blocos markdown:
+{
+  "questions": [
+    {
+      "id": "q1",
+      "question": "Pergunta?",
+      "options": ["A", "B", "C", "D"],
+      "correctAnswer": 0,
+      "explanation": "Explicação da resposta correcta."
+    }
+  ]
+}`;
 
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -39,49 +71,62 @@ export const handler = async (event) => {
       },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 1200,
-        system: 'Respondes SEMPRE e SOMENTE com JSON válido. Sem texto adicional. Sem blocos markdown.',
-        messages: [{
-          role: 'user',
-          content: `Cria uma ilustração SVG educativa para este tema de quiz: "${prompt}"
-
-Responde APENAS com JSON válido, sem markdown, sem backticks:
-{"svg": "...SVG completo aqui..."}
-
-Requisitos do SVG:
-- viewBox="0 0 440 180" xmlns="http://www.w3.org/2000/svg"
-- Estilo infográfico educativo colorido e moderno
-- Usa APENAS estas cores: #ea580c #f97316 #fb923c #fff7ed #1f2937 #374151 #6b7280 #f3f4f6 #16a34a #dcfce7 #1d4ed8 #dbeafe #fef9c3 #ca8a04 #ffffff
-- Inclui formas geométricas, ícones desenhados com paths/circles/rects e elementos simbólicos relevantes ao tema
-- Adiciona 2-3 labels de texto curtos (máx 3 palavras) com font-family="system-ui,sans-serif"
-- Visual de card moderno com fundo suave e elementos em destaque
-- SEM recursos externos, SEM tags image, apenas primitivas SVG`
-        }],
+        max_tokens: 2048,
+        system: 'Respondes SEMPRE e SOMENTE com JSON válido, sem texto adicional, sem blocos markdown.',
+        messages: [{ role: 'user', content: prompt }],
       }),
     });
 
     if (!response.ok) {
       const err = await response.json().catch(() => ({}));
-      return json(500, { error: err?.error?.message ?? `Erro Anthropic ${response.status}` });
+      return json(500, { error: err?.error?.message ?? `Anthropic API erro ${response.status}` });
     }
 
     const data = await response.json();
     const rawText = data?.content?.[0]?.text ?? '';
-    const clean = rawText.replace(/^```json\s*/i, '').replace(/^```\s*/i, '').replace(/\s*```$/i, '').trim();
+
+    const clean = rawText
+      .replace(/^```json\s*/i, '')
+      .replace(/^```\s*/i, '')
+      .replace(/\s*```$/i, '')
+      .trim();
 
     let parsed;
-    try { parsed = JSON.parse(clean); } catch {
-      return json(500, { error: 'Modelo não devolveu JSON válido' });
+    try {
+      parsed = JSON.parse(clean);
+    } catch {
+      return json(500, { error: 'O modelo não devolveu JSON válido. Tenta novamente.' });
     }
 
-    if (!parsed?.svg || typeof parsed.svg !== 'string') {
-      return json(500, { error: 'SVG não encontrado na resposta' });
+    if (!Array.isArray(parsed?.questions)) {
+      return json(500, { error: 'Formato de resposta inválido do modelo.' });
     }
 
-    return json(200, { svg: parsed.svg });
+    const questions = parsed.questions
+      .filter((q) =>
+        q.question &&
+        Array.isArray(q.options) &&
+        q.options.length === 4 &&
+        typeof q.correctAnswer === 'number' &&
+        q.correctAnswer >= 0 &&
+        q.correctAnswer <= 3
+      )
+      .map((q, i) => ({
+        id: q.id ?? `q${i + 1}`,
+        question: String(q.question),
+        options: q.options.map(String),
+        correctAnswer: Number(q.correctAnswer),
+        explanation: q.explanation ? String(q.explanation) : undefined,
+      }));
+
+    if (questions.length === 0) {
+      return json(500, { error: 'Nenhuma pergunta válida foi gerada. Tenta novamente.' });
+    }
+
+    return json(200, { questions });
 
   } catch (err) {
-    console.error('[quiz-illustration]', err?.message);
-    return json(500, { error: err?.message ?? 'Erro interno' });
+    console.error('quiz-generator error:', err);
+    return json(500, { error: err.message ?? 'Erro interno do servidor' });
   }
 };
