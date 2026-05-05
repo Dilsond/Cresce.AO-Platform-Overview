@@ -157,11 +157,12 @@ export default function OrganizerProfilePage() {
         setOrganizerAvatar(organizer.avatar_url);
       }
 
-      // Buscar eventos do organizador
+      // Buscar apenas eventos aprovados do organizador
       const { data: eventos, error: eventosError } = await supabase
         .from("eventos")
         .select("*")
         .eq("organizador_id", id)
+        .eq("status_aprovacao", "aprovado")
         .is("deleted_at", null)
         .order("data_evento", { ascending: true });
 
