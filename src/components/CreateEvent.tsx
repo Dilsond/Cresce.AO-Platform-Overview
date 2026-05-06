@@ -871,7 +871,7 @@ export function CreateEvent() {
                                     <img src={logo} alt="Logo" className="h-8 sm:h-10 w-auto object-contain" />
                                 </div>
                                 <h3 className="text-base sm:text-lg font-semibold text-orange-800 mb-2">Evento Gratuito</h3>
-                                <p className="text-xs sm:text-sm text-orange-600">Não é necessário configurar ingressos pagos.</p>
+                                <p className="text-xs sm:text-sm text-orange-600">Não é necessário configurar ingressos gratuitos.</p>
                             </div>
                         )}
                     </div>
