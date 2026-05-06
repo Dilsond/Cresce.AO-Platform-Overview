@@ -187,7 +187,7 @@ const CATEGORY_THEMES: Record<string, {
 }> = {
   default: {
     bg: '#FFF7ED', accent: '#EA580C', pill: '#EA580C', pillText: '#7C2D12',
-    light: '#FED7AA', lightText: '#9A3412', letter: 'G', label: 'Geral'
+    light: '#FED7AA', lightText: '#9A3412', letter: 'G', label: 'Palavras-Chaves'
   },
   musica: {
     bg: '#F0FDF4', accent: '#16A34A', pill: '#16A34A', pillText: '#14532D',
