@@ -154,134 +154,91 @@ const CircularTimer = ({ seconds, total }: { seconds: number; total: number }) =
 };
 
 // ─── Mapa de temas → paletas e ícones SVG ─────────────────────────────────────
-const THEME_MAP: Record<string, {
-  bg: string; accent: string; accent2: string; iconPath: string; label: string;
-}> = {
-  default: {
-    bg: '#fff7ed', accent: '#ea580c', accent2: '#fb923c', label: 'Quiz',
-    iconPath: 'M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2zm0 5v5l4 2'
-  },
-  musica: {
-    bg: '#f0fdf4', accent: '#16a34a', accent2: '#4ade80', label: 'Música',
-    iconPath: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'
-  },
-  arte: {
-    bg: '#fdf4ff', accent: '#9333ea', accent2: '#c084fc', label: 'Arte',
-    iconPath: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z'
-  },
-  tecnologia: {
-    bg: '#eff6ff', accent: '#1d4ed8', accent2: '#60a5fa', label: 'Tecnologia',
-    iconPath: 'M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18'
-  },
-  desporto: {
-    bg: '#fefce8', accent: '#ca8a04', accent2: '#fde047', label: 'Desporto',
-    iconPath: 'M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z'
-  },
-  ciencia: {
-    bg: '#ecfdf5', accent: '#0f766e', accent2: '#2dd4bf', label: 'Ciência',
-    iconPath: 'M19.428 15.428a2 2 0 0 0-1.022-.547l-2.387-.477a6 6 0 0 0-3.86.517l-.318.158'
-  },
-  historia: {
-    bg: '#fff8f1', accent: '#c2410c', accent2: '#fb923c', label: 'História',
-    iconPath: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'
-  },
-  gastronomia: {
-    bg: '#fef2f2', accent: '#dc2626', accent2: '#fca5a5', label: 'Gastronomia',
-    iconPath: 'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z'
-  },
+const CATEGORY_THEMES: Record<string, { bg: string; accent: string; light: string; letter: string }> = {
+  default: { bg: '#FFF7ED', accent: '#EA580C', light: '#FDDCBB', letter: 'G' },
+  musica: { bg: '#F0FDF4', accent: '#16A34A', light: '#BBF7D0', letter: 'M' },
+  arte: { bg: '#FDF4FF', accent: '#9333EA', light: '#E9D5FF', letter: 'A' },
+  tecnologia: { bg: '#EFF6FF', accent: '#1D4ED8', light: '#BFDBFE', letter: 'T' },
+  desporto: { bg: '#FEFCE8', accent: '#CA8A04', light: '#FEF08A', letter: 'D' },
+  ciencia: { bg: '#ECFDF5', accent: '#0F766E', light: '#99F6E4', letter: 'C' },
+  historia: { bg: '#FFF8F1', accent: '#C2410C', light: '#FED7AA', letter: 'H' },
+  gastronomia: { bg: '#FFF1F2', accent: '#DC2626', light: '#FECACA', letter: 'G' },
 };
 
-function getTheme(category: string, question: string) {
-  const text = (category + ' ' + question).toLowerCase();
-  if (/music|song|canc|sound/.test(text)) return THEME_MAP.musica;
-  if (/art|paint|design|desen/.test(text)) return THEME_MAP.arte;
-  if (/tech|code|software|program|comput/.test(text)) return THEME_MAP.tecnologia;
-  if (/sport|futebol|basket|desport|run/.test(text)) return THEME_MAP.desporto;
-  if (/science|ciencia|biolog|quimic|physics|fisica/.test(text)) return THEME_MAP.ciencia;
-  if (/histor|guerra|war|ancient|empire/.test(text)) return THEME_MAP.historia;
-  if (/food|comida|chef|gastro|culin/.test(text)) return THEME_MAP.gastronomia;
-  return THEME_MAP.default;
+function getCategory(category: string, question: string) {
+  const t = (category + ' ' + question).toLowerCase();
+  if (/music|song|canc|sound|banda|álbum/.test(t)) return CATEGORY_THEMES.musica;
+  if (/art|paint|design|desen|pintura/.test(t)) return CATEGORY_THEMES.arte;
+  if (/tech|code|software|program|comput/.test(t)) return CATEGORY_THEMES.tecnologia;
+  if (/sport|futebol|basket|desport|corrida/.test(t)) return CATEGORY_THEMES.desporto;
+  if (/scien|ciência|biolog|quimic|física/.test(t)) return CATEGORY_THEMES.ciencia;
+  if (/histor|guerra|war|empire|império/.test(t)) return CATEGORY_THEMES.historia;
+  if (/food|comida|chef|gastro|culin|receita/.test(t)) return CATEGORY_THEMES.gastronomia;
+  return CATEGORY_THEMES.default;
 }
 
-// ─── Ilustração estática interativa ──────────────────────────────────────────
 function AIQuestionImage({ prompt, question }: { prompt?: string; question: string }) {
-  const category = prompt?.split(':')[0] ?? '';
-  const theme = getTheme(category, question);
+  const cat = prompt?.split(':')[0] ?? '';
+  const theme = getCategory(cat, question);
 
-  // Extrai as 3-4 primeiras palavras relevantes como tags
-  const words = question
-    .replace(/[?!.,]/g, '')
-    .split(' ')
-    .filter(w => w.length > 3)
-    .slice(0, 3);
+  // Extrai até 3 palavras-chave com mais de 3 letras
+  const tags = question.replace(/[?!.,]/g, '').split(' ')
+    .filter(w => w.length > 3).slice(0, 3);
 
-  // Barra de "dificuldade" visual pseudo-aleatória mas determinística
+  // Barra de progresso visual determinística
   const hash = question.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const barWidths = [
-    40 + (hash % 40),
-    30 + ((hash * 3) % 50),
-    20 + ((hash * 7) % 60),
-  ];
+  const barPct = 30 + (hash % 55); // 30%–85%
 
-  const svgContent = `
-    <svg viewBox="0 0 440 140" xmlns="http://www.w3.org/2000/svg"
-      style="width:100%;border-radius:8px;border:1px solid ${theme.accent}22">
-      <rect width="440" height="140" fill="${theme.bg}" rx="8"/>
+  // Formas de fundo decorativas (triângulo varia por hash)
+  const triPoints = `${360 + (hash % 30)},10 ${420},10 ${390 + (hash % 20)},${40 + (hash % 20)}`;
 
-      <!-- Decorative circles -->
-      <circle cx="54" cy="70" r="40" fill="${theme.accent}" opacity=".10"/>
-      <circle cx="54" cy="70" r="28" fill="${theme.accent}" opacity=".16"/>
-      <circle cx="54" cy="70" r="16" fill="${theme.accent}"/>
+  const svg = `
+<svg width="100%" viewBox="0 0 440 150" xmlns="http://www.w3.org/2000/svg">
+  <rect width="440" height="150" fill="${theme.bg}" rx="10"/>
+  <rect x="0" y="0" width="10" height="150" fill="${theme.accent}" rx="2"/>
 
-      <!-- Icon (simplified path replaced by letter/symbol) -->
-      <text x="54" y="76" text-anchor="middle"
-        font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#fff">
-        ${theme.label[0]}
-      </text>
+  <!-- Decoração de fundo geométrica -->
+  <circle cx="320" cy="30" r="60" fill="${theme.accent}" opacity=".05"/>
+  <circle cx="395" cy="125" r="38" fill="${theme.accent}" opacity=".07"/>
+  <polygon points="${triPoints}" fill="${theme.accent}" opacity=".07"/>
 
-      <!-- Category badge -->
-      <rect x="10" y="110" width="${theme.label.length * 8 + 16}" height="20" rx="4"
-        fill="${theme.accent}" opacity=".15"/>
-      <text x="18" y="124" font-family="system-ui,sans-serif" font-size="11"
-        font-weight="600" fill="${theme.accent}">${theme.label}</text>
+  <!-- Ícone de categoria -->
+  <circle cx="56" cy="70" r="30" fill="${theme.accent}" opacity=".10"/>
+  <circle cx="56" cy="70" r="20" fill="${theme.accent}" opacity=".17"/>
+  <circle cx="56" cy="70" r="12" fill="${theme.accent}"/>
+  <text x="56" y="75" text-anchor="middle"
+    font-family="system-ui,sans-serif" font-size="13" font-weight="700" fill="#fff">${theme.letter}</text>
 
-      <!-- Question excerpt -->
-      <rect x="108" y="18" width="318" height="36" rx="6" fill="${theme.accent}" opacity=".08"/>
-      <text x="120" y="41" font-family="system-ui,sans-serif" font-size="12"
-        font-weight="600" fill="${theme.accent.replace('#', '') < '888888' ? theme.accent : '#1f2937'}">
-        ${question.length > 54 ? question.slice(0, 54) + '…' : question}
-      </text>
+  <!-- Rótulo da categoria -->
+  <text x="104" y="52" font-family="system-ui,sans-serif"
+    font-size="11" font-weight="600" fill="${theme.accent}" opacity=".8">${cat || 'Geral'}</text>
 
-      <!-- Keyword tags -->
-      ${words.map((w, i) => {
-    const x = 108 + i * 105;
+  <!-- Excerto da pergunta -->
+  <text x="104" y="74" font-family="system-ui,sans-serif"
+    font-size="13" font-weight="700" fill="#1F2937">
+    ${question.length > 52 ? question.slice(0, 52) + '…' : question}
+  </text>
+
+  <!-- Barra de progresso decorativa -->
+  <rect x="104" y="87" width="240" height="5" rx="2.5" fill="${theme.light}"/>
+  <rect x="104" y="87" width="${Math.round(240 * barPct / 100)}" height="5" rx="2.5" fill="${theme.accent}" opacity=".65"/>
+
+  <!-- Tags de palavras-chave -->
+  ${tags.map((w, i) => {
+    const xOffsets = [104, 104 + w.length * 6 + 18, 104 + tags[0].length * 6 + 18 + (tags[1]?.length ?? 0) * 6 + 26];
+    const x = xOffsets[i] ?? 104 + i * 80;
     return `
-          <rect x="${x}" y="66" width="${Math.min(w.length * 7 + 16, 98)}" height="20" rx="10"
-            fill="${i === 0 ? theme.accent : theme.accent2}" opacity="${i === 0 ? '.18' : '.12'}"/>
-          <text x="${x + 8}" y="80" font-family="system-ui,sans-serif" font-size="10"
-            fill="${theme.accent}">${w}</text>
-        `;
+  <rect x="${x}" y="103" width="${w.length * 6 + 14}" height="16" rx="8"
+    fill="${theme.accent}" opacity="${0.12 - i * 0.02}"/>
+  <text x="${x + 7}" y="115" font-family="system-ui,sans-serif"
+    font-size="10" fill="${theme.accent}">${w.toLowerCase()}</text>`;
   }).join('')}
-
-      <!-- Progress bars (visual flair) -->
-      <text x="108" y="108" font-family="system-ui,sans-serif" font-size="9"
-        fill="${theme.accent}" opacity=".6">dificuldade</text>
-      ${barWidths.map((w, i) => `
-        <rect x="108" y="${115 + i * 0}" width="200" height="4" rx="2"
-          fill="${theme.accent}" opacity=".08"/>
-        <rect x="108" y="${115 + i * 0}" width="${w}" height="4" rx="2"
-          fill="${theme.accent}" opacity=".5"/>
-      `).join('')}
-      <rect x="108" y="112" width="200" height="4" rx="2" fill="${theme.accent}" opacity=".08"/>
-      <rect x="108" y="112" width="${barWidths[0]}" height="4" rx="2"
-        fill="${theme.accent}" opacity=".55"/>
-    </svg>
-  `;
+</svg>`;
 
   return (
     <div
       className="w-full rounded-lg overflow-hidden"
-      dangerouslySetInnerHTML={{ __html: svgContent }}
+      dangerouslySetInnerHTML={{ __html: svg }}
       style={{ lineHeight: 0 }}
     />
   );
