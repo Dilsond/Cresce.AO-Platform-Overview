@@ -106,23 +106,23 @@ const Confetti = () => {
   const colors = ['#ea580c', '#f97316', '#fb923c', '#fdba74', '#16a34a', '#4ade80', '#1d4ed8', '#60a5fa'];
   // Reduz número de confetes em mobile
   const [isMobile, setIsMobile] = useState(false);
-  
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
   const count = isMobile ? 24 : 48;
-  
+
   return (
     <div className="pointer-events-none fixed inset-0 z-[80] overflow-hidden">
       {Array.from({ length: count }).map((_, i) => (
         <motion.div key={i} className="absolute rounded-sm"
           style={{
             backgroundColor: colors[i % colors.length],
-            width: (isMobile ? 3 : 5) + Math.random() * (isMobile ? 5 : 7), 
+            width: (isMobile ? 3 : 5) + Math.random() * (isMobile ? 5 : 7),
             height: (isMobile ? 3 : 5) + Math.random() * (isMobile ? 5 : 7),
             left: `${Math.random() * 100}%`, top: '-16px',
           }}
@@ -130,8 +130,10 @@ const Confetti = () => {
             y: ['0vh', '110vh'], x: [(Math.random() - 0.5) * (isMobile ? 180 : 280)],
             rotate: [0, Math.random() * 720 - 360], opacity: [1, 1, 0],
           }}
-          transition={{ duration: (isMobile ? 1.5 : 2) + Math.random() * (isMobile ? 1.5 : 2), 
-            delay: Math.random() * (isMobile ? 0.8 : 1.2), ease: 'easeIn' }}
+          transition={{
+            duration: (isMobile ? 1.5 : 2) + Math.random() * (isMobile ? 1.5 : 2),
+            delay: Math.random() * (isMobile ? 0.8 : 1.2), ease: 'easeIn'
+          }}
         />
       ))}
     </div>
@@ -141,27 +143,27 @@ const Confetti = () => {
 // ─── Timer circular responsivo ───────────────────────────────────────────────
 const CircularTimer = ({ seconds, total }: { seconds: number; total: number }) => {
   const [isMobile, setIsMobile] = useState(false);
-  
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
   const r = isMobile ? 16 : 20;
   const circ = 2 * Math.PI * r;
   const urgent = seconds <= 5;
   const warning = seconds <= 10;
   const color = urgent ? '#dc2626' : warning ? '#d97706' : '#ea580c';
   const size = isMobile ? 36 : 48;
-  
+
   return (
-    <div className={`relative w-${size/4} h-${size/4} flex items-center justify-center flex-shrink-0`}
-         style={{ width: size, height: size }}>
+    <div className={`relative w-${size / 4} h-${size / 4} flex items-center justify-center flex-shrink-0`}
+      style={{ width: size, height: size }}>
       <svg className="-rotate-90 absolute inset-0 w-full h-full">
-        <circle cx={size/2} cy={size/2} r={r} stroke="#e5e7eb" strokeWidth={isMobile ? 2.5 : 3} fill="none" />
-        <motion.circle cx={size/2} cy={size/2} r={r}
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="#e5e7eb" strokeWidth={isMobile ? 2.5 : 3} fill="none" />
+        <motion.circle cx={size / 2} cy={size / 2} r={r}
           stroke={color} strokeWidth={isMobile ? 2.5 : 3} fill="none" strokeLinecap="round"
           strokeDasharray={circ}
           animate={{ strokeDashoffset: circ - (seconds / total) * circ }}
@@ -179,19 +181,45 @@ const CircularTimer = ({ seconds, total }: { seconds: number; total: number }) =
   );
 };
 
-// ─── Mapa de temas → paletas e ícones SVG responsivo ─────────────────────────
-const CATEGORY_THEMES: Record<string, { bg: string; accent: string; light: string; letter: string }> = {
-  default: { bg: '#FFF7ED', accent: '#EA580C', light: '#FDDCBB', letter: 'G' },
-  musica: { bg: '#F0FDF4', accent: '#16A34A', light: '#BBF7D0', letter: 'M' },
-  arte: { bg: '#FDF4FF', accent: '#9333EA', light: '#E9D5FF', letter: 'A' },
-  tecnologia: { bg: '#EFF6FF', accent: '#1D4ED8', light: '#BFDBFE', letter: 'T' },
-  desporto: { bg: '#FEFCE8', accent: '#CA8A04', light: '#FEF08A', letter: 'D' },
-  ciencia: { bg: '#ECFDF5', accent: '#0F766E', light: '#99F6E4', letter: 'C' },
-  historia: { bg: '#FFF8F1', accent: '#C2410C', light: '#FED7AA', letter: 'H' },
-  gastronomia: { bg: '#FFF1F2', accent: '#DC2626', light: '#FECACA', letter: 'G' },
+const CATEGORY_THEMES: Record<string, {
+  bg: string; accent: string; pill: string; pillText: string;
+  light: string; lightText: string; letter: string; label: string;
+}> = {
+  default: {
+    bg: '#FFF7ED', accent: '#EA580C', pill: '#EA580C', pillText: '#7C2D12',
+    light: '#FED7AA', lightText: '#9A3412', letter: 'G', label: 'Geral'
+  },
+  musica: {
+    bg: '#F0FDF4', accent: '#16A34A', pill: '#16A34A', pillText: '#14532D',
+    light: '#BBF7D0', lightText: '#166534', letter: 'M', label: 'Música'
+  },
+  arte: {
+    bg: '#FDF4FF', accent: '#9333EA', pill: '#9333EA', pillText: '#581C87',
+    light: '#E9D5FF', lightText: '#6B21A8', letter: 'A', label: 'Arte'
+  },
+  tecnologia: {
+    bg: '#EFF6FF', accent: '#1D4ED8', pill: '#1D4ED8', pillText: '#1E3A8A',
+    light: '#DBEAFE', lightText: '#1D4ED8', letter: 'T', label: 'Tecnologia'
+  },
+  desporto: {
+    bg: '#FEFCE8', accent: '#CA8A04', pill: '#CA8A04', pillText: '#713F12',
+    light: '#FEF08A', lightText: '#854D0E', letter: 'D', label: 'Desporto'
+  },
+  ciencia: {
+    bg: '#ECFDF5', accent: '#0F766E', pill: '#0F766E', pillText: '#134E4A',
+    light: '#99F6E4', lightText: '#0F766E', letter: 'C', label: 'Ciência'
+  },
+  historia: {
+    bg: '#FFF8F1', accent: '#C2410C', pill: '#C2410C', pillText: '#7C2D12',
+    light: '#FED7AA', lightText: '#9A3412', letter: 'H', label: 'História'
+  },
+  gastronomia: {
+    bg: '#FFF1F2', accent: '#DC2626', pill: '#DC2626', pillText: '#7F1D1D',
+    light: '#FECACA', lightText: '#991B1B', letter: 'G', label: 'Gastronomia'
+  },
 };
 
-function getCategory(category: string, question: string) {
+function resolveTheme(category: string, question: string) {
   const t = (category + ' ' + question).toLowerCase();
   if (/music|song|canc|sound|banda|álbum/.test(t)) return CATEGORY_THEMES.musica;
   if (/art|paint|design|desen|pintura/.test(t)) return CATEGORY_THEMES.arte;
@@ -204,67 +232,84 @@ function getCategory(category: string, question: string) {
 }
 
 function AIQuestionImage({ prompt, question }: { prompt?: string; question: string }) {
-  const [isMobile, setIsMobile] = useState(false);
-  
-  useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 640);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
-    return () => window.removeEventListener('resize', checkMobile);
-  }, []);
-  
-  const cat = prompt?.split(':')[0] ?? '';
-  const theme = getCategory(cat, question);
+  const catLabel = prompt?.split(':')[0]?.trim() ?? '';
+  const theme = resolveTheme(catLabel, question);
 
-  const tags = question.replace(/[?!.,]/g, '').split(' ')
-    .filter(w => w.length > 3).slice(0, isMobile ? 2 : 3);
+  // Palavras-chave primárias (>4 letras, até 3)
+  const primary = question.replace(/[?!.,]/g, '').split(' ')
+    .filter(w => w.length > 4).slice(0, 3);
+
+  // Palavras-chave secundárias (3–4 letras, até 4)
+  const secondary = question.replace(/[?!.,]/g, '').split(' ')
+    .filter(w => w.length >= 3 && w.length <= 4).slice(0, 4);
+
+  // Posições X das tags primárias (calculadas a partir do comprimento)
+  let px = 130;
+  const primaryTags = primary.map(w => {
+    const width = w.length * 9 + 24;
+    const tag = { w, x: px, width };
+    px += width + 10;
+    return tag;
+  });
+
+  // Posições X das tags secundárias
+  let sx = 130;
+  const secondaryTags = secondary.map(w => {
+    const width = w.length * 7 + 20;
+    const tag = { w, x: sx, width };
+    sx += width + 8;
+    return tag;
+  });
 
   const hash = question.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
-  const barPct = 30 + (hash % 55);
-  const triPoints = `${360 + (hash % 30)},10 ${420},10 ${390 + (hash % 20)},${40 + (hash % 20)}`;
-  
-  const width = isMobile ? 320 : 440;
-  const height = isMobile ? 120 : 150;
-  const fontSize = isMobile ? 11 : 13;
-  const tagFontSize = isMobile ? 9 : 10;
+  const triX = 360 + (hash % 40);
 
   const svg = `
-<svg width="100%" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="${width}" height="${height}" fill="${theme.bg}" rx="${isMobile ? 6 : 10}"/>
-  <rect x="0" y="0" width="${isMobile ? 6 : 10}" height="${height}" fill="${theme.accent}" rx="${isMobile ? 2 : 3}"/>
+<svg width="100%" viewBox="0 0 440 150" xmlns="http://www.w3.org/2000/svg">
+  <rect width="440" height="150" fill="${theme.bg}" rx="10"/>
 
-  <circle cx="${width - 100}" cy="${isMobile ? 25 : 30}" r="${isMobile ? 40 : 60}" fill="${theme.accent}" opacity=".05"/>
-  <circle cx="${width - 35}" cy="${height - 20}" r="${isMobile ? 25 : 38}" fill="${theme.accent}" opacity=".07"/>
-  <polygon points="${triPoints}" fill="${theme.accent}" opacity=".07"/>
+  <!-- Decoração geométrica -->
+  <circle cx="390" cy="18" r="65" fill="${theme.accent}" opacity=".05"/>
+  <circle cx="420" cy="135" r="40" fill="${theme.accent}" opacity=".06"/>
+  <polygon points="${triX},8 ${triX + 48},8 ${triX + 24},${36 + (hash % 18)}"
+    fill="${theme.accent}" opacity=".06"/>
 
-  <circle cx="${isMobile ? 40 : 56}" cy="${height/2}" r="${isMobile ? 20 : 30}" fill="${theme.accent}" opacity=".10"/>
-  <circle cx="${isMobile ? 40 : 56}" cy="${height/2}" r="${isMobile ? 13 : 20}" fill="${theme.accent}" opacity=".17"/>
-  <circle cx="${isMobile ? 40 : 56}" cy="${height/2}" r="${isMobile ? 8 : 12}" fill="${theme.accent}"/>
-  <text x="${isMobile ? 40 : 56}" y="${height/2 + (isMobile ? 3 : 5)}" text-anchor="middle"
-    font-family="system-ui,sans-serif" font-size="${isMobile ? 10 : 13}" font-weight="700" fill="#fff">${theme.letter}</text>
+  <!-- Ícone -->
+  <circle cx="68" cy="75" r="42" fill="${theme.accent}" opacity=".07"/>
+  <circle cx="68" cy="75" r="28" fill="${theme.accent}" opacity=".13"/>
+  <circle cx="68" cy="75" r="16" fill="${theme.accent}"/>
+  <text x="68" y="80" text-anchor="middle"
+    font-family="system-ui,sans-serif" font-size="14" font-weight="700" fill="#fff"
+    >${theme.letter}</text>
 
-  <text x="${isMobile ? 70 : 104}" y="${isMobile ? 42 : 52}" font-family="system-ui,sans-serif"
-    font-size="${isMobile ? 10 : 11}" font-weight="600" fill="${theme.accent}" opacity=".8">${cat || 'Geral'}</text>
+  <!-- Badge de categoria -->
+  <rect x="130" y="14" width="${theme.label.length * 7 + 18}" height="18" rx="9"
+    fill="${theme.accent}" opacity=".12"/>
+  <text x="${130 + (theme.label.length * 7 + 18) / 2}" y="26.5" text-anchor="middle"
+    font-family="system-ui,sans-serif" font-size="10" font-weight="600"
+    fill="${theme.pillText}">${theme.label}</text>
 
-  <text x="${isMobile ? 70 : 104}" y="${isMobile ? 60 : 74}" font-family="system-ui,sans-serif"
-    font-size="${fontSize}" font-weight="700" fill="#1F2937">
-    ${question.length > (isMobile ? 35 : 52) ? question.slice(0, isMobile ? 35 : 52) + '…' : question}
-  </text>
+  <!-- Tags primárias -->
+  ${primaryTags.map((tag, i) => `
+  <rect x="${tag.x}" y="44" width="${tag.width}" height="28" rx="14"
+    fill="${theme.accent}" opacity="${0.15 - i * 0.03}"/>
+  <text x="${tag.x + tag.width / 2}" y="62" text-anchor="middle"
+    font-family="system-ui,sans-serif" font-size="13" font-weight="700"
+    fill="${theme.pillText}">${tag.w.toLowerCase()}</text>
+  `).join('')}
 
-  <rect x="${isMobile ? 70 : 104}" y="${isMobile ? 70 : 87}" width="${width - (isMobile ? 90 : 130)}" height="${isMobile ? 3 : 5}" rx="${isMobile ? 1.5 : 2.5}" fill="${theme.light}"/>
-  <rect x="${isMobile ? 70 : 104}" y="${isMobile ? 70 : 87}" width="${Math.round((width - (isMobile ? 90 : 130)) * barPct / 100)}" height="${isMobile ? 3 : 5}" rx="${isMobile ? 1.5 : 2.5}" fill="${theme.accent}" opacity=".65"/>
+  <!-- Divisor -->
+  <line x1="130" y1="87" x2="424" y2="87"
+    stroke="${theme.light}" stroke-width="1.2"/>
 
-  ${tags.map((w, i) => {
-    const x = isMobile 
-      ? (i === 0 ? 70 : 70 + tags[0].length * 5 + 15)
-      : (i === 0 ? 104 : i === 1 ? 104 + tags[0].length * 6 + 18 : 104 + tags[0].length * 6 + 18 + (tags[1]?.length ?? 0) * 6 + 26);
-    const tagWidth = w.length * (isMobile ? 5 : 6) + (isMobile ? 10 : 14);
-    return `
-  <rect x="${x}" y="${isMobile ? 82 : 103}" width="${tagWidth}" height="${isMobile ? 12 : 16}" rx="${isMobile ? 6 : 8}"
-    fill="${theme.accent}" opacity="${0.12 - i * 0.02}"/>
-  <text x="${x + (isMobile ? 4 : 7)}" y="${isMobile ? 91 : 115}" font-family="system-ui,sans-serif"
-    font-size="${tagFontSize}" fill="${theme.accent}">${w.toLowerCase()}</text>`;
-  }).join('')}
+  <!-- Tags secundárias -->
+  ${secondaryTags.map(tag => `
+  <rect x="${tag.x}" y="99" width="${tag.width}" height="18" rx="9"
+    fill="${theme.light}"/>
+  <text x="${tag.x + tag.width / 2}" y="112" text-anchor="middle"
+    font-family="system-ui,sans-serif" font-size="10"
+    fill="${theme.lightText}">${tag.w.toLowerCase()}</text>
+  `).join('')}
 </svg>`;
 
   return (
@@ -510,7 +555,7 @@ function QuestionScreen({
 }: any) {
   const progressPct = ((current + 1) / questions.length) * 100;
   const [isMobile, setIsMobile] = useState(false);
-  
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
@@ -659,14 +704,14 @@ function ResultsScreen({ questions, answers, pct, score, feedback, loadQuiz, onC
   const [isMobile, setIsMobile] = useState(false);
   const r = isMobile ? 36 : 48;
   const circ = 2 * Math.PI * r;
-  
+
   useEffect(() => {
     const checkMobile = () => setIsMobile(window.innerWidth < 640);
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
-  
+
   return (
     <div className="bg-white">
       {/* Score header responsivo */}
