@@ -153,100 +153,136 @@ const CircularTimer = ({ seconds, total }: { seconds: number; total: number }) =
   );
 };
 
-// ─── Imagem SVG gerada por IA para cada pergunta ──────────────────────────────
+// ─── Mapa de temas → paletas e ícones SVG ─────────────────────────────────────
+const THEME_MAP: Record<string, {
+  bg: string; accent: string; accent2: string; iconPath: string; label: string;
+}> = {
+  default: {
+    bg: '#fff7ed', accent: '#ea580c', accent2: '#fb923c', label: 'Quiz',
+    iconPath: 'M12 2a10 10 0 1 1 0 20A10 10 0 0 1 12 2zm0 5v5l4 2'
+  },
+  musica: {
+    bg: '#f0fdf4', accent: '#16a34a', accent2: '#4ade80', label: 'Música',
+    iconPath: 'M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z'
+  },
+  arte: {
+    bg: '#fdf4ff', accent: '#9333ea', accent2: '#c084fc', label: 'Arte',
+    iconPath: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z'
+  },
+  tecnologia: {
+    bg: '#eff6ff', accent: '#1d4ed8', accent2: '#60a5fa', label: 'Tecnologia',
+    iconPath: 'M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2V9M9 21H5a2 2 0 0 1-2-2V9m0 0h18'
+  },
+  desporto: {
+    bg: '#fefce8', accent: '#ca8a04', accent2: '#fde047', label: 'Desporto',
+    iconPath: 'M12 22C6.48 22 2 17.52 2 12S6.48 2 12 2s10 4.48 10 10-4.48 10-10 10z'
+  },
+  ciencia: {
+    bg: '#ecfdf5', accent: '#0f766e', accent2: '#2dd4bf', label: 'Ciência',
+    iconPath: 'M19.428 15.428a2 2 0 0 0-1.022-.547l-2.387-.477a6 6 0 0 0-3.86.517l-.318.158'
+  },
+  historia: {
+    bg: '#fff8f1', accent: '#c2410c', accent2: '#fb923c', label: 'História',
+    iconPath: 'M12 8v4l3 3m6-3a9 9 0 1 1-18 0 9 9 0 0 1 18 0z'
+  },
+  gastronomia: {
+    bg: '#fef2f2', accent: '#dc2626', accent2: '#fca5a5', label: 'Gastronomia',
+    iconPath: 'M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z'
+  },
+};
+
+function getTheme(category: string, question: string) {
+  const text = (category + ' ' + question).toLowerCase();
+  if (/music|song|canc|sound/.test(text)) return THEME_MAP.musica;
+  if (/art|paint|design|desen/.test(text)) return THEME_MAP.arte;
+  if (/tech|code|software|program|comput/.test(text)) return THEME_MAP.tecnologia;
+  if (/sport|futebol|basket|desport|run/.test(text)) return THEME_MAP.desporto;
+  if (/science|ciencia|biolog|quimic|physics|fisica/.test(text)) return THEME_MAP.ciencia;
+  if (/histor|guerra|war|ancient|empire/.test(text)) return THEME_MAP.historia;
+  if (/food|comida|chef|gastro|culin/.test(text)) return THEME_MAP.gastronomia;
+  return THEME_MAP.default;
+}
+
+// ─── Ilustração estática interativa ──────────────────────────────────────────
 function AIQuestionImage({ prompt, question }: { prompt?: string; question: string }) {
-  const [svgData, setSvgData] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [failed, setFailed] = useState(false);
-  const generatedFor = useRef('');
+  const category = prompt?.split(':')[0] ?? '';
+  const theme = getTheme(category, question);
 
-  useEffect(() => {
-    const key = prompt || question;
-    if (generatedFor.current === key) return;
-    generatedFor.current = key;
+  // Extrai as 3-4 primeiras palavras relevantes como tags
+  const words = question
+    .replace(/[?!.,]/g, '')
+    .split(' ')
+    .filter(w => w.length > 3)
+    .slice(0, 3);
 
-    setLoading(true);
-    setFailed(false);
-    setSvgData(null);
+  // Barra de "dificuldade" visual pseudo-aleatória mas determinística
+  const hash = question.split('').reduce((a, c) => a + c.charCodeAt(0), 0);
+  const barWidths = [
+    40 + (hash % 40),
+    30 + ((hash * 3) % 50),
+    20 + ((hash * 7) % 60),
+  ];
 
-    (async () => {
-      try {
-        const res = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
-            max_tokens: 1024,
-            messages: [{
-              role: 'user',
-              content: `Create an educational SVG illustration for this quiz topic: "${key}"
+  const svgContent = `
+    <svg viewBox="0 0 440 140" xmlns="http://www.w3.org/2000/svg"
+      style="width:100%;border-radius:8px;border:1px solid ${theme.accent}22">
+      <rect width="440" height="140" fill="${theme.bg}" rx="8"/>
 
-Respond ONLY with valid JSON, no markdown, no backticks, no extra text:
-{"svg": "...full SVG string here..."}
+      <!-- Decorative circles -->
+      <circle cx="54" cy="70" r="40" fill="${theme.accent}" opacity=".10"/>
+      <circle cx="54" cy="70" r="28" fill="${theme.accent}" opacity=".16"/>
+      <circle cx="54" cy="70" r="16" fill="${theme.accent}"/>
 
-SVG requirements:
-- viewBox="0 0 440 200" xmlns="http://www.w3.org/2000/svg"
-- Rich, colorful educational infographic style
-- Use these colors only: #ea580c #f97316 #fb923c #fff7ed #1f2937 #374151 #6b7280 #f3f4f6 #16a34a #dcfce7 #1d4ed8 #dbeafe #fef9c3 #ca8a04
-- Include relevant shapes, icons drawn with SVG paths/circles/rects, symbolic elements
-- Add 2-3 short text labels (max 3 words each) using font-family="system-ui,sans-serif"
-- Make it look like a modern card illustration
-- NO external resources, NO images tags, only SVG primitives`
-            }]
-          })
-        });
+      <!-- Icon (simplified path replaced by letter/symbol) -->
+      <text x="54" y="76" text-anchor="middle"
+        font-family="system-ui,sans-serif" font-size="16" font-weight="700" fill="#fff">
+        ${theme.label[0]}
+      </text>
 
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        const text = data.content?.find((b: any) => b.type === 'text')?.text || '';
-        const clean = text.replace(/```json|```/g, '').trim();
-        const parsed = JSON.parse(clean);
-        if (parsed?.svg && typeof parsed.svg === 'string') {
-          setSvgData(parsed.svg);
-        } else {
-          throw new Error('No SVG');
-        }
-      } catch {
-        setFailed(true);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [prompt, question]);
+      <!-- Category badge -->
+      <rect x="10" y="110" width="${theme.label.length * 8 + 16}" height="20" rx="4"
+        fill="${theme.accent}" opacity=".15"/>
+      <text x="18" y="124" font-family="system-ui,sans-serif" font-size="11"
+        font-weight="600" fill="${theme.accent}">${theme.label}</text>
 
-  if (loading) {
-    return (
-      <div className="w-full h-32 bg-orange-50 border border-orange-100 rounded-lg flex flex-col items-center justify-center gap-2">
-        <motion.div animate={{ rotate: 360 }} transition={{ duration: 1.4, repeat: Infinity, ease: 'linear' }}>
-          <Brain className="w-6 h-6 text-orange-500" />
-        </motion.div>
-        <div className="h-1 bg-orange-100 rounded-full overflow-hidden w-20">
-          <motion.div className="h-full bg-orange-400 rounded-full"
-            animate={{ x: ['-100%', '200%'] }}
-            transition={{ duration: 1.1, repeat: Infinity, ease: 'easeInOut' }} />
-        </div>
-        <p className="text-[10px] text-orange-400 font-semibold tracking-wide">A gerar ilustração...</p>
-      </div>
-    );
-  }
+      <!-- Question excerpt -->
+      <rect x="108" y="18" width="318" height="36" rx="6" fill="${theme.accent}" opacity=".08"/>
+      <text x="120" y="41" font-family="system-ui,sans-serif" font-size="12"
+        font-weight="600" fill="${theme.accent.replace('#', '') < '888888' ? theme.accent : '#1f2937'}">
+        ${question.length > 54 ? question.slice(0, 54) + '…' : question}
+      </text>
 
-  if (failed || !svgData) {
-    return (
-      <div className="w-full h-32 bg-gray-50 border border-gray-200 rounded-lg flex flex-col items-center justify-center gap-1.5">
-        <ImageIcon className="w-6 h-6 text-gray-300" />
-        <p className="text-[10px] text-gray-400">Ilustração indisponível</p>
-      </div>
-    );
-  }
+      <!-- Keyword tags -->
+      ${words.map((w, i) => {
+    const x = 108 + i * 105;
+    return `
+          <rect x="${x}" y="66" width="${Math.min(w.length * 7 + 16, 98)}" height="20" rx="10"
+            fill="${i === 0 ? theme.accent : theme.accent2}" opacity="${i === 0 ? '.18' : '.12'}"/>
+          <text x="${x + 8}" y="80" font-family="system-ui,sans-serif" font-size="10"
+            fill="${theme.accent}">${w}</text>
+        `;
+  }).join('')}
+
+      <!-- Progress bars (visual flair) -->
+      <text x="108" y="108" font-family="system-ui,sans-serif" font-size="9"
+        fill="${theme.accent}" opacity=".6">dificuldade</text>
+      ${barWidths.map((w, i) => `
+        <rect x="108" y="${115 + i * 0}" width="200" height="4" rx="2"
+          fill="${theme.accent}" opacity=".08"/>
+        <rect x="108" y="${115 + i * 0}" width="${w}" height="4" rx="2"
+          fill="${theme.accent}" opacity=".5"/>
+      `).join('')}
+      <rect x="108" y="112" width="200" height="4" rx="2" fill="${theme.accent}" opacity=".08"/>
+      <rect x="108" y="112" width="${barWidths[0]}" height="4" rx="2"
+        fill="${theme.accent}" opacity=".55"/>
+    </svg>
+  `;
 
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.98 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.3 }}
-      className="w-full rounded-lg overflow-hidden border border-orange-100"
-      dangerouslySetInnerHTML={{ __html: svgData }}
-      style={{ lineHeight: 0, display: 'block' }}
+    <div
+      className="w-full rounded-lg overflow-hidden"
+      dangerouslySetInnerHTML={{ __html: svgContent }}
+      style={{ lineHeight: 0 }}
     />
   );
 }
@@ -373,9 +409,9 @@ export function EventQuiz({
 
   const feedback = (() => {
     if (pct === 100) return { title: 'Perfeito! 🏆', msg: 'Dominas completamente este tema!', color: '#ea580c', grade: 'S' };
-    if (pct >= 80)  return { title: 'Excelente! ⚡', msg: 'Muito bom desempenho!', color: '#16a34a', grade: 'A' };
-    if (pct >= 60)  return { title: 'Bom trabalho! 👍', msg: 'Continua a melhorar!', color: '#1d4ed8', grade: 'B' };
-    if (pct >= 40)  return { title: 'Pode melhorar 📚', msg: 'Revê os conteúdos.', color: '#d97706', grade: 'C' };
+    if (pct >= 80) return { title: 'Excelente! ⚡', msg: 'Muito bom desempenho!', color: '#16a34a', grade: 'A' };
+    if (pct >= 60) return { title: 'Bom trabalho! 👍', msg: 'Continua a melhorar!', color: '#1d4ed8', grade: 'B' };
+    if (pct >= 40) return { title: 'Pode melhorar 📚', msg: 'Revê os conteúdos.', color: '#d97706', grade: 'C' };
     return { title: 'Tenta novamente 💪', msg: 'Não desistas!', color: '#6b7280', grade: 'D' };
   })();
 
@@ -432,38 +468,38 @@ export function EventQuiz({
           {loading
             ? <QuizLoading eventName={eventName} />
             : error
-            ? (
-              <div className="p-6 text-center">
-                <div className="w-12 h-12 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-3">
-                  <XCircle className="w-6 h-6 text-red-500" />
+              ? (
+                <div className="p-6 text-center">
+                  <div className="w-12 h-12 rounded-full bg-red-50 border border-red-200 flex items-center justify-center mx-auto mb-3">
+                    <XCircle className="w-6 h-6 text-red-500" />
+                  </div>
+                  <h3 className="text-sm font-bold text-gray-900 mb-1">Erro ao gerar quiz</h3>
+                  <p className="text-gray-500 text-xs mb-4 leading-relaxed">{error}</p>
+                  <div className="flex gap-2">
+                    <button onClick={loadQuiz}
+                      className="flex-1 py-2.5 rounded-lg font-semibold text-white text-sm bg-orange-600 hover:bg-orange-700 transition-colors">
+                      Tentar novamente
+                    </button>
+                    <button onClick={onClose}
+                      className="flex-1 py-2.5 rounded-lg font-semibold text-gray-600 text-sm bg-gray-100 hover:bg-gray-200 transition-colors">
+                      Fechar
+                    </button>
+                  </div>
                 </div>
-                <h3 className="text-sm font-bold text-gray-900 mb-1">Erro ao gerar quiz</h3>
-                <p className="text-gray-500 text-xs mb-4 leading-relaxed">{error}</p>
-                <div className="flex gap-2">
-                  <button onClick={loadQuiz}
-                    className="flex-1 py-2.5 rounded-lg font-semibold text-white text-sm bg-orange-600 hover:bg-orange-700 transition-colors">
-                    Tentar novamente
-                  </button>
-                  <button onClick={onClose}
-                    className="flex-1 py-2.5 rounded-lg font-semibold text-gray-600 text-sm bg-gray-100 hover:bg-gray-200 transition-colors">
-                    Fechar
-                  </button>
-                </div>
-              </div>
-            )
-            : showResults
-            ? <ResultsScreen
-                questions={questions} answers={answers} pct={pct} score={score}
-                feedback={feedback} loadQuiz={loadQuiz} onClose={onClose}
-              />
-            : questions.length > 0
-            ? <QuestionScreen
-                q={currentQ} current={current} questions={questions}
-                selected={selected} submitted={submitted} timeLeft={timeLeft}
-                streak={streak} streakFlash={streakFlash} answers={answers}
-                eventCategory={eventCategory} submitAnswer={submitAnswer} onClose={onClose}
-              />
-            : null
+              )
+              : showResults
+                ? <ResultsScreen
+                  questions={questions} answers={answers} pct={pct} score={score}
+                  feedback={feedback} loadQuiz={loadQuiz} onClose={onClose}
+                />
+                : questions.length > 0
+                  ? <QuestionScreen
+                    q={currentQ} current={current} questions={questions}
+                    selected={selected} submitted={submitted} timeLeft={timeLeft}
+                    streak={streak} streakFlash={streakFlash} answers={answers}
+                    eventCategory={eventCategory} submitAnswer={submitAnswer} onClose={onClose}
+                  />
+                  : null
           }
         </div>
       </motion.div>
@@ -681,8 +717,8 @@ function ResultsScreen({ questions, answers, pct, score, feedback, loadQuiz, onC
                   {ua === -1
                     ? <p className="text-[10px] text-red-500 font-medium mt-0.5">⏱ Tempo esgotado</p>
                     : <p className="text-[10px] text-gray-400 mt-0.5">
-                        Escolheste: <span className="text-gray-700 font-medium">{q.options[ua]}</span>
-                      </p>
+                      Escolheste: <span className="text-gray-700 font-medium">{q.options[ua]}</span>
+                    </p>
                   }
                   {!ok && ua !== -1 && (
                     <p className="text-[10px] text-green-600 font-semibold mt-0.5">✓ {q.options[q.correctAnswer]}</p>
